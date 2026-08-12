@@ -208,21 +208,23 @@ class PortHNN(nn.Module):
 
 class ExtendedHNN(nn.Module):
     """
-    扩展系统 HNN: H = H_pend(q1,p1) + H_ho(q2,p2) + H_coup(q1,p1,q2,p2)
+    扩展系统 HNN: H = H_pend(q1,p1) + H_ho(q2,p2) + H_coup(q1,q2)
     4D 保守系统，通过辅助 HO 吸收能量。
+    耦合采用乘积分解: H_coup = -c * q1 * q2 (Caldeira-Leggett 双线性耦合)
     """
 
-    def __init__(self, omega=2.0, pend_hidden=200, coup_hidden=128, num_layers=3):
+    def __init__(self, omega=2.0, pend_hidden=200, num_layers=3):
         super().__init__()
         self.omega = omega
         self.pendulum_net = make_mlp(2, pend_hidden, num_layers)
-        self.coupling_net = make_mlp(4, coup_hidden, num_layers)
+        # 乘积分解耦合: 可学习的耦合强度 c
+        self.c = nn.Parameter(torch.tensor(0.3))
 
     def forward(self, x):
-        q1_p1 = x[:, :2]; q2 = x[:, 2:3]; p2 = x[:, 3:4]
+        q1_p1 = x[:, :2]; q1 = x[:, 0:1]; q2 = x[:, 2:3]; p2 = x[:, 3:4]
         H_pend = self.pendulum_net(q1_p1)
         H_ho = 0.5 * p2**2 + 0.5 * self.omega**2 * q2**2
-        H_coup = self.coupling_net(x)
+        H_coup = -self.c * q1 * q2
         return H_pend + H_ho + H_coup
 
     def time_derivative(self, x):
@@ -425,11 +427,11 @@ def main():
     print("\n" + "=" * 70)
     print("方法 B: 扩展系统 HNN -- 辅助 HO 吸收能量")
     print("=" * 70)
-    print("  H = H_pend(MLP) + H_ho(已知) + H_coup(MLP)")
+    print("  H = H_pend(MLP) + H_ho(已知) + H_coup = -c·q1·q2 (乘积分解)")
     print("  4D 保守系统，总 H 守恒")
 
     torch.manual_seed(SEED); np.random.seed(SEED)
-    model_ext = ExtendedHNN(omega=OMEGA, pend_hidden=200, coup_hidden=128, num_layers=3)
+    model_ext = ExtendedHNN(omega=OMEGA, pend_hidden=200, num_layers=3)
     n_ext = sum(p.numel() for p in model_ext.parameters())
     print(f"  参数量: {n_ext}")
 
