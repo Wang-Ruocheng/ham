@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Output images
+*.png
+
+# PDFs
+*.pdf
+
+# IDE
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Conda
+.env/
+
+# Distribution
+dist/
+build/
+*.egg-info/
