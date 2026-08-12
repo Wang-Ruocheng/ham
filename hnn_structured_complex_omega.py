@@ -10,7 +10,8 @@ Structured HNN: 复数 ω — 有限维度下的单向耗散
 模型:
   方案 A: 固定 ω (实数，基线)
   方案 B: 可学习 ω (实数)
-  方案 C: 可学习复数 ω = ω_R + iω_I
+   方案 C: 可学习复数 ω = ω_R + iω_I (MLP 耦合)
+   方案 D: 可学习复数 ω + 乘积分解耦合 H_coup = f(q1,p1)·g(q2,p2)
 
 数据: 单摆 + 耗散谐振子 (γ=0.1，阻尼在 HO 上)
   dp1/dt = -sin(q1) - ε·q2           ← 保守
@@ -51,8 +52,20 @@ def make_mlp(input_dim, hidden_dim, num_layers, output_dim=1):
             if m.bias is not None:
                 nn.init.zeros_(m.bias)
     return net
+def make_mlp_small(input_dim, hidden_dim, output_dim=1):
+    """小型 MLP: 用于乘积分解的子网络"""
+    layers = [nn.Linear(input_dim, hidden_dim), nn.Tanh(),
+              nn.Linear(hidden_dim, hidden_dim), nn.Tanh(),
+              nn.Linear(hidden_dim, output_dim, bias=False)]
+    net = nn.Sequential(*layers)
+    for m in net.modules():
+        if isinstance(m, nn.Linear):
+            nn.init.xavier_normal_(m.weight)
+            if m.bias is not None:
+                nn.init.zeros_(m.bias)
+    return net
 # ============================================================
-# 2. 三种 HNN 变体
+# 2. 四种 HNN 变体
 # ============================================================
 
 class StructuredHNN_Fixed(nn.Module):
@@ -155,6 +168,50 @@ class StructuredHNN_Complex(nn.Module):
         p2 = x[:, 3:4]
         dp2 = -dH[:, 2:3] - 2.0 * self.omega_imag * p2
 
+        return torch.cat([dq1, dp1, dq2, dp2], dim=1)
+
+    def get_omega(self):
+        return self.omega_real.item(), self.omega_imag.item()
+
+
+class StructuredHNN_Complex_Product(nn.Module):
+    """
+    ω = ω_R + iω_I (复数) + 乘积分解耦合
+    
+    H_coup = f(q1,p1) · g(q2,p2)
+    
+    物理直觉: 耦合是"子系统 A 的状态" × "子系统 B 的状态"，
+             而非任意的 4D 联合函数。
+    参数效率: 两个 2→h→1 子网络 vs 一个 4→h→h→h→1 MLP
+    """
+    def __init__(self, omega_real_init=2.0, omega_imag_init=0.1,
+                 pend_hidden=200, prod_hidden=32, num_layers=3):
+        super().__init__()
+        self.omega_real = nn.Parameter(torch.tensor(omega_real_init))
+        self.omega_imag = nn.Parameter(torch.tensor(omega_imag_init))
+        self.pendulum_net = make_mlp(2, pend_hidden, num_layers)
+        # H_coup = f(q1,p1) * g(q2,p2)
+        self.coupling_f = make_mlp_small(2, prod_hidden)  # Pendulum → scalar
+        self.coupling_g = make_mlp_small(2, prod_hidden)  # HO → scalar
+
+    def forward(self, x):
+        q1_p1 = x[:, :2]; q2_p2 = x[:, 2:]
+        q2 = x[:, 2:3]; p2 = x[:, 3:4]
+        H_pend = self.pendulum_net(q1_p1)
+        omega_sq = self.omega_real ** 2 + self.omega_imag ** 2
+        H_ho = 0.5 * p2**2 + 0.5 * omega_sq * q2**2
+        H_coup = self.coupling_f(q1_p1) * self.coupling_g(q2_p2)
+        return H_pend + H_ho + H_coup
+
+    def time_derivative(self, x):
+        with torch.enable_grad():
+            x = x.detach().clone().requires_grad_(True)
+            H = self.forward(x)
+            dH = torch.autograd.grad(H.sum(), x, create_graph=True)[0]
+        dq1 = dH[:, 1:2]; dp1 = -dH[:, 0:1]
+        dq2 = dH[:, 3:4]
+        p2 = x[:, 3:4]
+        dp2 = -dH[:, 2:3] - 2.0 * self.omega_imag * p2
         return torch.cat([dq1, dp1, dq2, dp2], dim=1)
 
     def get_omega(self):
@@ -389,28 +446,64 @@ def main():
     omega_R, omega_I = model_complex.get_omega()
     print(f"\n[Complex] 测试 MSE: {mse_complex:.6e}")
     print(f"[Complex] 学到的 ω = {omega_R:.4f} + i·{omega_I:.4f}")
+    omega_R_mlp, omega_I_mlp = omega_R, omega_I  # rename for clarity
+    
+    # ========================
+    # 方案 D: 复数 ω + 乘积分解耦合
+    # ========================
+    print("\n" + "=" * 60)
+    print("方案 D: 复数 ω + 乘积分解耦合 H_coup = f(q1,p1)·g(q2,p2)")
+    print("=" * 60)
+    torch.manual_seed(42); np.random.seed(42)
+    model_prod = StructuredHNN_Complex_Product(
+        omega_real_init=TRUE_OMEGA, omega_imag_init=0.1,
+        pend_hidden=200, prod_hidden=32, num_layers=3)
+    n_prod = sum(p.numel() for p in model_prod.parameters())
+    print(f"可训练参数: {n_prod} (vs MLP 耦合: {n_complex})")
+    
+    tl_prod, vl_prod = train_hnn(
+        model_prod, train_loader, val_loader, epochs=500, lr=1e-3,
+        label="[Complex-Prod]")
+    mse_prod = evaluate_test_mse(model_prod, test_loader)
+    omega_R_prod, omega_I_prod = model_prod.get_omega()
+    print(f"\n[Complex-Prod] 测试 MSE: {mse_prod:.6e}")
+    print(f"[Complex-Prod] 学到的 ω = {omega_R_prod:.4f} + i·{omega_I_prod:.4f}")
+    print(f"  耦合参数: {sum(p.numel() for p in model_prod.coupling_f.parameters()) + sum(p.numel() for p in model_prod.coupling_g.parameters())} (乘积分解) vs {sum(p.numel() for p in model_complex.coupling_net.parameters())} (MLP)")
 # ========================
     # 对比总结
     # ========================
     print(f"\n{'='*70}")
     print(f"对比总结")
     print(f"{'='*70}")
-    print(f"  方案                   | 参数数 | 测试 MSE    | ω")
-    print(f"  {'─'*60}")
-    print(f"  固定 ω (实数)          | {n_fixed:5d} | {mse_fixed:.4e} | {TRUE_OMEGA} (固定)")
-    print(f"  可学习 ω (实数)        | {n_real:5d} | {mse_real:.4e} | {omega_real:.4f}")
-    print(f"  可学习 ω (复数)        | {n_complex:5d} | {mse_complex:.4e} | "
-          f"{omega_R:.4f} + i·{omega_I:.4f}")
-    print(f"  {'─'*60}")
+    print(f"  方案                   | 耦合参数 | 总参数 | 测试 MSE    | ω")
+    print(f"  {'─'*75}")
+    coup_fixed = sum(p.numel() for p in model_fixed.coupling_net.parameters())
+    coup_real = sum(p.numel() for p in model_real.coupling_net.parameters())
+    coup_mlp  = sum(p.numel() for p in model_complex.coupling_net.parameters())
+    coup_prod = sum(p.numel() for p in model_prod.coupling_f.parameters()) + sum(p.numel() for p in model_prod.coupling_g.parameters())
+    print(f"  固定 ω (MLP 耦合)      | {coup_fixed:5d}  | {n_fixed:5d} | {mse_fixed:.4e} | {TRUE_OMEGA} (固定)")
+    print(f"  可学习 ω (MLP 耦合)    | {coup_real:5d}  | {n_real:5d} | {mse_real:.4e} | {omega_real:.4f}")
+    print(f"  复数 ω (MLP 耦合)      | {coup_mlp:5d}  | {n_complex:5d} | {mse_complex:.4e} | {omega_R_mlp:.4f} + i·{omega_I_mlp:.4f}")
+    print(f"  复数 ω (乘积分解)      | {coup_prod:5d}  | {n_prod:5d} | {mse_prod:.4e} | {omega_R_prod:.4f} + i·{omega_I_prod:.4f}")
+    print(f"  {'─'*75}")
     
-    best_mse = min(mse_fixed, mse_real, mse_complex)
-    if mse_complex == best_mse:
-        print(f"  >> 复数 ω 最优! MSE = {mse_complex:.4e}")
-        print(f"  >> Im(ω) = {omega_I:.4f} → 学到的 HO 阻尼 = {2*omega_I:.4f} (真实 γ_HO = {TRUE_GAMMA})")
+    best_mse = min(mse_fixed, mse_real, mse_complex, mse_prod)
+    best_name = ""
+    if mse_prod == best_mse:
+        print(f"  >> 乘积分解耦合最优! MSE = {mse_prod:.4e}")
+        print(f"  >> 耦合参数: {coup_prod} (乘积分解) vs {coup_mlp} (MLP) — 节省 {coup_mlp - coup_prod} 参数")
+        print(f"  >> Im(ω) = {omega_I_prod:.4f} → HO 阻尼 = {2*omega_I_prod:.4f} (真实 γ_HO = {TRUE_GAMMA})")
+        best_name = "Complex-Prod"
+    elif mse_complex == best_mse:
+        print(f"  >> MLP 耦合最优! MSE = {mse_complex:.4e}")
+        print(f"  >> Im(ω) = {omega_I_mlp:.4f} → HO 阻尼 = {2*omega_I_mlp:.4f} (真实 γ_HO = {TRUE_GAMMA})")
+        best_name = "Complex-MLP"
     elif mse_real == best_mse:
         print(f"  >> 实数可学习 ω 最优")
+        best_name = "Real"
     else:
         print(f"  >> 固定 ω 最优")
+        best_name = "Fixed"
     
     # ========================
     # 轨迹预测 & 相空间可视化
@@ -430,75 +523,83 @@ def main():
     t_true = sol.t
     q1_t, p1_t, q2_t, p2_t = sol.y
     
-    # 三模型预测
+    # 四模型预测
     traj_fixed = integrate_hnn(model_fixed, state0, 0, t_span, n_points)
     traj_real = integrate_hnn(model_real, state0, 0, t_span, n_points)
     traj_complex = integrate_hnn(model_complex, state0, 0, t_span, n_points)
+    traj_prod = integrate_hnn(model_prod, state0, 0, t_span, n_points)
     
     # 绘图: 2行3列 — 相空间 + 时间序列
     fig, axes = plt.subplots(2, 3, figsize=(18, 10))
     
-    C = {'True': 'black', 'Fixed': 'steelblue', 'Real': 'mediumseagreen', 'Complex': 'coral'}
-    S = {'True': '-', 'Fixed': '--', 'Real': '--', 'Complex': '--'}
-    W = {'True': 2.0, 'Fixed': 1.5, 'Real': 1.5, 'Complex': 1.5}
+    C = {'True': 'black', 'Fixed': 'steelblue', 'Real': 'mediumseagreen',
+         'Complex-MLP': 'coral', 'Complex-Prod': 'darkviolet'}
+    S = {'True': '-', 'Fixed': '--', 'Real': '--', 'Complex-MLP': '--', 'Complex-Prod': '-.'}
+    W = {'True': 2.0, 'Fixed': 1.5, 'Real': 1.5, 'Complex-MLP': 1.5, 'Complex-Prod': 1.5}
     
     # (q1, p1) 相空间
     ax = axes[0, 0]
     ax.plot(q1_t, p1_t, color=C['True'], ls=S['True'], lw=W['True'], label='True')
     ax.plot(traj_fixed[:, 0], traj_fixed[:, 1], color=C['Fixed'], ls=S['Fixed'], lw=W['Fixed'], label='Fixed ω')
     ax.plot(traj_real[:, 0], traj_real[:, 1], color=C['Real'], ls=S['Real'], lw=W['Real'], label='Real ω')
-    ax.plot(traj_complex[:, 0], traj_complex[:, 1], color=C['Complex'], ls=S['Complex'], lw=W['Complex'], label='Complex ω')
+    ax.plot(traj_complex[:, 0], traj_complex[:, 1], color=C['Complex-MLP'], ls=S['Complex-MLP'], lw=W['Complex-MLP'], label='Complex (MLP)')
+    ax.plot(traj_prod[:, 0], traj_prod[:, 1], color=C['Complex-Prod'], ls=S['Complex-Prod'], lw=W['Complex-Prod'], label='Complex (Prod)')
     ax.set_xlabel('q1'); ax.set_ylabel('p1')
-    ax.set_title('Pendulum Phase Space (q1, p1)'); ax.legend(fontsize=7); ax.grid(alpha=0.3)
+    ax.set_title('Pendulum Phase Space (q1, p1)'); ax.legend(fontsize=6); ax.grid(alpha=0.3)
     
     # (q2, p2) 相空间
     ax = axes[0, 1]
     ax.plot(q2_t, p2_t, color=C['True'], ls=S['True'], lw=W['True'], label='True')
     ax.plot(traj_fixed[:, 2], traj_fixed[:, 3], color=C['Fixed'], ls=S['Fixed'], lw=W['Fixed'], label='Fixed ω')
     ax.plot(traj_real[:, 2], traj_real[:, 3], color=C['Real'], ls=S['Real'], lw=W['Real'], label='Real ω')
-    ax.plot(traj_complex[:, 2], traj_complex[:, 3], color=C['Complex'], ls=S['Complex'], lw=W['Complex'], label='Complex ω')
+    ax.plot(traj_complex[:, 2], traj_complex[:, 3], color=C['Complex-MLP'], ls=S['Complex-MLP'], lw=W['Complex-MLP'], label='Complex (MLP)')
+    ax.plot(traj_prod[:, 2], traj_prod[:, 3], color=C['Complex-Prod'], ls=S['Complex-Prod'], lw=W['Complex-Prod'], label='Complex (Prod)')
     ax.set_xlabel('q2'); ax.set_ylabel('p2')
-    ax.set_title('HO Phase Space (q2, p2)'); ax.legend(fontsize=7); ax.grid(alpha=0.3)
+    ax.set_title('HO Phase Space (q2, p2)'); ax.legend(fontsize=6); ax.grid(alpha=0.3)
     
     # q1 时间序列
     ax = axes[0, 2]
     ax.plot(t_true, q1_t, color=C['True'], ls=S['True'], lw=W['True'], label='True')
     ax.plot(t_eval, traj_fixed[:, 0], color=C['Fixed'], ls=S['Fixed'], lw=W['Fixed'], label='Fixed ω')
     ax.plot(t_eval, traj_real[:, 0], color=C['Real'], ls=S['Real'], lw=W['Real'], label='Real ω')
-    ax.plot(t_eval, traj_complex[:, 0], color=C['Complex'], ls=S['Complex'], lw=W['Complex'], label='Complex ω')
+    ax.plot(t_eval, traj_complex[:, 0], color=C['Complex-MLP'], ls=S['Complex-MLP'], lw=W['Complex-MLP'], label='Complex (MLP)')
+    ax.plot(t_eval, traj_prod[:, 0], color=C['Complex-Prod'], ls=S['Complex-Prod'], lw=W['Complex-Prod'], label='Complex (Prod)')
     ax.set_xlabel('t'); ax.set_ylabel('q1')
-    ax.set_title('Pendulum Angle q1(t)'); ax.legend(fontsize=7); ax.grid(alpha=0.3)
+    ax.set_title('Pendulum Angle q1(t)'); ax.legend(fontsize=6); ax.grid(alpha=0.3)
     
     # p1 时间序列
     ax = axes[1, 0]
     ax.plot(t_true, p1_t, color=C['True'], ls=S['True'], lw=W['True'], label='True')
     ax.plot(t_eval, traj_fixed[:, 1], color=C['Fixed'], ls=S['Fixed'], lw=W['Fixed'], label='Fixed ω')
     ax.plot(t_eval, traj_real[:, 1], color=C['Real'], ls=S['Real'], lw=W['Real'], label='Real ω')
-    ax.plot(t_eval, traj_complex[:, 1], color=C['Complex'], ls=S['Complex'], lw=W['Complex'], label='Complex ω')
+    ax.plot(t_eval, traj_complex[:, 1], color=C['Complex-MLP'], ls=S['Complex-MLP'], lw=W['Complex-MLP'], label='Complex (MLP)')
+    ax.plot(t_eval, traj_prod[:, 1], color=C['Complex-Prod'], ls=S['Complex-Prod'], lw=W['Complex-Prod'], label='Complex (Prod)')
     ax.set_xlabel('t'); ax.set_ylabel('p1')
-    ax.set_title('Pendulum Momentum p1(t)'); ax.legend(fontsize=7); ax.grid(alpha=0.3)
+    ax.set_title('Pendulum Momentum p1(t)'); ax.legend(fontsize=6); ax.grid(alpha=0.3)
     
     # q2 时间序列
     ax = axes[1, 1]
     ax.plot(t_true, q2_t, color=C['True'], ls=S['True'], lw=W['True'], label='True')
     ax.plot(t_eval, traj_fixed[:, 2], color=C['Fixed'], ls=S['Fixed'], lw=W['Fixed'], label='Fixed ω')
     ax.plot(t_eval, traj_real[:, 2], color=C['Real'], ls=S['Real'], lw=W['Real'], label='Real ω')
-    ax.plot(t_eval, traj_complex[:, 2], color=C['Complex'], ls=S['Complex'], lw=W['Complex'], label='Complex ω')
+    ax.plot(t_eval, traj_complex[:, 2], color=C['Complex-MLP'], ls=S['Complex-MLP'], lw=W['Complex-MLP'], label='Complex (MLP)')
+    ax.plot(t_eval, traj_prod[:, 2], color=C['Complex-Prod'], ls=S['Complex-Prod'], lw=W['Complex-Prod'], label='Complex (Prod)')
     ax.set_xlabel('t'); ax.set_ylabel('q2')
-    ax.set_title('HO Position q2(t)'); ax.legend(fontsize=7); ax.grid(alpha=0.3)
+    ax.set_title('HO Position q2(t)'); ax.legend(fontsize=6); ax.grid(alpha=0.3)
     
     # p2 时间序列
     ax = axes[1, 2]
     ax.plot(t_true, p2_t, color=C['True'], ls=S['True'], lw=W['True'], label='True')
     ax.plot(t_eval, traj_fixed[:, 3], color=C['Fixed'], ls=S['Fixed'], lw=W['Fixed'], label='Fixed ω')
     ax.plot(t_eval, traj_real[:, 3], color=C['Real'], ls=S['Real'], lw=W['Real'], label='Real ω')
-    ax.plot(t_eval, traj_complex[:, 3], color=C['Complex'], ls=S['Complex'], lw=W['Complex'], label='Complex ω')
+    ax.plot(t_eval, traj_complex[:, 3], color=C['Complex-MLP'], ls=S['Complex-MLP'], lw=W['Complex-MLP'], label='Complex (MLP)')
+    ax.plot(t_eval, traj_prod[:, 3], color=C['Complex-Prod'], ls=S['Complex-Prod'], lw=W['Complex-Prod'], label='Complex (Prod)')
     ax.set_xlabel('t'); ax.set_ylabel('p2')
-    ax.set_title('HO Momentum p2(t)'); ax.legend(fontsize=7); ax.grid(alpha=0.3)
+    ax.set_title('HO Momentum p2(t)'); ax.legend(fontsize=6); ax.grid(alpha=0.3)
     
-    plt.suptitle(f'Trajectory Prediction Comparison\nTrue: ω={TRUE_OMEGA}, ε={TRUE_EPSILON}, γ={TRUE_GAMMA} | '
-                 f'Complex ω = {omega_R:.2f} + i·{omega_I:.3f}',
-                 fontsize=13, fontweight='bold')
+    plt.suptitle(f'Trajectory Prediction: MLP vs Product Decomposition Coupling\nTrue: ω={TRUE_OMEGA}, ε={TRUE_EPSILON}, γ={TRUE_GAMMA} | '
+                 f'Complex ω = {omega_R_mlp:.2f}+i·{omega_I_mlp:.3f} | Prod: ω={omega_R_prod:.2f}+i·{omega_I_prod:.3f}',
+                 fontsize=12, fontweight='bold')
     plt.tight_layout()
     plt.savefig('complex_omega_trajectories.png', dpi=150, bbox_inches='tight')
     plt.close()
@@ -513,30 +614,35 @@ def main():
     ax = axes2[0]
     ax.semilogy(tl_fixed, 'b-', alpha=0.4, lw=1, label='Fixed Train')
     ax.semilogy(vl_fixed, 'b--', alpha=0.6, lw=1, label='Fixed Val')
-    ax.semilogy(tl_real, 'g-', alpha=0.4, lw=1, label='Real ω Train')
-    ax.semilogy(vl_real, 'g--', alpha=0.6, lw=1, label='Real ω Val')
-    ax.semilogy(tl_complex, 'r-', alpha=0.4, lw=1, label='Complex ω Train')
-    ax.semilogy(vl_complex, 'r--', alpha=0.6, lw=1, label='Complex ω Val')
+    ax.semilogy(tl_real, 'g-', alpha=0.4, lw=1, label='Real Train')
+    ax.semilogy(vl_real, 'g--', alpha=0.6, lw=1, label='Real Val')
+    ax.semilogy(tl_complex, 'r-', alpha=0.4, lw=1, label='Complex MLP Train')
+    ax.semilogy(vl_complex, 'r--', alpha=0.6, lw=1, label='Complex MLP Val')
+    ax.semilogy(tl_prod, 'm-', alpha=0.4, lw=1, label='Complex Prod Train')
+    ax.semilogy(vl_prod, 'm--', alpha=0.6, lw=1, label='Complex Prod Val')
     ax.set_xlabel('Epoch'); ax.set_ylabel('MSE')
-    ax.set_title('Training Curves'); ax.legend(fontsize=7); ax.grid(alpha=0.3)
+    ax.set_title('Training Curves'); ax.legend(fontsize=6); ax.grid(alpha=0.3)
     
     # 测试 MSE 柱状图
     ax = axes2[1]
-    bars = ax.bar(['Fixed ω', 'Real ω', 'Complex ω'],
-                  [mse_fixed, mse_real, mse_complex],
-                  color=['steelblue', 'mediumseagreen', 'coral'], alpha=0.8)
-    for bar, val in zip(bars, [mse_fixed, mse_real, mse_complex]):
+    bar_labels = ['Fixed ω', 'Real ω', 'Complex\n(MLP)', 'Complex\n(Prod)']
+    bar_values = [mse_fixed, mse_real, mse_complex, mse_prod]
+    bar_colors = ['steelblue', 'mediumseagreen', 'coral', 'darkviolet']
+    bars = ax.bar(bar_labels, bar_values, color=bar_colors, alpha=0.8)
+    for bar, val in zip(bars, bar_values):
         ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() * 1.05,
-                f'{val:.4e}', ha='center', fontsize=9)
+                f'{val:.4e}', ha='center', fontsize=8)
     ax.set_ylabel('Test MSE'); ax.set_title('Test MSE Comparison')
     ax.grid(alpha=0.3, axis='y')
     
     # ω 参数对比
     ax = axes2[2]
     ax.axhline(y=TRUE_OMEGA, color='gray', ls='--', lw=1, label=f'True ω={TRUE_OMEGA}')
-    ax.barh(['Fixed', 'Real ω', 'Complex ω'],
-            [TRUE_OMEGA, omega_real, np.sqrt(omega_R**2 + omega_I**2)],
-            color=['steelblue', 'mediumseagreen', 'coral'], alpha=0.8, height=0.5)
+    omega_labels = ['Fixed', 'Real ω', 'Complex\n(MLP)', 'Complex\n(Prod)']
+    omega_values = [TRUE_OMEGA, omega_real,
+                    np.sqrt(omega_R_mlp**2 + omega_I_mlp**2),
+                    np.sqrt(omega_R_prod**2 + omega_I_prod**2)]
+    ax.barh(omega_labels, omega_values, color=bar_colors, alpha=0.8, height=0.5)
     ax.set_xlabel('|ω|'); ax.set_title('Learned |ω|'); ax.grid(alpha=0.3, axis='x')
     
     plt.tight_layout()
@@ -544,7 +650,7 @@ def main():
     plt.close()
     print("\n  -> complex_omega_comparison.png")
     
-    return model_complex, omega_R, omega_I
+    return model_complex, omega_R_mlp, omega_I_mlp
 
 
 if __name__ == '__main__':
