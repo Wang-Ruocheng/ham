@@ -87,10 +87,13 @@ class DiscretePendulumString:
         theta_dot = np.linalg.solve(M, p)       # θ̇ = M^{-1} p
         dV = self.d_potential_dtheta(theta)
         v = theta_dot
-        p_dot = np.zeros(N)
-        for i in range(N):
-            dM = self.d_inertia_dtheta(theta, i)
-            p_dot[i] = -0.5 * v @ dM @ v - dV[i]
+        # Christoffel 项: Γ_i = ½ Σ_j Σ_k v_j · (∂M_jk/∂θ_i) · v_k
+        # 解析化简: Γ_i = ml² · v_i · Σ_k (N - max(i,k)) · sin(θ_i - θ_k) · v_k
+        # 向量化计算 O(N²) 而非 O(N³)
+        i, k = np.meshgrid(np.arange(N), np.arange(N), indexing='ij')
+        D = (N - np.maximum(i, k)) * np.sin(theta[i] - theta[k])  # D_ik = (N - max(i,k))·sin(θ_i-θ_k)
+        christoffel = self.ml2 * v * (D @ v)                      # Γ_i = ml² · v_i · (D @ v)_i
+        p_dot = -christoffel - dV
         return np.concatenate([theta_dot, p_dot])
 
     # ── 质点位置（用于可视化） ──────────────────────────────
@@ -105,23 +108,27 @@ class DiscretePendulumString:
         return x, y
 
     # ── 轨迹与数据集 ────────────────────────────────────────
-    def generate_trajectory(self, state0, t_span=(0, 20), n_points=300):
+    def generate_trajectory(self, state0, t_span=(0, 20), n_points=300,
+                            rtol=1e-7, atol=1e-9):
         t_eval = np.linspace(t_span[0], t_span[1], n_points)
         sol = solve_ivp(self.dynamics, t_span, state0,
-                        t_eval=t_eval, rtol=1e-9, atol=1e-9)
+                        t_eval=t_eval, rtol=rtol, atol=atol)
         return sol.t, sol.y.T
 
     def generate_dataset(self, n_trajectories=200, t_span=(0, 20),
                          n_points=300, train_ratio=0.7, val_ratio=0.15, seed=42):
         np.random.seed(seed)
         xs_list, dxs_list = [], []
-        for _ in range(n_trajectories):
+        for traj_idx in range(n_trajectories):
+            if traj_idx % 20 == 0:
+                print(f"  生成轨迹 {traj_idx}/{n_trajectories}...")
             theta0 = np.random.uniform(-1.0, 1.0, self.N)
             omega0 = np.random.uniform(-1.0, 1.0, self.N)
             M0 = self.inertia_matrix(theta0)
             p0 = M0 @ omega0
             state0 = np.concatenate([theta0, p0])
-            _, traj = self.generate_trajectory(state0, t_span, n_points)
+            _, traj = self.generate_trajectory(state0, t_span, n_points,
+                                               rtol=1e-6, atol=1e-8)
             for i in range(len(traj)):
                 dx = self.dynamics(t_span[0], traj[i])
                 xs_list.append(traj[i]); dxs_list.append(dx)
@@ -137,6 +144,7 @@ class DiscretePendulumString:
         test_ds = TensorDataset(xs_t[indices[n_train+n_val:]],
                                 dxs_t[indices[n_train+n_val:]])
         print(f"  数据集: {n_total} 样本 | 训练 {n_train} | 验证 {n_val} | 测试 {n_total-n_train-n_val}")
+        print(f"  数据生成完成。")
         return train_ds, val_ds, test_ds
 
 
@@ -270,11 +278,11 @@ def train_ddp(args, train_ds, val_ds, test_ds):
     if rank == 0:
         model.eval()
         test_mse = 0.0; n_test = 0
-        with torch.no_grad():
-            for xb, dxb in test_loader:
-                xb, dxb = xb.to(device), dxb.to(device)
-                test_mse += nn.MSELoss()(model.module.time_derivative(xb), dxb).item() * xb.size(0)
-                n_test += xb.size(0)
+        for xb, dxb in test_loader:
+            xb, dxb = xb.to(device), dxb.to(device)
+            xb.requires_grad_(True)
+            test_mse += nn.MSELoss()(model.module.time_derivative(xb), dxb).item() * xb.size(0)
+            n_test += xb.size(0)
         test_mse /= n_test
         print(f"\n  [DDP] 测试 MSE: {test_mse:.6e}")
 
@@ -473,11 +481,11 @@ def main():
 
     model.eval()
     test_mse = 0.0; n_test = 0
-    with torch.no_grad():
-        for xb, dxb in test_loader:
-            xb, dxb = xb.to(device), dxb.to(device)
-            test_mse += nn.MSELoss()(model.time_derivative(xb), dxb).item() * xb.size(0)
-            n_test += xb.size(0)
+    for xb, dxb in test_loader:
+        xb, dxb = xb.to(device), dxb.to(device)
+        xb.requires_grad_(True)
+        test_mse += nn.MSELoss()(model.time_derivative(xb), dxb).item() * xb.size(0)
+        n_test += xb.size(0)
     test_mse /= n_test
     print(f"\n测试 MSE: {test_mse:.6e}")
 
