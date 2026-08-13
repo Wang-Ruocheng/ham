@@ -245,6 +245,18 @@ def train_ddp(args, train_ds, val_ds, test_ds):
         axes[1, 1].plot(t_eval, H_pred, 'r--', lw=1.5, label='H_HNN')
         axes[1, 1].set_title('Hamiltonian Conservation'); axes[1, 1].set_xlabel('t')
         axes[1, 1].legend(); axes[1, 1].grid(alpha=0.3)
+        snapshot_times = [0.0, 10.0, 20.0, 30.0, 40.0]
+        snap_idx = [int(t / 40.0 * n_points) for t in snapshot_times]
+        colors = plt.cm.viridis(np.linspace(0.2, 0.9, len(snapshot_times)))
+        for ti, (t, idx, c) in enumerate(zip(snapshot_times, snap_idx, colors)):
+            mass_idx = np.arange(args.n_masses)
+            axes[1, 2].plot(mass_idx, true_traj[idx, :args.n_masses],
+                            '-', color=c, lw=2, label=f't={t}s (true)' if ti == 0 else None)
+            axes[1, 2].plot(mass_idx, pred_traj[idx, :args.n_masses],
+                            '--', color=c, lw=1.5, label=f't={t}s (HNN)' if ti == 0 else None)
+        axes[1, 2].set_title('Pendulum String Snapshots')
+        axes[1, 2].set_xlabel('mass index'); axes[1, 2].set_ylabel('q')
+        axes[1, 2].legend(fontsize=8, ncol=2); axes[1, 2].grid(alpha=0.3)
         fig.suptitle(f'Discrete Pendulum String: N={args.n_masses}, dim={2*args.n_masses}, Params={n_params:,}', fontsize=14)
         plt.tight_layout()
         fig.savefig('pendulum_string.png', dpi=150, bbox_inches='tight')
@@ -382,10 +394,18 @@ def main():
     axes[1, 1].set_title('Hamiltonian Conservation'); axes[1, 1].set_xlabel('t')
     axes[1, 1].legend(); axes[1, 1].grid(alpha=0.3)
 
-    axes[1, 2].semilogy(train_losses, 'b-', alpha=0.5, lw=1, label='Train')
-    axes[1, 2].semilogy(val_losses, 'r-', alpha=0.7, lw=1, label='Val')
-    axes[1, 2].set_title('Training Curves'); axes[1, 2].set_xlabel('Epoch')
-    axes[1, 2].set_ylabel('MSE'); axes[1, 2].legend(); axes[1, 2].grid(alpha=0.3)
+    snapshot_times = [0.0, 10.0, 20.0, 30.0, 40.0]
+    snap_idx = [int(t / 40.0 * n_points) for t in snapshot_times]
+    colors = plt.cm.viridis(np.linspace(0.2, 0.9, len(snapshot_times)))
+    for ti, (t, idx, c) in enumerate(zip(snapshot_times, snap_idx, colors)):
+        mass_idx = np.arange(args.n_masses)
+        axes[1, 2].plot(mass_idx, true_traj[idx, :args.n_masses],
+                        '-', color=c, lw=2, label=f't={t}s (true)' if ti == 0 else None)
+        axes[1, 2].plot(mass_idx, pred_traj[idx, :args.n_masses],
+                        '--', color=c, lw=1.5, label=f't={t}s (HNN)' if ti == 0 else None)
+    axes[1, 2].set_title('Pendulum String Snapshots')
+    axes[1, 2].set_xlabel('mass index'); axes[1, 2].set_ylabel('q')
+    axes[1, 2].legend(fontsize=8, ncol=2); axes[1, 2].grid(alpha=0.3)
 
     fig.suptitle(f'Discrete Pendulum String: N={args.n_masses}, dim={dim}, Params={n_params:,}', fontsize=14)
     plt.tight_layout()
