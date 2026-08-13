@@ -1,0 +1,38 @@
+[transformers] Disabling PyTorch because PyTorch >= 2.4 is required but found 2.1.1
+[transformers] PyTorch was not found. Models won't be available and only tokenizers, configuration and file/data utilities can be used.
+======================================================================
+Port-HNN vs Extended-System HNN vs Standard HNN
+耗散单摆: gamma = 0.3
+======================================================================
+
+--- 生成耗散单摆数据 (2D) ---
+数据点数: 16000
+训练: 11200, 验证: 2400, 测试: 2400
+
+--- 生成保守耦合振子数据 (4D) ---
+数据点数: 16000
+
+======================================================================
+方法 A: Port-HNN -- 直接学习耗散结构
+======================================================================
+  dx/dt = (J - R(x)) nabla H_theta(x),  R = diag(0, gamma(x))
+  H_theta: MLP(2->200->200->200->1)  |  gamma: MLP(2->32->1) + softplus
+  参数量: 81329
+Traceback (most recent call last):
+  File "/Users/ruochengwang/ham/port_hnn.py", line 682, in <module>
+    main()
+  File "/Users/ruochengwang/ham/port_hnn.py", line 410, in main
+    train_losses_port, val_losses_port = train_model(
+                                         ^^^^^^^^^^^^
+  File "/Users/ruochengwang/ham/port_hnn.py", line 278, in train_model
+    dx_pred = model.time_derivative(x_batch)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/ruochengwang/ham/port_hnn.py", line 199, in time_derivative
+    gamma = self.get_gamma(x)
+            ^^^^^^^^^^^^^^^^^
+  File "/Users/ruochengwang/ham/port_hnn.py", line 189, in get_gamma
+    return torch.softplus(self.gamma_net(x))
+           ^^^^^^^^^^^^^^
+  File "/Users/ruochengwang/anaconda3/lib/python3.11/site-packages/torch/__init__.py", line 1833, in __getattr__
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+AttributeError: module 'torch' has no attribute 'softplus'

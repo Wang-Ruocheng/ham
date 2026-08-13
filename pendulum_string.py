@@ -205,10 +205,10 @@ def train_single_gpu(model, train_loader, val_loader, epochs=2000,
         train_losses.append(train_loss)
         model.eval()
         val_loss = 0.0
-        with torch.no_grad():
-            for xb, dxb in val_loader:
-                xb = xb.to(device); dxb = dxb.to(device)
-                val_loss += nn.MSELoss()(model.time_derivative(xb), dxb).item() * xb.size(0)
+        for xb, dxb in val_loader:
+            xb = xb.to(device); dxb = dxb.to(device)
+            xb.requires_grad_(True)
+            val_loss += nn.MSELoss()(model.time_derivative(xb), dxb).item() * xb.size(0)
         val_loss /= len(val_loader.dataset)
         val_losses.append(val_loss)
         scheduler.step(val_loss)
@@ -264,9 +264,10 @@ def train_ddp(args, train_ds, val_ds, test_ds):
 
         model.eval()
         val_loss = torch.tensor(0.0, device=device)
-        with torch.no_grad():
-            for xb, dxb in val_loader:
-                val_loss += nn.MSELoss()(model.module.time_derivative(xb.to(device)), dxb.to(device)) * xb.size(0)
+        for xb, dxb in val_loader:
+            xb, dxb = xb.to(device), dxb.to(device)
+            xb.requires_grad_(True)
+            val_loss += nn.MSELoss()(model.module.time_derivative(xb), dxb) * xb.size(0)
         torch.distributed.all_reduce(val_loss)
         val_loss /= len(val_loader.dataset)
         scheduler.step(val_loss.item())
@@ -446,14 +447,36 @@ def main():
     sys = DiscretePendulumString(n_masses=args.n_masses,
                                  length=args.length, mass=args.mass, g=args.g)
     data_path = f'pendulum_string_data_N{args.n_masses}.pt'
-    if os.path.exists(data_path):
-        print(f"  加载已保存的数据: {data_path}")
-        train_ds, val_ds, test_ds = torch.load(data_path)
+
+    if args.ddp:
+        # torchrun 下 RANK 环境变量已设置，仅 rank 0 生成数据
+        ddp_rank = int(os.environ.get('RANK', 0))
+        if ddp_rank == 0:
+            if not os.path.exists(data_path):
+                train_ds, val_ds, test_ds = sys.generate_dataset(
+                    n_trajectories=args.n_trajectories, seed=args.seed)
+                torch.save((train_ds, val_ds, test_ds), data_path)
+                print(f"  数据已保存: {data_path}")
+            else:
+                train_ds, val_ds, test_ds = torch.load(data_path)
+                print(f"  加载已保存的数据: {data_path}")
+        else:
+            # 非 rank 0 进程等待文件存在
+            import time
+            while not os.path.exists(data_path):
+                time.sleep(0.5)
+            time.sleep(0.5)  # 确保文件写入完成
+            train_ds, val_ds, test_ds = torch.load(data_path)
+            print(f"  加载已保存的数据: {data_path}")
     else:
-        train_ds, val_ds, test_ds = sys.generate_dataset(
-            n_trajectories=args.n_trajectories, seed=args.seed)
-        torch.save((train_ds, val_ds, test_ds), data_path)
-        print(f"  数据已保存: {data_path}")
+        if os.path.exists(data_path):
+            print(f"  加载已保存的数据: {data_path}")
+            train_ds, val_ds, test_ds = torch.load(data_path)
+        else:
+            train_ds, val_ds, test_ds = sys.generate_dataset(
+                n_trajectories=args.n_trajectories, seed=args.seed)
+            torch.save((train_ds, val_ds, test_ds), data_path)
+            print(f"  数据已保存: {data_path}")
 
     if args.ddp:
         print(f"\n检测到 DDP 模式，由 torchrun 管理进程")
