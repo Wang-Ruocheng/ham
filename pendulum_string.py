@@ -168,13 +168,33 @@ class StandardHNN(nn.Module):
                 nn.init.xavier_normal_(m.weight)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
+        # 归一化统计量（训练时计算）
+        self.register_buffer('mu', torch.zeros(dim))
+        self.register_buffer('sigma', torch.ones(dim))
+
+    def compute_stats(self, loader):
+        """从训练数据计算状态归一化统计量 (mean, std)"""
+        n, dim = 0, self.dim
+        mean = torch.zeros(dim)
+        for xb, _ in loader:
+            mean += xb.sum(dim=0)
+            n += xb.size(0)
+        mean /= n
+        var = torch.zeros(dim)
+        for xb, _ in loader:
+            var += ((xb - mean) ** 2).sum(dim=0)
+        var /= n
+        self.mu = mean
+        self.sigma = var.sqrt().clamp(min=1e-6)
 
     def forward(self, x):
         return self.net(x).squeeze(-1)
 
     def time_derivative(self, x):
-        H = self.forward(x)
-        grad = torch.autograd.grad(H.sum(), x, create_graph=True)[0]
+        x_norm = (x - self.mu) / self.sigma
+        H = self.forward(x_norm)
+        grad_norm = torch.autograd.grad(H.sum(), x_norm, create_graph=True)[0]
+        grad = grad_norm / self.sigma  # dH/dx = (dH/dx_norm) / sigma
         theta_grad, p_grad = grad.chunk(2, dim=-1)
         return torch.cat([p_grad, -theta_grad], dim=-1)
 
@@ -185,6 +205,8 @@ class StandardHNN(nn.Module):
 def train_single_gpu(model, train_loader, val_loader, epochs=2000,
                      lr=1e-3, device='cuda', label=''):
     model = model.to(device)
+    model.compute_stats(train_loader)
+    print(f"  归一化: mu mean={model.mu.mean().item():.2e}, sigma mean={model.sigma.mean().item():.2e}")
     optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-5)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, mode='min', factor=0.5, patience=150, min_lr=1e-6)
@@ -241,6 +263,14 @@ def train_ddp(args, train_ds, val_ds, test_ds):
     val_loader = DataLoader(val_ds, batch_size=args.batch_size,
                             sampler=val_sampler, num_workers=2, pin_memory=True)
     test_loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False)
+
+    # 计算归一化统计量（仅 rank 0，然后广播）
+    if rank == 0:
+        model.module.compute_stats(train_loader)
+        print(f"  [DDP] 归一化: mu mean={model.module.mu.mean().item():.2e}, "
+              f"sigma mean={model.module.sigma.mean().item():.2e}")
+    torch.distributed.broadcast(model.module.mu, src=0)
+    torch.distributed.broadcast(model.module.sigma, src=0)
 
     optimizer = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-5)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
