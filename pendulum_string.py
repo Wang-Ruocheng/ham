@@ -316,6 +316,7 @@ def integrate_rk4(model, state0, t_span, n_steps, device='cuda'):
     traj = np.zeros((n_steps, D)); traj[0] = state0
     for i in range(n_steps - 1):
         x = torch.tensor(traj[i:i+1], dtype=torch.float32, device=device)
+        x.requires_grad_(True)
         k1 = model.time_derivative(x).detach().cpu().numpy()[0]
         k2 = model.time_derivative(x + 0.5*dt*torch.tensor(k1, device=device, dtype=torch.float32)).detach().cpu().numpy()[0]
         k3 = model.time_derivative(x + 0.5*dt*torch.tensor(k2, device=device, dtype=torch.float32)).detach().cpu().numpy()[0]
