@@ -25,4 +25,7 @@ __pycache__/
 # Distribution
 dist/
 build/
-*.egg-info/*.log
+*.egg-info/
+
+# Logs
+*.log
