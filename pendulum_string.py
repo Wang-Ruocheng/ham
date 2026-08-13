@@ -208,6 +208,52 @@ def train_ddp(args, train_ds, val_ds, test_ds):
         test_mse /= n_test
         print(f"\n  [DDP] 测试 MSE: {test_mse:.6e}")
 
+        # --- 轨迹预测与可视化 ---
+        print("\n--- 轨迹预测 ---")
+        sys = DiscretePendulumString(n_masses=args.n_masses,
+                                     omega0=args.omega0, spring_k=args.spring_k)
+        n_params = sum(p.numel() for p in model.module.parameters())
+        t_span = (0, 40); n_points = 1500; t_eval = np.linspace(*t_span, n_points)
+        modes = np.random.randn(args.n_masses) * np.exp(-np.arange(args.n_masses) / 5)
+        state0 = np.concatenate([modes * 0.5, np.random.randn(args.n_masses) * 0.3])
+        _, true_traj = sys.generate_trajectory(state0, t_span, n_points)
+        pred_traj = integrate_rk4(model.module, state0, t_span, n_points, device)
+        H_true = np.array([sys.hamiltonian(true_traj[i]) for i in range(n_points)])
+        H_pred = np.array([sys.hamiltonian(pred_traj[i]) for i in range(n_points)])
+        fig, axes = plt.subplots(2, 3, figsize=(20, 12))
+        axes[0, 0].imshow(true_traj[:, :args.n_masses].T[:10],
+                          aspect='auto', origin='lower', cmap='RdBu_r',
+                          extent=[t_span[0], t_span[1], 0, 10])
+        axes[0, 0].set_title('True q (first 10)'); axes[0, 0].set_xlabel('t')
+        axes[0, 0].set_ylabel('mass index')
+        axes[0, 1].imshow(pred_traj[:, :args.n_masses].T[:10],
+                          aspect='auto', origin='lower', cmap='RdBu_r',
+                          extent=[t_span[0], t_span[1], 0, 10])
+        axes[0, 1].set_title('HNN Predicted q (first 10)'); axes[0, 1].set_xlabel('t')
+        axes[0, 1].set_ylabel('mass index')
+        axes[0, 2].imshow(np.abs(pred_traj[:, :args.n_masses] - true_traj[:, :args.n_masses]).T[:10],
+                          aspect='auto', origin='lower', cmap='hot',
+                          extent=[t_span[0], t_span[1], 0, 10])
+        axes[0, 2].set_title('|Error| (first 10)'); axes[0, 2].set_xlabel('t')
+        axes[0, 2].set_ylabel('mass index')
+        mid = args.n_masses // 2
+        axes[1, 0].plot(t_eval, true_traj[:, mid], 'k-', lw=2, label=f'True q_{mid}')
+        axes[1, 0].plot(t_eval, pred_traj[:, mid], 'r--', lw=1.5, label=f'HNN q_{mid}')
+        axes[1, 0].set_title(f'Mass {mid} trajectory'); axes[1, 0].set_xlabel('t')
+        axes[1, 0].legend(); axes[1, 0].grid(alpha=0.3)
+        axes[1, 1].plot(t_eval, H_true, 'k-', lw=2, label='H_true')
+        axes[1, 1].plot(t_eval, H_pred, 'r--', lw=1.5, label='H_HNN')
+        axes[1, 1].set_title('Hamiltonian Conservation'); axes[1, 1].set_xlabel('t')
+        axes[1, 1].legend(); axes[1, 1].grid(alpha=0.3)
+        fig.suptitle(f'Discrete Pendulum String: N={args.n_masses}, dim={2*args.n_masses}, Params={n_params:,}', fontsize=14)
+        plt.tight_layout()
+        fig.savefig('pendulum_string.png', dpi=150, bbox_inches='tight')
+        plt.close()
+        print(" -> pendulum_string.png")
+        print(f"\n{'='*70}")
+        print(f"完成 | N={args.n_masses} | dim={2*args.n_masses} | 参数={n_params:,} | MSE={test_mse:.4e}")
+        print("=" * 70)
+
     torch.distributed.destroy_process_group()
 # ============================================================
 # 评估: 轨迹预测
