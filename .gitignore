@@ -25,4 +25,4 @@ __pycache__/
 # Distribution
 dist/
 build/
-*.egg-info/
+*.egg-info/*.log
