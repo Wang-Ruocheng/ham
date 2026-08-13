@@ -1,19 +1,21 @@
 """
-离散摆绳：一端固定，重力摆弦
-=============================
-物理: 弦离散化为 N 个质点，左端固定，右端自由。
-      每个质点受重力(小角度近似: ½ω₀²q²) + 弹簧连接。
-H = sum[½p_i² + ½ω₀²q_i²] + ½k sum(q_{i+1} - q_i)²
-  其中 q_{0} = 0 固定端，q_{N-1} 自由端
+重力摆链：N 节摆，一端固定，全非线性动力学
+============================================
+物理: N 个质点由刚性杆连接，悬挂于固定点，受重力。
+      每个质点位置由该质点及之前所有摆角决定。
+      非小角度近似，使用 sin/cos 精确计算。
 
-状态: x = [q_1, ..., q_N, p_1, ..., p_N] ∈ ℝ^{2N}
-辛矩阵: J = [[0, I], [-I, 0]]
-动力学: dx/dt = J·∇H
+状态: x = [θ₀, …, θ_{N-1}, p_θ₀, …, p_θ_{N-1}] ∈ ℝ^{2N}
+      其中 θ_i 为第 i 节杆与竖直方向的夹角 (rad)
+      p_θ_i 为共轭动量
+
+惯性矩阵: M_{ij} = m l² (N - max(i,j)) cos(θ_i - θ_j)
+势能: V = -m g l Σ_k (N - k) cos(θ_k)
+哈密顿量: H = ½ p^T M^{-1} p + V
 
 训练:
     单卡:  python pendulum_string.py --n_masses 20
     8卡DDP: torchrun --nproc_per_node=8 pendulum_string.py --n_masses 20 --ddp
-    两端固定: python pendulum_string.py --no-free-end
 """
 
 import os
@@ -28,35 +30,81 @@ import matplotlib.pyplot as plt
 
 
 # ============================================================
-# 离散摆绳物理系统
+# 重力摆链物理系统
 # ============================================================
 class DiscretePendulumString:
-    def __init__(self, n_masses=20, omega0=1.0, spring_k=10.0, free_end=True):
+    """N 节重力摆链（一端固定，全非线性）"""
+    def __init__(self, n_masses=20, length=1.0, mass=1.0, g=9.81):
         self.N = n_masses
-        self.omega0 = omega0
-        self.k = spring_k
-        self.free_end = free_end
+        self.l = length          # 每节杆长
+        self.m = mass            # 每个质点质量
+        self.g = g               # 重力加速度
+        self.ml2 = mass * length**2  # m·l²
 
+    # ── 惯性矩阵 M(θ) ──────────────────────────────────────
+    def inertia_matrix(self, theta):
+        """M_{ij} = m l² (N - max(i,j)) cos(θ_i - θ_j)"""
+        N = self.N
+        i, j = np.meshgrid(np.arange(N), np.arange(N), indexing='ij')
+        k = N - np.maximum(i, j)
+        return self.ml2 * k * np.cos(theta[i] - theta[j])
+
+    def d_inertia_dtheta(self, theta, idx):
+        """∂M/∂θ_i (i=idx)"""
+        N = self.N
+        dM = np.zeros((N, N))
+        for k in range(N):
+            if k == idx:
+                continue
+            val = -self.ml2 * (N - max(idx, k)) * np.sin(theta[idx] - theta[k])
+            dM[idx, k] = val
+            dM[k, idx] = val
+        return dM
+
+    # ── 势能 V(θ) ──────────────────────────────────────────
+    def potential(self, theta):
+        """V = -m g l Σ_k (N - k) cos(θ_k)"""
+        k = np.arange(self.N)
+        return -self.m * self.g * self.l * np.sum((self.N - k) * np.cos(theta))
+
+    def d_potential_dtheta(self, theta):
+        """∂V/∂θ_i = m g l (N - i) sin(θ_i)"""
+        k = np.arange(self.N)
+        return self.m * self.g * self.l * (self.N - k) * np.sin(theta)
+
+    # ── 哈密顿量与动力学 ────────────────────────────────────
     def hamiltonian(self, state):
-        q = state[:self.N]; p = state[self.N:]
-        H_pend = 0.5 * (p**2).sum() + 0.5 * self.omega0**2 * (q**2).sum()
-        dq = np.diff(q, prepend=0.0, append=0.0 if not self.free_end else None)
-        H_spring = 0.5 * self.k * (dq**2).sum()
-        return H_pend + H_spring
+        theta = state[:self.N]; p = state[self.N:]
+        M = self.inertia_matrix(theta)
+        T = 0.5 * p @ np.linalg.solve(M, p)
+        V = self.potential(theta)
+        return T + V
 
     def dynamics(self, t, state):
-        q = state[:self.N]; p = state[self.N:]
-        dqdt = p
-        dpdt = -self.omega0**2 * q
-        dpdt[0] -= self.k * (2*q[0] - q[1])          # 固定端
-        for i in range(1, self.N - 1):
-            dpdt[i] -= self.k * (2*q[i] - q[i-1] - q[i+1])
-        if self.free_end:
-            dpdt[-1] -= self.k * (q[-1] - q[-2])      # 自由端
-        else:
-            dpdt[-1] -= self.k * (2*q[-1] - q[-2])    # 固定端
-        return np.concatenate([dqdt, dpdt])
+        theta = state[:self.N]; p = state[self.N:]
+        N = self.N
+        M = self.inertia_matrix(theta)
+        theta_dot = np.linalg.solve(M, p)       # θ̇ = M^{-1} p
+        dV = self.d_potential_dtheta(theta)
+        v = theta_dot
+        p_dot = np.zeros(N)
+        for i in range(N):
+            dM = self.d_inertia_dtheta(theta, i)
+            p_dot[i] = -0.5 * v @ dM @ v - dV[i]
+        return np.concatenate([theta_dot, p_dot])
 
+    # ── 质点位置（用于可视化） ──────────────────────────────
+    def get_positions(self, theta):
+        """返回每质点 (x, y) 坐标，固定点在 (0,0)"""
+        N = self.N
+        x = np.zeros(N)
+        y = np.zeros(N)
+        for k in range(N):
+            x[k] = self.l * np.sum(np.sin(theta[:k+1]))
+            y[k] = -self.l * np.sum(np.cos(theta[:k+1]))
+        return x, y
+
+    # ── 轨迹与数据集 ────────────────────────────────────────
     def generate_trajectory(self, state0, t_span=(0, 20), n_points=300):
         t_eval = np.linspace(t_span[0], t_span[1], n_points)
         sol = solve_ivp(self.dynamics, t_span, state0,
@@ -68,8 +116,11 @@ class DiscretePendulumString:
         np.random.seed(seed)
         xs_list, dxs_list = [], []
         for _ in range(n_trajectories):
-            modes = np.random.randn(self.N) * np.exp(-np.arange(self.N) / 5)
-            state0 = np.concatenate([modes * 0.5, np.random.randn(self.N) * 0.3])
+            theta0 = np.random.uniform(-1.0, 1.0, self.N)
+            omega0 = np.random.uniform(-1.0, 1.0, self.N)
+            M0 = self.inertia_matrix(theta0)
+            p0 = M0 @ omega0
+            state0 = np.concatenate([theta0, p0])
             _, traj = self.generate_trajectory(state0, t_span, n_points)
             for i in range(len(traj)):
                 dx = self.dynamics(t_span[0], traj[i])
@@ -85,9 +136,10 @@ class DiscretePendulumString:
                                dxs_t[indices[n_train:n_train+n_val]])
         test_ds = TensorDataset(xs_t[indices[n_train+n_val:]],
                                 dxs_t[indices[n_train+n_val:]])
-        print(f"数据: {n_total} 点 | 训练: {n_train} | 验证: {n_val} | "
-              f"测试: {n_total - n_train - n_val}")
+        print(f"  数据集: {n_total} 样本 | 训练 {n_train} | 验证 {n_val} | 测试 {n_total-n_train-n_val}")
         return train_ds, val_ds, test_ds
+
+
 # ============================================================
 # 标准 HNN
 # ============================================================
@@ -106,52 +158,61 @@ class StandardHNN(nn.Module):
         for m in self.net.modules():
             if isinstance(m, nn.Linear):
                 nn.init.xavier_normal_(m.weight)
-                if m.bias is not None: nn.init.zeros_(m.bias)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
 
     def forward(self, x):
-        return self.net(x)
+        return self.net(x).squeeze(-1)
 
     def time_derivative(self, x):
-        with torch.enable_grad():
-            z = x.clone().requires_grad_(True)
-            H = self.forward(z)
-            dH = torch.autograd.grad(H.sum(), z, create_graph=True)[0]
-        dq = dH[:, self.N:]; dp = -dH[:, :self.N]
-        return torch.cat([dq, dp], dim=1)
+        H = self.forward(x)
+        grad = torch.autograd.grad(H.sum(), x, create_graph=True)[0]
+        theta_grad, p_grad = grad.chunk(2, dim=-1)
+        return torch.cat([p_grad, -theta_grad], dim=-1)
 
 
 # ============================================================
-# 训练函数
+# 单卡训练
 # ============================================================
-def train_single_gpu(model, train_loader, val_loader, epochs=2000, lr=1e-3,
-                     device='cuda', label=''):
+def train_single_gpu(model, train_loader, val_loader, epochs=2000,
+                     lr=1e-3, device='cuda', label=''):
     model = model.to(device)
     optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-5)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, mode='min', factor=0.5, patience=150, min_lr=1e-6)
     train_losses, val_losses = [], []
-
     for epoch in range(epochs):
         model.train()
         train_loss = 0.0
         for xb, dxb in train_loader:
             xb, dxb = xb.to(device), dxb.to(device)
+            xb.requires_grad_(True)
             optimizer.zero_grad()
             loss = nn.MSELoss()(model.time_derivative(xb), dxb)
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 10.0)
             optimizer.step()
             train_loss += loss.item() * xb.size(0)
         train_loss /= len(train_loader.dataset)
         train_losses.append(train_loss)
-
         model.eval()
         val_loss = 0.0
         with torch.no_grad():
             for xb, dxb in val_loader:
-                xb, dxb = xb.to(device), dxb.to(device)
+                xb = xb.to(device); dxb = dxb.to(device)
                 val_loss += nn.MSELoss()(model.time_derivative(xb), dxb).item() * xb.size(0)
         val_loss /= len(val_loader.dataset)
         val_losses.append(val_loss)
+        scheduler.step(val_loss)
+        if (epoch + 1) % 200 == 0:
+            print(f"  {label} Epoch {epoch+1:4d}/{epochs} | "
+                  f"Train: {train_loss:.6e} | Val: {val_loss:.6e}")
+    return train_losses, val_losses
+
+
+# ============================================================
+# DDP 训练
+# ============================================================
 def train_ddp(args, train_ds, val_ds, test_ds):
     rank = int(os.environ['RANK'])
     local_rank = int(os.environ['LOCAL_RANK'])
@@ -183,9 +244,11 @@ def train_ddp(args, train_ds, val_ds, test_ds):
         train_loss = torch.tensor(0.0, device=device)
         for xb, dxb in train_loader:
             xb, dxb = xb.to(device), dxb.to(device)
+            xb.requires_grad_(True)
             optimizer.zero_grad()
             loss = nn.MSELoss()(model.module.time_derivative(xb), dxb)
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 10.0)
             optimizer.step()
             train_loss += loss.detach() * xb.size(0)
         torch.distributed.all_reduce(train_loss)
@@ -215,24 +278,25 @@ def train_ddp(args, train_ds, val_ds, test_ds):
         test_mse /= n_test
         print(f"\n  [DDP] 测试 MSE: {test_mse:.6e}")
 
-        # --- 轨迹预测与可视化 ---
         print("\n--- 轨迹预测 ---")
         n_params = sum(p.numel() for p in model.module.parameters())
         t_span = (0, 40); n_points = 1500
-        # 初始条件: 正弦波拨弦，零初速度
-        q0 = 0.5 * np.sin(np.pi * np.arange(args.n_masses) / (args.n_masses - 1))
-        state0 = np.concatenate([q0, np.zeros(args.n_masses)])
         sys = DiscretePendulumString(n_masses=args.n_masses,
-                                     omega0=args.omega0, spring_k=args.spring_k,
-                                     free_end=args.free_end)
+                                     length=args.length, mass=args.mass, g=args.g)
+        # 初始条件: 拨动顶端摆杆 0.3 rad，零初速
+        theta0 = np.zeros(args.n_masses); theta0[0] = 0.3
+        p0 = np.zeros(args.n_masses)
+        state0 = np.concatenate([theta0, p0])
         _, true_traj = sys.generate_trajectory(state0, t_span, n_points)
         pred_traj = integrate_rk4(model.module, state0, t_span, n_points, device)
-        visualize(args, true_traj, pred_traj, test_mse, n_params, t_span, n_points)
+        visualize(args, sys, true_traj, pred_traj, test_mse, n_params, t_span, n_points)
         print(f"\n{'='*70}")
         print(f"完成 | N={args.n_masses} | dim={2*args.n_masses} | 参数={n_params:,} | MSE={test_mse:.4e}")
         print("=" * 70)
 
     torch.distributed.destroy_process_group()
+
+
 # ============================================================
 # 评估: 轨迹预测
 # ============================================================
@@ -251,131 +315,128 @@ def integrate_rk4(model, state0, t_span, n_steps, device='cuda'):
     return traj
 
 
-def visualize(args, true_traj, pred_traj, test_mse, n_params, t_span=(0, 40), n_points=1500):
-    """生成 2×3 可视化图：时空图 + 轨迹 + 2D 摆绳快照"""
+def visualize(args, sys, true_traj, pred_traj, test_mse, n_params, t_span=(0, 40), n_points=1500):
+    """生成 2×3 可视化图：时空图 + 轨迹 + 2D 摆链快照"""
     from matplotlib.patches import Circle
     t_eval = np.linspace(*t_span, n_points)
     N = args.n_masses
-    sys = DiscretePendulumString(n_masses=N, omega0=args.omega0, spring_k=args.spring_k,
-                                 free_end=args.free_end)
 
     H_true = np.array([sys.hamiltonian(true_traj[i]) for i in range(n_points)])
     H_pred = np.array([sys.hamiltonian(pred_traj[i]) for i in range(n_points)])
 
     fig, axes = plt.subplots(2, 3, figsize=(20, 12))
 
-    # --- 第 0 行: 时空图 ---
-    im1 = axes[0, 0].imshow(true_traj[:, :N].T[:10],
+    # --- 第 0 行: 时空图 (θ 的前 10 个) ---
+    n_show = min(10, N)
+    im1 = axes[0, 0].imshow(true_traj[:, :N].T[:n_show],
                             aspect='auto', origin='lower', cmap='RdBu_r',
-                            extent=[t_span[0], t_span[1], 0, 10])
-    axes[0, 0].set_title('True q (first 10)'); axes[0, 0].set_xlabel('t')
+                            extent=[t_span[0], t_span[1], 0, n_show])
+    axes[0, 0].set_title('True θ (first {})'.format(n_show)); axes[0, 0].set_xlabel('t')
     axes[0, 0].set_ylabel('mass index'); plt.colorbar(im1, ax=axes[0, 0])
 
-    im2 = axes[0, 1].imshow(pred_traj[:, :N].T[:10],
+    im2 = axes[0, 1].imshow(pred_traj[:, :N].T[:n_show],
                             aspect='auto', origin='lower', cmap='RdBu_r',
-                            extent=[t_span[0], t_span[1], 0, 10])
-    axes[0, 1].set_title('HNN Predicted q (first 10)'); axes[0, 1].set_xlabel('t')
+                            extent=[t_span[0], t_span[1], 0, n_show])
+    axes[0, 1].set_title('HNN Predicted θ (first {})'.format(n_show)); axes[0, 1].set_xlabel('t')
     axes[0, 1].set_ylabel('mass index'); plt.colorbar(im2, ax=axes[0, 1])
 
     im3 = axes[0, 2].imshow(
-        np.abs(pred_traj[:, :N] - true_traj[:, :N]).T[:10],
+        np.abs(pred_traj[:, :N] - true_traj[:, :N]).T[:n_show],
         aspect='auto', origin='lower', cmap='hot',
-        extent=[t_span[0], t_span[1], 0, 10])
-    axes[0, 2].set_title('|Error| (first 10)'); axes[0, 2].set_xlabel('t')
+        extent=[t_span[0], t_span[1], 0, n_show])
+    axes[0, 2].set_title('|Error| (first {})'.format(n_show)); axes[0, 2].set_xlabel('t')
     axes[0, 2].set_ylabel('mass index'); plt.colorbar(im3, ax=axes[0, 2])
 
-    # --- 第 1 行左: 中间质点轨迹 ---
-    mid = N // 2
-    axes[1, 0].plot(t_eval, true_traj[:, mid], 'k-', lw=2, label=f'True q_{mid}')
-    axes[1, 0].plot(t_eval, pred_traj[:, mid], 'r--', lw=1.5, label=f'HNN q_{mid}')
-    axes[1, 0].set_title(f'Mass {mid} trajectory'); axes[1, 0].set_xlabel('t')
-    axes[1, 0].legend(); axes[1, 0].grid(alpha=0.3)
+    # --- 第 1 行: 轨迹 + 哈密顿量 + 2D 快照 ---
+    # 某质点轨迹
+    idx = 0  # 顶端质点
+    axes[1, 0].plot(t_eval, true_traj[:, idx], label='True θ₀', color='C0')
+    axes[1, 0].plot(t_eval, pred_traj[:, idx], '--', label='HNN θ₀', color='C1')
+    axes[1, 0].set_title(f'Angle θ_{idx}'); axes[1, 0].set_xlabel('t'); axes[1, 0].set_ylabel('θ (rad)')
+    axes[1, 0].legend()
 
-    # --- 第 1 行中: 哈密顿量守恒 ---
-    axes[1, 1].plot(t_eval, H_true, 'k-', lw=2, label='H_true')
-    axes[1, 1].plot(t_eval, H_pred, 'r--', lw=1.5, label='H_HNN')
-    axes[1, 1].set_title('Hamiltonian Conservation'); axes[1, 1].set_xlabel('t')
-    axes[1, 1].legend(); axes[1, 1].grid(alpha=0.3)
+    # 哈密顿量守恒
+    axes[1, 1].plot(t_eval, H_true, label='H_true', color='C0')
+    axes[1, 1].plot(t_eval, H_pred, '--', label='H_HNN', color='C1')
+    axes[1, 1].set_title('Hamiltonian'); axes[1, 1].set_xlabel('t')
+    axes[1, 1].legend()
+    if H_true.max() > 1e-12:
+        dH = np.abs(H_pred - H_true).mean() / np.abs(H_true).mean()
+        axes[1, 1].text(0.05, 0.95, f'rel ΔH = {dH:.4f}', transform=axes[1, 1].transAxes, fontsize=10, verticalalignment='top')
 
-    # --- 第 1 行右: 二维摆绳快照 ---
-    snapshot_times = [0.0, 10.0, 20.0, 30.0, 40.0]
-    snap_idx = [int(t / (t_span[1] - t_span[0]) * (n_points - 1)) for t in snapshot_times]
-    colors = plt.cm.viridis(np.linspace(0.2, 0.9, len(snapshot_times)))
+    # 2D 摆链快照（最后时刻）
+    theta_true = true_traj[-1, :N]
+    theta_pred = pred_traj[-1, :N]
+    x_true, y_true = sys.get_positions(theta_true)
+    x_pred, y_pred = sys.get_positions(theta_pred)
 
-    for ti, (t, idx, c) in enumerate(zip(snapshot_times, snap_idx, colors)):
-        x = np.arange(N)                     # 水平位置
-        y_true = true_traj[idx, :N]           # 垂直位移
-        y_pred = pred_traj[idx, :N]
+    # 绘制固定点
+    axes[1, 2].plot(0, 0, 'ks', markersize=8, label='Pivot')
 
-        # 真实摆绳 (实线 + 圆点)
-        axes[1, 2].plot(x, y_true, '-', color=c, lw=2,
-                        label=f't={t}s (true)' if ti == 0 else None)
-        axes[1, 2].scatter(x, y_true, s=30, color=c, marker='o', zorder=3,
-                           label=f't={t}s (true)' if ti == 0 else None)
+    # 绘制真实摆链
+    x_chain = np.concatenate([[0], x_true])
+    y_chain = np.concatenate([[0], y_true])
+    axes[1, 2].plot(x_chain, y_chain, 'o-', color='C0', label='True', markersize=4)
 
-        # 预测摆绳 (虚线 + 叉号)
-        axes[1, 2].plot(x, y_pred, '--', color=c, lw=1.5, alpha=0.7,
-                        label=f't={t}s (HNN)' if ti == 0 else None)
-        axes[1, 2].scatter(x, y_pred, s=25, color=c, marker='x', zorder=3, alpha=0.7,
-                           label=f't={t}s (HNN)' if ti == 0 else None)
+    # 绘制 HNN 预测摆链
+    x_chain_p = np.concatenate([[0], x_pred])
+    y_chain_p = np.concatenate([[0], y_pred])
+    axes[1, 2].plot(x_chain_p, y_chain_p, 's--', color='C1', label='HNN', markersize=4, linewidth=1)
 
-    # 固定端标注
-    axes[1, 2].annotate('', xy=(0, 0), xytext=(-0.3, 0),
-                        arrowprops=dict(arrowstyle='->', color='gray', lw=2))
-    axes[1, 2].text(-0.35, 0, 'fixed', fontsize=9, ha='right', va='center', color='gray')
+    axes[1, 2].set_title('2D Snapshots (t=t_final)')
+    axes[1, 2].set_xlabel('x'); axes[1, 2].set_ylabel('y')
+    axes[1, 2].legend(loc='upper right')
 
-    axes[1, 2].set_title('Pendulum String in 2D Space (vert. displacement)')
-    axes[1, 2].set_xlabel('horizontal position (mass index)')
-    axes[1, 2].set_ylabel('vertical displacement q')
-    ymax = np.max(np.abs(true_traj[:, :N])) * 1.3
-    axes[1, 2].set_ylim(-ymax, ymax)
-    axes[1, 2].set_xlim(-0.5, N - 0.5)
-    axes[1, 2].legend(fontsize=7, ncol=2, loc='lower right')
-    axes[1, 2].grid(alpha=0.3)
-    # 不加 set_aspect('equal')，让 matplotlib 自动撑满子图区域
+    # 自动调整 x/y 范围
+    all_x = np.concatenate([[0], x_true, x_pred])
+    all_y = np.concatenate([[0], y_true, y_pred])
+    margin = 0.2
+    x_min, x_max = all_x.min() - margin, all_x.max() + margin
+    y_min, y_max = all_y.min() - margin, 0.1
+    axes[1, 2].set_xlim(x_min, x_max)
+    axes[1, 2].set_ylim(y_min, y_max)
+    axes[1, 2].invert_yaxis()  # y 向下为正
+    axes[1, 2].grid(True, alpha=0.3)
 
-    fig.suptitle(f'Discrete Pendulum String: N={N}, dim={2*N}, Params={n_params:,} | MSE={test_mse:.4e}',
-                 fontsize=14)
+    fig.suptitle(f'Gravity Pendulum Chain | N={N} | dim={2*N} | 参数={n_params:,} | test MSE={test_mse:.4e}',
+                 fontsize=14, fontweight='bold')
     plt.tight_layout()
-    fig.savefig('pendulum_string.png', dpi=150, bbox_inches='tight')
+    plt.savefig('pendulum_string.png', dpi=150)
+    print(f"  可视化已保存: pendulum_string.png")
     plt.close()
-    print(" -> pendulum_string.png")
 
 
 # ============================================================
-# 主程序
+# 主函数
 # ============================================================
 def main():
-    parser = argparse.ArgumentParser(description='离散摆绳 HNN')
+    parser = argparse.ArgumentParser(description='Gravity Pendulum Chain HNN')
     parser.add_argument('--n_masses', type=int, default=20)
-    parser.add_argument('--omega0', type=float, default=1.0)
-    parser.add_argument('--spring_k', type=float, default=10.0)
+    parser.add_argument('--length', type=float, default=1.0, help='杆长')
+    parser.add_argument('--mass', type=float, default=1.0, help='质点质量')
+    parser.add_argument('--g', type=float, default=9.81, help='重力加速度')
     parser.add_argument('--hidden_dim', type=int, default=512)
     parser.add_argument('--num_layers', type=int, default=4)
-    parser.add_argument('--batch_size', type=int, default=1024)
+    parser.add_argument('--batch_size', type=int, default=4096)
     parser.add_argument('--epochs', type=int, default=2000)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--n_trajectories', type=int, default=200)
     parser.add_argument('--ddp', action='store_true')
-    parser.add_argument('--no-free-end', action='store_false', dest='free_end',
-                        default=True, help='两端固定（默认仅一端固定）')
     parser.add_argument('--seed', type=int, default=42)
 
     args = parser.parse_args()
     dim = 2 * args.n_masses
 
     print("=" * 70)
-    print(f"离散摆绳 HNN: N={args.n_masses} 质点, 状态维度={dim}")
-    print(f"omega0={args.omega0}, k={args.spring_k}")
-    print(f"边界: {'左端固定, 右端自由' if args.free_end else '两端固定'}")
+    print(f"重力摆链 HNN: N={args.n_masses} 节, 状态维度={dim}")
+    print(f"杆长 l={args.length}, 质量 m={args.mass}, g={args.g}")
     print(f"MLP: {dim} -> {args.hidden_dim}x{args.num_layers} -> 1")
     print(f"训练: {'DDP' if args.ddp else '单卡'}, {args.epochs} epochs")
     print("=" * 70)
 
     print("\n--- 生成数据 ---")
     sys = DiscretePendulumString(n_masses=args.n_masses,
-                                 omega0=args.omega0, spring_k=args.spring_k,
-                                 free_end=args.free_end)
+                                 length=args.length, mass=args.mass, g=args.g)
     data_path = f'pendulum_string_data_N{args.n_masses}.pt'
     if os.path.exists(data_path):
         print(f"  加载已保存的数据: {data_path}")
@@ -422,14 +483,15 @@ def main():
 
     print("\n--- 轨迹预测 ---")
     t_span = (0, 40); n_points = 1500
-    # 初始条件: 正弦波拨弦，零初速度
-    q0 = 0.5 * np.sin(np.pi * np.arange(args.n_masses) / (args.n_masses - 1))
-    state0 = np.concatenate([q0, np.zeros(args.n_masses)])
+    # 初始条件: 拨动顶端摆杆 0.3 rad，零初速
+    theta0 = np.zeros(args.n_masses); theta0[0] = 0.3
+    p0 = np.zeros(args.n_masses)
+    state0 = np.concatenate([theta0, p0])
 
     _, true_traj = sys.generate_trajectory(state0, t_span, n_points)
     pred_traj = integrate_rk4(model, state0, t_span, n_points, device)
 
-    visualize(args, true_traj, pred_traj, test_mse, n_params, t_span, n_points)
+    visualize(args, sys, true_traj, pred_traj, test_mse, n_params, t_span, n_points)
 
     print(f"\n{'='*70}")
     print(f"完成 | N={args.n_masses} | dim={dim} | 参数={n_params:,} | MSE={test_mse:.4e}")
