@@ -145,16 +145,18 @@ def train_single_gpu(model, train_loader, val_loader, epochs=2000, lr=1e-3,
                 val_loss += nn.MSELoss()(model.time_derivative(xb), dxb).item() * xb.size(0)
         val_loss /= len(val_loader.dataset)
         val_losses.append(val_loss)
-def train_ddp(rank, world_size, args, train_ds, val_ds, test_ds):
-    os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '12355'
-    torch.distributed.init_process_group('nccl', rank=rank, world_size=world_size)
-    torch.cuda.set_device(rank)
+def train_ddp(args, train_ds, val_ds, test_ds):
+    rank = int(os.environ['RANK'])
+    local_rank = int(os.environ['LOCAL_RANK'])
+    world_size = int(os.environ['WORLD_SIZE'])
+    torch.cuda.set_device(local_rank)
+    torch.distributed.init_process_group('nccl')
+    device = local_rank
 
     model = StandardHNN(dim=2 * args.n_masses,
                         hidden_dim=args.hidden_dim,
-                        num_layers=args.num_layers).to(rank)
-    model = nn.parallel.DistributedDataParallel(model, device_ids=[rank])
+                        num_layers=args.num_layers).to(device)
+    model = nn.parallel.DistributedDataParallel(model, device_ids=[device])
 
     train_sampler = DistributedSampler(train_ds, num_replicas=world_size, rank=rank)
     val_sampler = DistributedSampler(val_ds, num_replicas=world_size, rank=rank, shuffle=False)
@@ -171,9 +173,9 @@ def train_ddp(rank, world_size, args, train_ds, val_ds, test_ds):
     for epoch in range(args.epochs):
         train_sampler.set_epoch(epoch)
         model.train()
-        train_loss = torch.tensor(0.0, device=rank)
+        train_loss = torch.tensor(0.0, device=device)
         for xb, dxb in train_loader:
-            xb, dxb = xb.to(rank), dxb.to(rank)
+            xb, dxb = xb.to(device), dxb.to(device)
             optimizer.zero_grad()
             loss = nn.MSELoss()(model.module.time_derivative(xb), dxb)
             loss.backward()
@@ -183,10 +185,10 @@ def train_ddp(rank, world_size, args, train_ds, val_ds, test_ds):
         train_loss /= len(train_loader.dataset)
 
         model.eval()
-        val_loss = torch.tensor(0.0, device=rank)
+        val_loss = torch.tensor(0.0, device=device)
         with torch.no_grad():
             for xb, dxb in val_loader:
-                val_loss += nn.MSELoss()(model.module.time_derivative(xb.to(rank)), dxb.to(rank)) * xb.size(0)
+                val_loss += nn.MSELoss()(model.module.time_derivative(xb.to(device)), dxb.to(device)) * xb.size(0)
         torch.distributed.all_reduce(val_loss)
         val_loss /= len(val_loader.dataset)
         scheduler.step(val_loss.item())
@@ -200,12 +202,12 @@ def train_ddp(rank, world_size, args, train_ds, val_ds, test_ds):
         test_mse = 0.0; n_test = 0
         with torch.no_grad():
             for xb, dxb in test_loader:
-                xb, dxb = xb.to(rank), dxb.to(rank)
+                xb, dxb = xb.to(device), dxb.to(device)
                 test_mse += nn.MSELoss()(model.module.time_derivative(xb), dxb).item() * xb.size(0)
                 n_test += xb.size(0)
         test_mse /= n_test
         print(f"\n  [DDP] 测试 MSE: {test_mse:.6e}")
-        return model.module, test_mse
+
     torch.distributed.destroy_process_group()
 # ============================================================
 # 评估: 轨迹预测
@@ -259,12 +261,8 @@ def main():
         n_trajectories=args.n_trajectories, seed=args.seed)
 
     if args.ddp:
-        world_size = torch.cuda.device_count()
-        print(f"\n检测到 {world_size} 张 GPU，启动 DDP 训练")
-        torch.multiprocessing.spawn(
-            train_ddp,
-            args=(world_size, args, train_ds, val_ds, test_ds),
-            nprocs=world_size)
+        print(f"\n检测到 DDP 模式，由 torchrun 管理进程")
+        train_ddp(args, train_ds, val_ds, test_ds)
         return
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
