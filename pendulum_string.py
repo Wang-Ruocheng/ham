@@ -210,58 +210,16 @@ def train_ddp(args, train_ds, val_ds, test_ds):
 
         # --- 轨迹预测与可视化 ---
         print("\n--- 轨迹预测 ---")
+        n_params = sum(p.numel() for p in model.module.parameters())
+        t_span = (0, 40); n_points = 1500
+        # 初始条件: 正弦波拨弦，零初速度
+        q0 = 0.5 * np.sin(np.pi * np.arange(args.n_masses) / (args.n_masses - 1))
+        state0 = np.concatenate([q0, np.zeros(args.n_masses)])
         sys = DiscretePendulumString(n_masses=args.n_masses,
                                      omega0=args.omega0, spring_k=args.spring_k)
-        n_params = sum(p.numel() for p in model.module.parameters())
-        t_span = (0, 40); n_points = 1500; t_eval = np.linspace(*t_span, n_points)
-        modes = np.random.randn(args.n_masses) * np.exp(-np.arange(args.n_masses) / 5)
-        state0 = np.concatenate([modes * 0.5, np.random.randn(args.n_masses) * 0.3])
         _, true_traj = sys.generate_trajectory(state0, t_span, n_points)
         pred_traj = integrate_rk4(model.module, state0, t_span, n_points, device)
-        H_true = np.array([sys.hamiltonian(true_traj[i]) for i in range(n_points)])
-        H_pred = np.array([sys.hamiltonian(pred_traj[i]) for i in range(n_points)])
-        fig, axes = plt.subplots(2, 3, figsize=(20, 12))
-        axes[0, 0].imshow(true_traj[:, :args.n_masses].T[:10],
-                          aspect='auto', origin='lower', cmap='RdBu_r',
-                          extent=[t_span[0], t_span[1], 0, 10])
-        axes[0, 0].set_title('True q (first 10)'); axes[0, 0].set_xlabel('t')
-        axes[0, 0].set_ylabel('mass index')
-        axes[0, 1].imshow(pred_traj[:, :args.n_masses].T[:10],
-                          aspect='auto', origin='lower', cmap='RdBu_r',
-                          extent=[t_span[0], t_span[1], 0, 10])
-        axes[0, 1].set_title('HNN Predicted q (first 10)'); axes[0, 1].set_xlabel('t')
-        axes[0, 1].set_ylabel('mass index')
-        axes[0, 2].imshow(np.abs(pred_traj[:, :args.n_masses] - true_traj[:, :args.n_masses]).T[:10],
-                          aspect='auto', origin='lower', cmap='hot',
-                          extent=[t_span[0], t_span[1], 0, 10])
-        axes[0, 2].set_title('|Error| (first 10)'); axes[0, 2].set_xlabel('t')
-        axes[0, 2].set_ylabel('mass index')
-        mid = args.n_masses // 2
-        axes[1, 0].plot(t_eval, true_traj[:, mid], 'k-', lw=2, label=f'True q_{mid}')
-        axes[1, 0].plot(t_eval, pred_traj[:, mid], 'r--', lw=1.5, label=f'HNN q_{mid}')
-        axes[1, 0].set_title(f'Mass {mid} trajectory'); axes[1, 0].set_xlabel('t')
-        axes[1, 0].legend(); axes[1, 0].grid(alpha=0.3)
-        axes[1, 1].plot(t_eval, H_true, 'k-', lw=2, label='H_true')
-        axes[1, 1].plot(t_eval, H_pred, 'r--', lw=1.5, label='H_HNN')
-        axes[1, 1].set_title('Hamiltonian Conservation'); axes[1, 1].set_xlabel('t')
-        axes[1, 1].legend(); axes[1, 1].grid(alpha=0.3)
-        snapshot_times = [0.0, 10.0, 20.0, 30.0, 40.0]
-        snap_idx = [int(t / 40.0 * (n_points - 1)) for t in snapshot_times]
-        colors = plt.cm.viridis(np.linspace(0.2, 0.9, len(snapshot_times)))
-        for ti, (t, idx, c) in enumerate(zip(snapshot_times, snap_idx, colors)):
-            mass_idx = np.arange(args.n_masses)
-            axes[1, 2].plot(mass_idx, true_traj[idx, :args.n_masses],
-                            '-', color=c, lw=2, label=f't={t}s (true)' if ti == 0 else None)
-            axes[1, 2].plot(mass_idx, pred_traj[idx, :args.n_masses],
-                            '--', color=c, lw=1.5, label=f't={t}s (HNN)' if ti == 0 else None)
-        axes[1, 2].set_title('Pendulum String Snapshots')
-        axes[1, 2].set_xlabel('mass index'); axes[1, 2].set_ylabel('q')
-        axes[1, 2].legend(fontsize=8, ncol=2); axes[1, 2].grid(alpha=0.3)
-        fig.suptitle(f'Discrete Pendulum String: N={args.n_masses}, dim={2*args.n_masses}, Params={n_params:,}', fontsize=14)
-        plt.tight_layout()
-        fig.savefig('pendulum_string.png', dpi=150, bbox_inches='tight')
-        plt.close()
-        print(" -> pendulum_string.png")
+        visualize(args, true_traj, pred_traj, test_mse, n_params, t_span, n_points)
         print(f"\n{'='*70}")
         print(f"完成 | N={args.n_masses} | dim={2*args.n_masses} | 参数={n_params:,} | MSE={test_mse:.4e}")
         print("=" * 70)
@@ -283,6 +241,89 @@ def integrate_rk4(model, state0, t_span, n_steps, device='cuda'):
         k4 = model.time_derivative(x + dt*torch.tensor(k3, device=device, dtype=torch.float32)).detach().cpu().numpy()[0]
         traj[i+1] = traj[i] + dt * (k1 + 2*k2 + 2*k3 + k4) / 6
     return traj
+
+
+def visualize(args, true_traj, pred_traj, test_mse, n_params, t_span=(0, 40), n_points=1500):
+    """生成 2×3 可视化图：时空图 + 轨迹 + 2D 摆绳快照"""
+    from matplotlib.patches import Circle
+    t_eval = np.linspace(*t_span, n_points)
+    N = args.n_masses
+    sys = DiscretePendulumString(n_masses=N, omega0=args.omega0, spring_k=args.spring_k)
+
+    H_true = np.array([sys.hamiltonian(true_traj[i]) for i in range(n_points)])
+    H_pred = np.array([sys.hamiltonian(pred_traj[i]) for i in range(n_points)])
+
+    fig, axes = plt.subplots(2, 3, figsize=(20, 12))
+
+    # --- 第 0 行: 时空图 ---
+    im1 = axes[0, 0].imshow(true_traj[:, :N].T[:10],
+                            aspect='auto', origin='lower', cmap='RdBu_r',
+                            extent=[t_span[0], t_span[1], 0, 10])
+    axes[0, 0].set_title('True q (first 10)'); axes[0, 0].set_xlabel('t')
+    axes[0, 0].set_ylabel('mass index'); plt.colorbar(im1, ax=axes[0, 0])
+
+    im2 = axes[0, 1].imshow(pred_traj[:, :N].T[:10],
+                            aspect='auto', origin='lower', cmap='RdBu_r',
+                            extent=[t_span[0], t_span[1], 0, 10])
+    axes[0, 1].set_title('HNN Predicted q (first 10)'); axes[0, 1].set_xlabel('t')
+    axes[0, 1].set_ylabel('mass index'); plt.colorbar(im2, ax=axes[0, 1])
+
+    im3 = axes[0, 2].imshow(
+        np.abs(pred_traj[:, :N] - true_traj[:, :N]).T[:10],
+        aspect='auto', origin='lower', cmap='hot',
+        extent=[t_span[0], t_span[1], 0, 10])
+    axes[0, 2].set_title('|Error| (first 10)'); axes[0, 2].set_xlabel('t')
+    axes[0, 2].set_ylabel('mass index'); plt.colorbar(im3, ax=axes[0, 2])
+
+    # --- 第 1 行左: 中间质点轨迹 ---
+    mid = N // 2
+    axes[1, 0].plot(t_eval, true_traj[:, mid], 'k-', lw=2, label=f'True q_{mid}')
+    axes[1, 0].plot(t_eval, pred_traj[:, mid], 'r--', lw=1.5, label=f'HNN q_{mid}')
+    axes[1, 0].set_title(f'Mass {mid} trajectory'); axes[1, 0].set_xlabel('t')
+    axes[1, 0].legend(); axes[1, 0].grid(alpha=0.3)
+
+    # --- 第 1 行中: 哈密顿量守恒 ---
+    axes[1, 1].plot(t_eval, H_true, 'k-', lw=2, label='H_true')
+    axes[1, 1].plot(t_eval, H_pred, 'r--', lw=1.5, label='H_HNN')
+    axes[1, 1].set_title('Hamiltonian Conservation'); axes[1, 1].set_xlabel('t')
+    axes[1, 1].legend(); axes[1, 1].grid(alpha=0.3)
+
+    # --- 第 1 行右: 二维摆绳快照 ---
+    snapshot_times = [0.0, 10.0, 20.0, 30.0, 40.0]
+    snap_idx = [int(t / (t_span[1] - t_span[0]) * (n_points - 1)) for t in snapshot_times]
+    colors = plt.cm.viridis(np.linspace(0.2, 0.9, len(snapshot_times)))
+
+    for ti, (t, idx, c) in enumerate(zip(snapshot_times, snap_idx, colors)):
+        x = np.arange(N)                     # 水平位置
+        y_true = true_traj[idx, :N]           # 真实位移
+        y_pred = pred_traj[idx, :N]           # 预测位移
+
+        # 真实摆绳 (实线 + 圆点)
+        axes[1, 2].plot(x, y_true, '-', color=c, lw=2,
+                        label=f't={t}s (true)' if ti == 0 else None)
+        axes[1, 2].scatter(x, y_true, s=30, color=c, marker='o', zorder=3,
+                           label=f't={t}s (true)' if ti == 0 else None)  # 重复 label 但只显示一次
+
+        # 预测摆绳 (虚线 + 叉号)
+        axes[1, 2].plot(x, y_pred, '--', color=c, lw=1.5, alpha=0.7,
+                        label=f't={t}s (HNN)' if ti == 0 else None)
+        axes[1, 2].scatter(x, y_pred, s=25, color=c, marker='x', zorder=3, alpha=0.7,
+                           label=f't={t}s (HNN)' if ti == 0 else None)
+
+    axes[1, 2].set_title('Pendulum String in 2D Space')
+    axes[1, 2].set_xlabel('horizontal position'); axes[1, 2].set_ylabel('vertical displacement q')
+    axes[1, 2].legend(fontsize=7, ncol=2, loc='lower right')
+    axes[1, 2].grid(alpha=0.3)
+    axes[1, 2].set_ylim(-1.2 * np.max(np.abs(true_traj[:, :N])),
+                         1.2 * np.max(np.abs(true_traj[:, :N])))
+    axes[1, 2].set_aspect('equal', adjustable='box')
+
+    fig.suptitle(f'Discrete Pendulum String: N={N}, dim={2*N}, Params={n_params:,} | MSE={test_mse:.4e}',
+                 fontsize=14)
+    plt.tight_layout()
+    fig.savefig('pendulum_string.png', dpi=150, bbox_inches='tight')
+    plt.close()
+    print(" -> pendulum_string.png")
 
 
 # ============================================================
@@ -315,8 +356,15 @@ def main():
     print("\n--- 生成数据 ---")
     sys = DiscretePendulumString(n_masses=args.n_masses,
                                  omega0=args.omega0, spring_k=args.spring_k)
-    train_ds, val_ds, test_ds = sys.generate_dataset(
-        n_trajectories=args.n_trajectories, seed=args.seed)
+    data_path = f'pendulum_string_data_N{args.n_masses}.pt'
+    if os.path.exists(data_path):
+        print(f"  加载已保存的数据: {data_path}")
+        train_ds, val_ds, test_ds = torch.load(data_path)
+    else:
+        train_ds, val_ds, test_ds = sys.generate_dataset(
+            n_trajectories=args.n_trajectories, seed=args.seed)
+        torch.save((train_ds, val_ds, test_ds), data_path)
+        print(f"  数据已保存: {data_path}")
 
     if args.ddp:
         print(f"\n检测到 DDP 模式，由 torchrun 管理进程")
@@ -353,65 +401,15 @@ def main():
     print(f"\n测试 MSE: {test_mse:.6e}")
 
     print("\n--- 轨迹预测 ---")
-    t_span = (0, 40); n_points = 1500; t_eval = np.linspace(*t_span, n_points)
-    modes = np.random.randn(args.n_masses) * np.exp(-np.arange(args.n_masses) / 5)
-    state0 = np.concatenate([modes * 0.5, np.random.randn(args.n_masses) * 0.3])
+    t_span = (0, 40); n_points = 1500
+    # 初始条件: 正弦波拨弦，零初速度
+    q0 = 0.5 * np.sin(np.pi * np.arange(args.n_masses) / (args.n_masses - 1))
+    state0 = np.concatenate([q0, np.zeros(args.n_masses)])
 
     _, true_traj = sys.generate_trajectory(state0, t_span, n_points)
     pred_traj = integrate_rk4(model, state0, t_span, n_points, device)
 
-    H_true = np.array([sys.hamiltonian(true_traj[i]) for i in range(n_points)])
-    H_pred = np.array([sys.hamiltonian(pred_traj[i]) for i in range(n_points)])
-
-    fig, axes = plt.subplots(2, 3, figsize=(20, 12))
-    im1 = axes[0, 0].imshow(true_traj[:, :args.n_masses].T[:10],
-                            aspect='auto', origin='lower', cmap='RdBu_r',
-                            extent=[t_span[0], t_span[1], 0, 10])
-    axes[0, 0].set_title(f'True q (first 10)'); axes[0, 0].set_xlabel('t')
-    axes[0, 0].set_ylabel('mass index'); plt.colorbar(im1, ax=axes[0, 0])
-
-    im2 = axes[0, 1].imshow(pred_traj[:, :args.n_masses].T[:10],
-                            aspect='auto', origin='lower', cmap='RdBu_r',
-                            extent=[t_span[0], t_span[1], 0, 10])
-    axes[0, 1].set_title('HNN Predicted q (first 10)'); axes[0, 1].set_xlabel('t')
-    axes[0, 1].set_ylabel('mass index'); plt.colorbar(im2, ax=axes[0, 1])
-
-    im3 = axes[0, 2].imshow(
-        np.abs(pred_traj[:, :args.n_masses] - true_traj[:, :args.n_masses]).T[:10],
-        aspect='auto', origin='lower', cmap='hot',
-        extent=[t_span[0], t_span[1], 0, 10])
-    axes[0, 2].set_title('|Error| (first 10)'); axes[0, 2].set_xlabel('t')
-    axes[0, 2].set_ylabel('mass index'); plt.colorbar(im3, ax=axes[0, 2])
-
-    mid = args.n_masses // 2
-    axes[1, 0].plot(t_eval, true_traj[:, mid], 'k-', lw=2, label=f'True q_{mid}')
-    axes[1, 0].plot(t_eval, pred_traj[:, mid], 'r--', lw=1.5, label=f'HNN q_{mid}')
-    axes[1, 0].set_title(f'Mass {mid} trajectory'); axes[1, 0].set_xlabel('t')
-    axes[1, 0].legend(); axes[1, 0].grid(alpha=0.3)
-
-    axes[1, 1].plot(t_eval, H_true, 'k-', lw=2, label='H_true')
-    axes[1, 1].plot(t_eval, H_pred, 'r--', lw=1.5, label='H_HNN')
-    axes[1, 1].set_title('Hamiltonian Conservation'); axes[1, 1].set_xlabel('t')
-    axes[1, 1].legend(); axes[1, 1].grid(alpha=0.3)
-
-    snapshot_times = [0.0, 10.0, 20.0, 30.0, 40.0]
-    snap_idx = [int(t / 40.0 * (n_points - 1)) for t in snapshot_times]
-    colors = plt.cm.viridis(np.linspace(0.2, 0.9, len(snapshot_times)))
-    for ti, (t, idx, c) in enumerate(zip(snapshot_times, snap_idx, colors)):
-        mass_idx = np.arange(args.n_masses)
-        axes[1, 2].plot(mass_idx, true_traj[idx, :args.n_masses],
-                        '-', color=c, lw=2, label=f't={t}s (true)' if ti == 0 else None)
-        axes[1, 2].plot(mass_idx, pred_traj[idx, :args.n_masses],
-                        '--', color=c, lw=1.5, label=f't={t}s (HNN)' if ti == 0 else None)
-    axes[1, 2].set_title('Pendulum String Snapshots')
-    axes[1, 2].set_xlabel('mass index'); axes[1, 2].set_ylabel('q')
-    axes[1, 2].legend(fontsize=8, ncol=2); axes[1, 2].grid(alpha=0.3)
-
-    fig.suptitle(f'Discrete Pendulum String: N={args.n_masses}, dim={dim}, Params={n_params:,}', fontsize=14)
-    plt.tight_layout()
-    fig.savefig('pendulum_string.png', dpi=150, bbox_inches='tight')
-    plt.close()
-    print(" -> pendulum_string.png")
+    visualize(args, true_traj, pred_traj, test_mse, n_params, t_span, n_points)
 
     print(f"\n{'='*70}")
     print(f"完成 | N={args.n_masses} | dim={dim} | 参数={n_params:,} | MSE={test_mse:.4e}")
