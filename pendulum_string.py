@@ -36,7 +36,7 @@ class DiscretePendulumString:
     def hamiltonian(self, state):
         q = state[:self.N]; p = state[self.N:]
         H_pend = 0.5 * (p**2).sum() + 0.5 * self.omega0**2 * (q**2).sum()
-        dq = np.diff(q, prepend=0.0)
+        dq = np.diff(q, prepend=0.0, append=0.0)
         H_spring = 0.5 * self.k * (dq**2).sum()
         return H_pend + H_spring
 
