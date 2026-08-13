@@ -1,8 +1,10 @@
 """
-离散摆绳：N 个耦合谐振子链
+离散摆绳：一端固定，重力摆弦
 =============================
-物理: 弦离散化为 N 个质点，每个质点受重力(摆) + 弹簧连接
+物理: 弦离散化为 N 个质点，左端固定，右端自由。
+      每个质点受重力(小角度近似: ½ω₀²q²) + 弹簧连接。
 H = sum[½p_i² + ½ω₀²q_i²] + ½k sum(q_{i+1} - q_i)²
+  其中 q_{0} = 0 固定端，q_{N-1} 自由端
 
 状态: x = [q_1, ..., q_N, p_1, ..., p_N] ∈ ℝ^{2N}
 辛矩阵: J = [[0, I], [-I, 0]]
@@ -11,6 +13,7 @@ H = sum[½p_i² + ½ω₀²q_i²] + ½k sum(q_{i+1} - q_i)²
 训练:
     单卡:  python pendulum_string.py --n_masses 20
     8卡DDP: torchrun --nproc_per_node=8 pendulum_string.py --n_masses 20 --ddp
+    两端固定: python pendulum_string.py --no-free-end
 """
 
 import os
@@ -28,15 +31,16 @@ import matplotlib.pyplot as plt
 # 离散摆绳物理系统
 # ============================================================
 class DiscretePendulumString:
-    def __init__(self, n_masses=20, omega0=1.0, spring_k=10.0):
+    def __init__(self, n_masses=20, omega0=1.0, spring_k=10.0, free_end=True):
         self.N = n_masses
         self.omega0 = omega0
         self.k = spring_k
+        self.free_end = free_end
 
     def hamiltonian(self, state):
         q = state[:self.N]; p = state[self.N:]
         H_pend = 0.5 * (p**2).sum() + 0.5 * self.omega0**2 * (q**2).sum()
-        dq = np.diff(q, prepend=0.0, append=0.0)
+        dq = np.diff(q, prepend=0.0, append=0.0 if not self.free_end else None)
         H_spring = 0.5 * self.k * (dq**2).sum()
         return H_pend + H_spring
 
@@ -44,10 +48,13 @@ class DiscretePendulumString:
         q = state[:self.N]; p = state[self.N:]
         dqdt = p
         dpdt = -self.omega0**2 * q
-        dpdt[0] -= self.k * (2*q[0] - q[1])
+        dpdt[0] -= self.k * (2*q[0] - q[1])          # 固定端
         for i in range(1, self.N - 1):
             dpdt[i] -= self.k * (2*q[i] - q[i-1] - q[i+1])
-        dpdt[-1] -= self.k * (2*q[-1] - q[-2])
+        if self.free_end:
+            dpdt[-1] -= self.k * (q[-1] - q[-2])      # 自由端
+        else:
+            dpdt[-1] -= self.k * (2*q[-1] - q[-2])    # 固定端
         return np.concatenate([dqdt, dpdt])
 
     def generate_trajectory(self, state0, t_span=(0, 20), n_points=300):
@@ -216,7 +223,8 @@ def train_ddp(args, train_ds, val_ds, test_ds):
         q0 = 0.5 * np.sin(np.pi * np.arange(args.n_masses) / (args.n_masses - 1))
         state0 = np.concatenate([q0, np.zeros(args.n_masses)])
         sys = DiscretePendulumString(n_masses=args.n_masses,
-                                     omega0=args.omega0, spring_k=args.spring_k)
+                                     omega0=args.omega0, spring_k=args.spring_k,
+                                     free_end=args.free_end)
         _, true_traj = sys.generate_trajectory(state0, t_span, n_points)
         pred_traj = integrate_rk4(model.module, state0, t_span, n_points, device)
         visualize(args, true_traj, pred_traj, test_mse, n_params, t_span, n_points)
@@ -248,7 +256,8 @@ def visualize(args, true_traj, pred_traj, test_mse, n_params, t_span=(0, 40), n_
     from matplotlib.patches import Circle
     t_eval = np.linspace(*t_span, n_points)
     N = args.n_masses
-    sys = DiscretePendulumString(n_masses=N, omega0=args.omega0, spring_k=args.spring_k)
+    sys = DiscretePendulumString(n_masses=N, omega0=args.omega0, spring_k=args.spring_k,
+                                 free_end=args.free_end)
 
     H_true = np.array([sys.hamiltonian(true_traj[i]) for i in range(n_points)])
     H_pred = np.array([sys.hamiltonian(pred_traj[i]) for i in range(n_points)])
@@ -295,14 +304,14 @@ def visualize(args, true_traj, pred_traj, test_mse, n_params, t_span=(0, 40), n_
 
     for ti, (t, idx, c) in enumerate(zip(snapshot_times, snap_idx, colors)):
         x = np.arange(N)                     # 水平位置
-        y_true = true_traj[idx, :N]           # 真实位移
-        y_pred = pred_traj[idx, :N]           # 预测位移
+        y_true = true_traj[idx, :N]           # 垂直位移
+        y_pred = pred_traj[idx, :N]
 
         # 真实摆绳 (实线 + 圆点)
         axes[1, 2].plot(x, y_true, '-', color=c, lw=2,
                         label=f't={t}s (true)' if ti == 0 else None)
         axes[1, 2].scatter(x, y_true, s=30, color=c, marker='o', zorder=3,
-                           label=f't={t}s (true)' if ti == 0 else None)  # 重复 label 但只显示一次
+                           label=f't={t}s (true)' if ti == 0 else None)
 
         # 预测摆绳 (虚线 + 叉号)
         axes[1, 2].plot(x, y_pred, '--', color=c, lw=1.5, alpha=0.7,
@@ -310,13 +319,20 @@ def visualize(args, true_traj, pred_traj, test_mse, n_params, t_span=(0, 40), n_
         axes[1, 2].scatter(x, y_pred, s=25, color=c, marker='x', zorder=3, alpha=0.7,
                            label=f't={t}s (HNN)' if ti == 0 else None)
 
-    axes[1, 2].set_title('Pendulum String in 2D Space')
-    axes[1, 2].set_xlabel('horizontal position'); axes[1, 2].set_ylabel('vertical displacement q')
+    # 固定端标注
+    axes[1, 2].annotate('', xy=(0, 0), xytext=(-0.3, 0),
+                        arrowprops=dict(arrowstyle='->', color='gray', lw=2))
+    axes[1, 2].text(-0.35, 0, 'fixed', fontsize=9, ha='right', va='center', color='gray')
+
+    axes[1, 2].set_title('Pendulum String in 2D Space (vert. displacement)')
+    axes[1, 2].set_xlabel('horizontal position (mass index)')
+    axes[1, 2].set_ylabel('vertical displacement q')
+    ymax = np.max(np.abs(true_traj[:, :N])) * 1.3
+    axes[1, 2].set_ylim(-ymax, ymax)
+    axes[1, 2].set_xlim(-0.5, N - 0.5)
     axes[1, 2].legend(fontsize=7, ncol=2, loc='lower right')
     axes[1, 2].grid(alpha=0.3)
-    axes[1, 2].set_ylim(-1.2 * np.max(np.abs(true_traj[:, :N])),
-                         1.2 * np.max(np.abs(true_traj[:, :N])))
-    axes[1, 2].set_aspect('equal', adjustable='box')
+    # 不加 set_aspect('equal')，让 matplotlib 自动撑满子图区域
 
     fig.suptitle(f'Discrete Pendulum String: N={N}, dim={2*N}, Params={n_params:,} | MSE={test_mse:.4e}',
                  fontsize=14)
@@ -341,6 +357,8 @@ def main():
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--n_trajectories', type=int, default=200)
     parser.add_argument('--ddp', action='store_true')
+    parser.add_argument('--no-free-end', action='store_false', dest='free_end',
+                        default=True, help='两端固定（默认仅一端固定）')
     parser.add_argument('--seed', type=int, default=42)
 
     args = parser.parse_args()
@@ -349,13 +367,15 @@ def main():
     print("=" * 70)
     print(f"离散摆绳 HNN: N={args.n_masses} 质点, 状态维度={dim}")
     print(f"omega0={args.omega0}, k={args.spring_k}")
+    print(f"边界: {'左端固定, 右端自由' if args.free_end else '两端固定'}")
     print(f"MLP: {dim} -> {args.hidden_dim}x{args.num_layers} -> 1")
     print(f"训练: {'DDP' if args.ddp else '单卡'}, {args.epochs} epochs")
     print("=" * 70)
 
     print("\n--- 生成数据 ---")
     sys = DiscretePendulumString(n_masses=args.n_masses,
-                                 omega0=args.omega0, spring_k=args.spring_k)
+                                 omega0=args.omega0, spring_k=args.spring_k,
+                                 free_end=args.free_end)
     data_path = f'pendulum_string_data_N{args.n_masses}.pt'
     if os.path.exists(data_path):
         print(f"  加载已保存的数据: {data_path}")
