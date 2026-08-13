@@ -246,7 +246,7 @@ def train_ddp(args, train_ds, val_ds, test_ds):
         axes[1, 1].set_title('Hamiltonian Conservation'); axes[1, 1].set_xlabel('t')
         axes[1, 1].legend(); axes[1, 1].grid(alpha=0.3)
         snapshot_times = [0.0, 10.0, 20.0, 30.0, 40.0]
-        snap_idx = [int(t / 40.0 * n_points) for t in snapshot_times]
+        snap_idx = [int(t / 40.0 * (n_points - 1)) for t in snapshot_times]
         colors = plt.cm.viridis(np.linspace(0.2, 0.9, len(snapshot_times)))
         for ti, (t, idx, c) in enumerate(zip(snapshot_times, snap_idx, colors)):
             mass_idx = np.arange(args.n_masses)
@@ -395,7 +395,7 @@ def main():
     axes[1, 1].legend(); axes[1, 1].grid(alpha=0.3)
 
     snapshot_times = [0.0, 10.0, 20.0, 30.0, 40.0]
-    snap_idx = [int(t / 40.0 * n_points) for t in snapshot_times]
+    snap_idx = [int(t / 40.0 * (n_points - 1)) for t in snapshot_times]
     colors = plt.cm.viridis(np.linspace(0.2, 0.9, len(snapshot_times)))
     for ti, (t, idx, c) in enumerate(zip(snapshot_times, snap_idx, colors)):
         mass_idx = np.arange(args.n_masses)
