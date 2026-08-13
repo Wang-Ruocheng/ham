@@ -174,15 +174,16 @@ class StandardHNN(nn.Module):
 
     def compute_stats(self, loader):
         """从训练数据计算状态归一化统计量 (mean, std)"""
+        device = next(self.parameters()).device
         n, dim = 0, self.dim
-        mean = torch.zeros(dim)
+        mean = torch.zeros(dim, device=device)
         for xb, _ in loader:
-            mean += xb.sum(dim=0)
+            mean += xb.to(device).sum(dim=0)
             n += xb.size(0)
         mean /= n
-        var = torch.zeros(dim)
+        var = torch.zeros(dim, device=device)
         for xb, _ in loader:
-            var += ((xb - mean) ** 2).sum(dim=0)
+            var += ((xb.to(device) - mean) ** 2).sum(dim=0)
         var /= n
         self.mu = mean
         self.sigma = var.sqrt().clamp(min=1e-6)
