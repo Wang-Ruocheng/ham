@@ -458,7 +458,7 @@ def main():
                 torch.save((train_ds, val_ds, test_ds), data_path)
                 print(f"  数据已保存: {data_path}")
             else:
-                train_ds, val_ds, test_ds = torch.load(data_path)
+                train_ds, val_ds, test_ds = torch.load(data_path, weights_only=False)
                 print(f"  加载已保存的数据: {data_path}")
         else:
             # 非 rank 0 进程等待文件存在
@@ -466,12 +466,12 @@ def main():
             while not os.path.exists(data_path):
                 time.sleep(0.5)
             time.sleep(0.5)  # 确保文件写入完成
-            train_ds, val_ds, test_ds = torch.load(data_path)
+            train_ds, val_ds, test_ds = torch.load(data_path, weights_only=False)
             print(f"  加载已保存的数据: {data_path}")
     else:
         if os.path.exists(data_path):
             print(f"  加载已保存的数据: {data_path}")
-            train_ds, val_ds, test_ds = torch.load(data_path)
+            train_ds, val_ds, test_ds = torch.load(data_path, weights_only=False)
         else:
             train_ds, val_ds, test_ds = sys.generate_dataset(
                 n_trajectories=args.n_trajectories, seed=args.seed)
