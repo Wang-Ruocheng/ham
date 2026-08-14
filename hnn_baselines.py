@@ -157,13 +157,24 @@ class PartialHNN(nn.Module):
     def time_derivative(self, x):
         theta, p = x[:, :self.N], x[:, self.N:]
         theta_n = (theta - self.theta_mu) / self.theta_sigma
+
+        # V 和 ∂V/∂θ 通过 autograd
         V = self.V_net(theta_n)
-        T = self._compute_T(theta, p)
-        H = T + V
-        grad = torch.autograd.grad(H.sum(), x, create_graph=True)[0]
-        theta_grad, p_grad = grad[:, :self.N], grad[:, self.N:]
-        return torch.cat([p_grad, -theta_grad], dim=-1)
-        V_new = self.V_net(theta_new_n)
+        dV_dtheta = torch.autograd.grad(V.sum(), theta, create_graph=True)[0]
+
+        # T 梯度解析计算 (避免 linalg.solve 的 autograd 不稳定)
+        B = theta.shape[0]
+        cos_diff = torch.cos(theta.unsqueeze(1) - theta.unsqueeze(2))
+        M = self.ml2 * self.k_mat.unsqueeze(0) * cos_diff
+        v = torch.linalg.solve(M.detach(), p.unsqueeze(-1)).squeeze(-1)  # v = M⁻¹p
+
+        # ∂T/∂θ_k = ml² * v_k * Σ_j k_mat[k,j] * sin(θ_k - θ_j) * v_j
+        sin_diff = torch.sin(theta.unsqueeze(1) - theta.unsqueeze(2))
+        A = self.k_mat.unsqueeze(0) * sin_diff  # (B, N, N)
+        Av = torch.bmm(A, v.unsqueeze(-1)).squeeze(-1)  # (B, N)
+        dT_dtheta = self.ml2 * v * Av
+
+        return torch.cat([v, -dT_dtheta - dV_dtheta], dim=-1)
 # ============================================================
 # 3. SIREN_HNN — sin 激活函数
 # ============================================================
@@ -320,8 +331,9 @@ def train_symplectic(model, train_loader, val_loader,
 # 生成多步训练数据
 # ============================================================
 def generate_multistep_data(sys, n_trajectories=200, t_span=(0, 20),
-                            n_points=300, n_steps=5, seed=42):
-    """生成多步训练数据: (x_t, x_{t+n*dt}) 对"""
+                            dt=0.05, n_steps=5, seed=42):
+    """生成多步训练数据: (x_t, x_{t+n*dt}) 对，dt 为单步积分步长"""
+    n_points = int((t_span[1] - t_span[0]) / dt) + 1
     np.random.seed(seed)
     xs_list, xs_future_list = [], []
 

@@ -178,10 +178,10 @@ def main():
         else:
             print("  生成多步训练数据...")
             n_steps = 5
-            dt = 20.0 / 300 * n_steps
+            dt = 0.05  # 单步积分步长，与数据生成一致
             mstep_train, mstep_val = generate_multistep_data(
                 sys, n_trajectories=args.n_trajectories,
-                n_steps=n_steps, seed=args.seed)
+                dt=dt, n_steps=n_steps, seed=args.seed)
             mstep_train_loader = DataLoader(mstep_train, batch_size=args.batch_size,
                                             shuffle=True, num_workers=4, pin_memory=True)
 
