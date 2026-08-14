@@ -120,6 +120,12 @@ class SeparableHNN(nn.Module):
         dT = torch.autograd.grad(T.sum(), p_n, create_graph=True)[0] / self.p_sigma
         theta_new = theta + dt * dT
         theta_new_n = (theta_new - self.theta_mu) / self.theta_sigma
+        V_new = self.V_net(theta_new_n)
+        dV_new = torch.autograd.grad(V_new.sum(), theta_new_n, create_graph=True)[0] / self.theta_sigma
+        p_new = p_half - 0.5 * dt * dV_new
+        return torch.cat([theta_new, p_new], dim=-1)
+
+
 # ============================================================
 # 2. PartialHNN — 已知 M(θ)，只学 V(θ)
 # ============================================================
