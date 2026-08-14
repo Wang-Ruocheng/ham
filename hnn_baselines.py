@@ -406,6 +406,7 @@ def evaluate_and_visualize(model, test_loader, sys, args, device, label,
     N = args.n_masses
     H_true = np.array([sys.hamiltonian(true_traj[i]) for i in range(n_points)])
     H_pred = np.array([sys.hamiltonian(pred_traj[i]) for i in range(n_points)])
+    print(f"  H_true(0) = {H_true[0]:.2f}, H_pred(0) = {H_pred[0]:.2f}")
 
     # 可视化: 上排哈密顿量，下排 3 帧摆链快照
     fig = plt.figure(figsize=(18, 9))
