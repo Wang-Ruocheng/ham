@@ -394,75 +394,60 @@ def evaluate_and_visualize(model, test_loader, sys, args, device, label,
     print(f"\n  [{label}] 测试 MSE: {test_mse:.6e} | 参数: {n_params:,}")
 
     # 轨迹预测
-    print(f"  [{label}] 轨迹预测...")
-    theta0 = np.full(args.n_masses, np.pi / 2)  # 全链水平
+    print(f"  [{label}] 轨迹预测 (θ₀ = π/4)...")
+    theta0 = np.full(args.n_masses, np.pi / 4)  # 45°
     p0 = np.zeros(args.n_masses)
     state0 = np.concatenate([theta0, p0])
 
     _, true_traj = sys.generate_trajectory(state0, t_span, n_points)
     pred_traj = integrate_rk4(model, state0, t_span, n_points, device)
 
-    # 可视化
     t_eval = np.linspace(*t_span, n_points)
     N = args.n_masses
     H_true = np.array([sys.hamiltonian(true_traj[i]) for i in range(n_points)])
     H_pred = np.array([sys.hamiltonian(pred_traj[i]) for i in range(n_points)])
 
-    fig, axes = plt.subplots(2, 3, figsize=(20, 12))
-    n_show = min(10, N)
+    # 可视化: 上排哈密顿量，下排 3 帧摆链快照
+    fig = plt.figure(figsize=(18, 9))
+    gs = fig.add_gridspec(2, 3, hspace=0.35, wspace=0.3)
 
-    im1 = axes[0, 0].imshow(true_traj[:, :N].T[:n_show],
-                            aspect='auto', origin='lower', cmap='RdBu_r',
-                            extent=[t_span[0], t_span[1], 0, n_show])
-    axes[0, 0].set_title(f'True theta [{label}]'); axes[0, 0].set_xlabel('t')
-    axes[0, 0].set_ylabel('mass index'); plt.colorbar(im1, ax=axes[0, 0])
+    # ── 哈密顿量 ──
+    ax_ham = fig.add_subplot(gs[0, :])
+    ax_ham.plot(t_eval, H_true, label='H_true', color='C0', lw=2)
+    ax_ham.plot(t_eval, H_pred, '--', label='H_pred', color='C1', lw=2)
+    ax_ham.set_title(f'Hamiltonian [{label}]'); ax_ham.set_xlabel('t')
+    ax_ham.set_ylabel('H'); ax_ham.legend(); ax_ham.grid(alpha=0.3)
 
-    im2 = axes[0, 1].imshow(pred_traj[:, :N].T[:n_show],
-                            aspect='auto', origin='lower', cmap='RdBu_r',
-                            extent=[t_span[0], t_span[1], 0, n_show])
-    axes[0, 1].set_title(f'Predicted theta [{label}]'); axes[0, 1].set_xlabel('t')
-    axes[0, 1].set_ylabel('mass index'); plt.colorbar(im2, ax=axes[0, 1])
+    # ── 摆链快照 (t=0, t=mid, t=end) ──
+    snap_indices = [0, n_points // 2, n_points - 1]
+    snap_times = [t_eval[i] for i in snap_indices]
 
-    im3 = axes[0, 2].imshow(
-        np.abs(pred_traj[:, :N] - true_traj[:, :N]).T[:n_show],
-        aspect='auto', origin='lower', cmap='hot',
-        extent=[t_span[0], t_span[1], 0, n_show])
-    axes[0, 2].set_title(f'|Error| [{label}]'); axes[0, 2].set_xlabel('t')
-    axes[0, 2].set_ylabel('mass index'); plt.colorbar(im3, ax=axes[0, 2])
+    for idx, (si, st) in enumerate(zip(snap_indices, snap_times)):
+        ax = fig.add_subplot(gs[1, idx])
+        theta_t = true_traj[si, :N]; theta_p = pred_traj[si, :N]
+        x_t, y_t = sys.get_positions(theta_t)
+        x_p, y_p = sys.get_positions(theta_p)
 
-    axes[1, 0].plot(t_eval, true_traj[:, 0], label='True', color='C0')
-    axes[1, 0].plot(t_eval, pred_traj[:, 0], '--', label='Pred', color='C1')
-    axes[1, 0].set_title(f'Angle theta_0 [{label}]'); axes[1, 0].set_xlabel('t')
-    axes[1, 0].legend()
+        ax.plot(0, 0, 'ks', markersize=8)
+        x_chain_t = np.concatenate([[0], x_t])
+        y_chain_t = np.concatenate([[0], y_t])
+        ax.plot(x_chain_t, y_chain_t, 'o-', color='C0', label='True', markersize=5, lw=2)
+        x_chain_p = np.concatenate([[0], x_p])
+        y_chain_p = np.concatenate([[0], y_p])
+        ax.plot(x_chain_p, y_chain_p, 's--', color='C1', label='Pred', markersize=5, lw=2)
 
-    axes[1, 1].plot(t_eval, H_true, label='H_true', color='C0')
-    axes[1, 1].plot(t_eval, H_pred, '--', label='H_pred', color='C1')
-    axes[1, 1].set_title(f'Hamiltonian [{label}]'); axes[1, 1].set_xlabel('t')
-    axes[1, 1].legend()
+        ax.set_title(f't = {st:.1f}s'); ax.set_xlabel('x'); ax.set_ylabel('y')
+        ax.legend(loc='upper right', fontsize=8); ax.invert_yaxis(); ax.grid(alpha=0.3)
+        ax.set_aspect('equal')
 
-    theta_true = true_traj[-1, :N]; theta_pred = pred_traj[-1, :N]
-    x_true, y_true = sys.get_positions(theta_true)
-    x_pred, y_pred = sys.get_positions(theta_pred)
-    axes[1, 2].plot(0, 0, 'ks', markersize=8, label='Pivot')
-    x_chain = np.concatenate([[0], x_true])
-    y_chain = np.concatenate([[0], y_true])
-    axes[1, 2].plot(x_chain, y_chain, 'o-', color='C0', label='True', markersize=4)
-    x_chain_p = np.concatenate([[0], x_pred])
-    y_chain_p = np.concatenate([[0], y_pred])
-    axes[1, 2].plot(x_chain_p, y_chain_p, 's--', color='C1', label='Pred', markersize=4)
-    axes[1, 2].set_title(f'2D Snapshot [{label}]'); axes[1, 2].set_xlabel('x')
-    axes[1, 2].set_ylabel('y'); axes[1, 2].legend(loc='upper right')
-    axes[1, 2].invert_yaxis(); axes[1, 2].grid(True, alpha=0.3)
-
-    all_x = np.concatenate([[0], x_true, x_pred])
-    all_y = np.concatenate([[0], y_true, y_pred])
-    margin = 0.2
-    axes[1, 2].set_xlim(all_x.min()-margin, all_x.max()+margin)
-    axes[1, 2].set_ylim(all_y.min()-margin, 0.1)
+        all_x = np.concatenate([[0], x_t, x_p])
+        all_y = np.concatenate([[0], y_t, y_p])
+        margin = 0.5
+        ax.set_xlim(all_x.min() - margin, all_x.max() + margin)
+        ax.set_ylim(all_y.min() - margin, 0.1)
 
     fig.suptitle(f'{label} | N={N} | {n_params:,} params | test MSE={test_mse:.4e}',
                  fontsize=14, fontweight='bold')
-    plt.tight_layout()
     fname = f'pendulum_string_{label.replace(" ", "_").lower()}.png'
     plt.savefig(fname, dpi=150)
     print(f"  可视化已保存: {fname}")
