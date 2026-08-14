@@ -279,7 +279,7 @@ def train_symplectic(model, train_loader, val_loader,
         train_loss = 0.0; n_samples = 0
         for xb, xf in train_loader:
             xb, xf = xb.to(device), xf.to(device)
-            x_pred = xb
+            x_pred = xb.clone().requires_grad_(True)
             for _ in range(n_steps):
                 x_pred = model.symplectic_step(x_pred, dt)
             optimizer.zero_grad()
