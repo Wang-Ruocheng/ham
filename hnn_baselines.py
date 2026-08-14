@@ -14,6 +14,7 @@ import torch.optim as optim
 import numpy as np
 from torch.utils.data import TensorDataset, DataLoader
 import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
 
 # ============================================================
 # 工具函数
@@ -453,5 +454,57 @@ def evaluate_and_visualize(model, test_loader, sys, args, device, label,
     plt.savefig(fname, dpi=150)
     print(f"  可视化已保存: {fname}")
     plt.close()
+
+    # ── GIF 动画 ──
+    print(f"  [{label}] 生成 GIF 动画...")
+    gif_frames = np.arange(0, n_points, max(1, n_points // 200))  # ~200 帧
+    n_gif = len(gif_frames)
+
+    # 预计算所有 xy 坐标 + 全局范围
+    x_all_t, y_all_t = [], []
+    x_all_p, y_all_p = [], []
+    for fi in gif_frames:
+        xt, yt = sys.get_positions(true_traj[fi, :N])
+        xp, yp = sys.get_positions(pred_traj[fi, :N])
+        x_all_t.append(xt); y_all_t.append(yt)
+        x_all_p.append(xp); y_all_p.append(yp)
+
+    all_x = np.concatenate([np.concatenate(x_all_t), np.concatenate(x_all_p), [0]])
+    all_y = np.concatenate([np.concatenate(y_all_t), np.concatenate(y_all_p), [0]])
+    margin = 0.5
+    xlim = (all_x.min() - margin, all_x.max() + margin)
+    ylim = (all_y.min() - margin, 0.1)
+
+    fig_anim, (ax_t, ax_p) = plt.subplots(1, 2, figsize=(12, 6))
+    fig_anim.suptitle(f'{label} — Predicted Swing', fontsize=14, fontweight='bold')
+
+    def animate(i):
+        ax_t.clear(); ax_p.clear()
+        fi = gif_frames[i]
+        t = t_eval[fi]
+
+        ax_t.plot(0, 0, 'ks', markersize=8)
+        x_c = np.concatenate([[0], x_all_t[i]])
+        y_c = np.concatenate([[0], y_all_t[i]])
+        ax_t.plot(x_c, y_c, 'o-', color='C0', markersize=6, lw=2.5)
+        ax_t.set_title(f'True  (t = {t:.1f}s)'); ax_t.set_xlabel('x'); ax_t.set_ylabel('y')
+        ax_t.set_xlim(xlim); ax_t.set_ylim(ylim)
+        ax_t.invert_yaxis(); ax_t.set_aspect('equal'); ax_t.grid(alpha=0.3)
+
+        ax_p.plot(0, 0, 'ks', markersize=8)
+        x_c = np.concatenate([[0], x_all_p[i]])
+        y_c = np.concatenate([[0], y_all_p[i]])
+        ax_p.plot(x_c, y_c, 's-', color='C1', markersize=6, lw=2.5)
+        ax_p.set_title(f'Predicted  (t = {t:.1f}s)'); ax_p.set_xlabel('x'); ax_p.set_ylabel('y')
+        ax_p.set_xlim(xlim); ax_p.set_ylim(ylim)
+        ax_p.invert_yaxis(); ax_p.set_aspect('equal'); ax_p.grid(alpha=0.3)
+
+        return ax_t, ax_p
+
+    anim = FuncAnimation(fig_anim, animate, frames=n_gif, interval=50, blit=False)
+    gif_fname = f'pendulum_string_{label.replace(" ", "_").lower()}.gif'
+    anim.save(gif_fname, writer='pillow', fps=20, dpi=100)
+    print(f"  GIF 已保存: {gif_fname}")
+    plt.close(fig_anim)
 
     return test_mse, n_params
