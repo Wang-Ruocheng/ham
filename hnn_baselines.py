@@ -339,6 +339,14 @@ def generate_multistep_data(sys, n_trajectories=200, t_span=(0, 20),
 
     xs_t = torch.tensor(xs, dtype=torch.float32)
     xf_t = torch.tensor(xs_future, dtype=torch.float32)
+
+    train_ds = TensorDataset(xs_t[indices[:n_train]], xf_t[indices[:n_train]])
+    val_ds = TensorDataset(xs_t[indices[n_train:n_train+n_val]],
+                           xf_t[indices[n_train:n_train+n_val]])
+    print(f"  多步数据: {n_total} 对 | 训练 {n_train} | 验证 {n_val}")
+    return train_ds, val_ds
+
+
 # ============================================================
 # 评估: RK4 积分 + 可视化
 # ============================================================
@@ -351,17 +359,16 @@ def integrate_rk4(model, state0, t_span, n_steps, device='cuda'):
     for i in range(n_steps - 1):
         x = torch.tensor(traj[i:i+1], dtype=torch.float32, device=device)
         x.requires_grad_(True)
-        with torch.no_grad():
-            k1 = model.time_derivative(x).cpu().numpy()[0]
-            k2 = model.time_derivative(
-                x + 0.5*dt*torch.tensor(k1, device=device, dtype=torch.float32)
-            ).cpu().numpy()[0]
-            k3 = model.time_derivative(
-                x + 0.5*dt*torch.tensor(k2, device=device, dtype=torch.float32)
-            ).cpu().numpy()[0]
-            k4 = model.time_derivative(
-                x + dt*torch.tensor(k3, device=device, dtype=torch.float32)
-            ).cpu().numpy()[0]
+        k1 = model.time_derivative(x).detach().cpu().numpy()[0]
+        k2 = model.time_derivative(
+            x + 0.5*dt*torch.tensor(k1, device=device, dtype=torch.float32)
+        ).detach().cpu().numpy()[0]
+        k3 = model.time_derivative(
+            x + 0.5*dt*torch.tensor(k2, device=device, dtype=torch.float32)
+        ).detach().cpu().numpy()[0]
+        k4 = model.time_derivative(
+            x + dt*torch.tensor(k3, device=device, dtype=torch.float32)
+        ).detach().cpu().numpy()[0]
         traj[i+1] = traj[i] + dt * (k1 + 2*k2 + 2*k3 + k4) / 6
     return traj
 
