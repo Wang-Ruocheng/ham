@@ -89,6 +89,9 @@ def main():
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--skip_symplectic', action='store_true',
                         help='跳过多步辛训练')
+    parser.add_argument('--model', type=str, default='all',
+                        choices=['all', 'separable', 'partial', 'siren', 'symplectic'],
+                        help='单独运行某个模型 (default: all)')
     args = parser.parse_args()
 
     dim = 2 * args.n_masses
@@ -117,79 +120,81 @@ def main():
     results = []
 
     # ── 1. SeparableHNN ─────────────────────────────────────
-    print("\n" + "=" * 80)
-    print("1/4: SeparableHNN — H = T(p) + V(theta)")
-    print("=" * 80)
-    model1 = SeparableHNN(N=args.n_masses, hidden_dim=args.hidden_dim,
-                          num_layers=args.num_layers)
-    t0 = time.time()
-    train_single_step(model1, train_loader, val_loader,
-                      epochs=args.epochs, lr=args.lr, device=device,
-                      label='[Separable]',
-                      compute_stats_fn=lambda m, l: m.compute_stats(l))
-    elapsed = time.time() - t0
-    mse1, p1 = evaluate_and_visualize(model1, test_loader, sys, args, device, 'SeparableHNN')
-    results.append(('SeparableHNN', mse1, p1, elapsed))
+    if args.model in ('all', 'separable'):
+        print("\n" + "=" * 80)
+        print("1/4: SeparableHNN — H = T(p) + V(theta)")
+        print("=" * 80)
+        model1 = SeparableHNN(N=args.n_masses, hidden_dim=args.hidden_dim,
+                              num_layers=args.num_layers)
+        t0 = time.time()
+        train_single_step(model1, train_loader, val_loader,
+                          epochs=args.epochs, lr=args.lr, device=device,
+                          label='[Separable]',
+                          compute_stats_fn=lambda m, l: m.compute_stats(l))
+        elapsed = time.time() - t0
+        mse1, p1 = evaluate_and_visualize(model1, test_loader, sys, args, device, 'SeparableHNN')
+        results.append(('SeparableHNN', mse1, p1, elapsed))
 
     # ── 2. PartialHNN ───────────────────────────────────────
-    print("\n" + "=" * 80)
-    print("2/4: PartialHNN — 已知 M(theta), 仅学 V(theta)")
-    print("=" * 80)
-    model2 = PartialHNN(N=args.n_masses, ml2=ml2, hidden_dim=args.hidden_dim,
-                        num_layers=args.num_layers)
-    t0 = time.time()
-    train_single_step(model2, train_loader, val_loader,
-                      epochs=args.epochs, lr=args.lr, device=device,
-                      label='[Partial]',
-                      compute_stats_fn=lambda m, l: m.compute_stats(l))
-    elapsed = time.time() - t0
-    mse2, p2 = evaluate_and_visualize(model2, test_loader, sys, args, device, 'PartialHNN')
-    results.append(('PartialHNN', mse2, p2, elapsed))
+    if args.model in ('all', 'partial'):
+        print("\n" + "=" * 80)
+        print("2/4: PartialHNN — 已知 M(theta), 仅学 V(theta)")
+        print("=" * 80)
+        model2 = PartialHNN(N=args.n_masses, ml2=ml2, hidden_dim=args.hidden_dim,
+                            num_layers=args.num_layers)
+        t0 = time.time()
+        train_single_step(model2, train_loader, val_loader,
+                          epochs=args.epochs, lr=args.lr, device=device,
+                          label='[Partial]',
+                          compute_stats_fn=lambda m, l: m.compute_stats(l))
+        elapsed = time.time() - t0
+        mse2, p2 = evaluate_and_visualize(model2, test_loader, sys, args, device, 'PartialHNN')
+        results.append(('PartialHNN', mse2, p2, elapsed))
 
     # ── 3. SIREN_HNN ────────────────────────────────────────
-    print("\n" + "=" * 80)
-    print("3/4: SIREN_HNN — sin 激活函数")
-    print("=" * 80)
-    model3 = SIREN_HNN(dim=dim, hidden_dim=args.hidden_dim,
-                       num_layers=args.num_layers)
-    t0 = time.time()
-    train_single_step(model3, train_loader, val_loader,
-                      epochs=args.epochs, lr=args.lr, device=device,
-                      label='[SIREN]',
-                      compute_stats_fn=lambda m, l: m.compute_stats(l))
-    elapsed = time.time() - t0
-    mse3, p3 = evaluate_and_visualize(model3, test_loader, sys, args, device, 'SIREN_HNN')
-    results.append(('SIREN_HNN', mse3, p3, elapsed))
+    if args.model in ('all', 'siren'):
+        print("\n" + "=" * 80)
+        print("3/4: SIREN_HNN — sin 激活函数")
+        print("=" * 80)
+        model3 = SIREN_HNN(dim=dim, hidden_dim=args.hidden_dim,
+                           num_layers=args.num_layers)
+        t0 = time.time()
+        train_single_step(model3, train_loader, val_loader,
+                          epochs=args.epochs, lr=args.lr, device=device,
+                          label='[SIREN]',
+                          compute_stats_fn=lambda m, l: m.compute_stats(l))
+        elapsed = time.time() - t0
+        mse3, p3 = evaluate_and_visualize(model3, test_loader, sys, args, device, 'SIREN_HNN')
+        results.append(('SIREN_HNN', mse3, p3, elapsed))
 
     # ── 4. SymplecticHNN ────────────────────────────────────
-    print("\n" + "=" * 80)
-    print("4/4: SymplecticHNN — Separable + 多步辛训练")
-    print("=" * 80)
-    if args.skip_symplectic:
-        print("  [跳过] --skip_symplectic")
-        results.append(('SymplecticHNN', float('nan'), 0, 0))
-    else:
-        print("  生成多步训练数据...")
-        n_steps = 5
-        dt = 20.0 / 300 * n_steps
-        mstep_train, mstep_val = generate_multistep_data(
-            sys, n_trajectories=args.n_trajectories,
-            n_steps=n_steps, seed=args.seed)
-        mstep_train_loader = DataLoader(mstep_train, batch_size=args.batch_size,
-                                        shuffle=True, num_workers=4, pin_memory=True)
-        mstep_val_loader = DataLoader(mstep_val, batch_size=args.batch_size,
-                                      shuffle=False, num_workers=4, pin_memory=True)
+    if args.model in ('all', 'symplectic'):
+        print("\n" + "=" * 80)
+        print("4/4: SymplecticHNN — Separable + 多步辛训练")
+        print("=" * 80)
+        if args.skip_symplectic:
+            print("  [跳过] --skip_symplectic")
+            results.append(('SymplecticHNN', float('nan'), 0, 0))
+        else:
+            print("  生成多步训练数据...")
+            n_steps = 5
+            dt = 20.0 / 300 * n_steps
+            mstep_train, mstep_val = generate_multistep_data(
+                sys, n_trajectories=args.n_trajectories,
+                n_steps=n_steps, seed=args.seed)
+            mstep_train_loader = DataLoader(mstep_train, batch_size=args.batch_size,
+                                            shuffle=True, num_workers=4, pin_memory=True)
 
-        model4 = SymplecticHNN(N=args.n_masses, hidden_dim=args.hidden_dim,
-                               num_layers=args.num_layers)
-        t0 = time.time()
-        train_symplectic(model4, mstep_train_loader, val_loader,
-                         n_steps=n_steps, dt=dt,
-                         epochs=args.epochs, lr=args.lr, device=device,
-                         label='[Symplectic]')
-        elapsed = time.time() - t0
-        mse4, p4 = evaluate_and_visualize(model4, test_loader, sys, args, device, 'SymplecticHNN')
-        results.append(('SymplecticHNN', mse4, p4, elapsed))
+            model4 = SymplecticHNN(N=args.n_masses, hidden_dim=args.hidden_dim,
+                                   num_layers=args.num_layers)
+            t0 = time.time()
+            train_symplectic(model4, mstep_train_loader, val_loader,
+                             n_steps=n_steps, dt=dt,
+                             epochs=args.epochs, lr=args.lr, device=device,
+                             label='[Symplectic]')
+            elapsed = time.time() - t0
+            mse4, p4 = evaluate_and_visualize(model4, test_loader, sys, args, device, 'SymplecticHNN')
+            results.append(('SymplecticHNN', mse4, p4, elapsed))
 
     summarize_results(results)
 
