@@ -122,7 +122,7 @@ class DiscretePendulumString:
         for traj_idx in range(n_trajectories):
             if traj_idx % 20 == 0:
                 print(f"  生成轨迹 {traj_idx}/{n_trajectories}...")
-            theta0 = np.random.uniform(-1.0, 1.0, self.N)
+            theta0 = np.random.uniform(-np.pi, np.pi, self.N)
             omega0 = np.random.uniform(-1.0, 1.0, self.N)
             M0 = self.inertia_matrix(theta0)
             p0 = M0 @ omega0

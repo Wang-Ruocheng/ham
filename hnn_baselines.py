@@ -327,7 +327,7 @@ def generate_multistep_data(sys, n_trajectories=200, t_span=(0, 20),
     for traj_idx in range(n_trajectories):
         if traj_idx % 20 == 0:
             print(f"  生成多步轨迹 {traj_idx}/{n_trajectories}...")
-        theta0 = np.random.uniform(-1.0, 1.0, sys.N)
+        theta0 = np.random.uniform(-np.pi, np.pi, sys.N)
         omega0 = np.random.uniform(-1.0, 1.0, sys.N)
         M0 = sys.inertia_matrix(theta0)
         p0 = M0 @ omega0
@@ -395,7 +395,7 @@ def evaluate_and_visualize(model, test_loader, sys, args, device, label,
 
     # 轨迹预测
     print(f"  [{label}] 轨迹预测...")
-    theta0 = np.zeros(args.n_masses); theta0[0] = 0.3
+    theta0 = np.full(args.n_masses, np.pi / 2)  # 全链水平
     p0 = np.zeros(args.n_masses)
     state0 = np.concatenate([theta0, p0])
 
