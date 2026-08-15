@@ -208,7 +208,7 @@ def main():
         train_single_step(model1, train_loader, val_loader,
                           epochs=args.epochs, lr=args.lr, device=device,
                           label='[Separable]',
-                          compute_stats_fn=lambda m, l: m.compute_stats(l))
+                          compute_stats_fn=lambda m, l: _maybe_unwrap(m).compute_stats(l))
         elapsed = time.time() - t0
         mse1, p1 = evaluate_and_visualize(model1, test_loader, sys, args, device, 'SeparableHNN', output_dir=output_dir)
         if rank == 0:
@@ -226,7 +226,7 @@ def main():
         train_single_step(model2, train_loader, val_loader,
                           epochs=args.epochs, lr=args.lr, device=device,
                           label='[Partial]',
-                          compute_stats_fn=lambda m, l: m.compute_stats(l))
+                          compute_stats_fn=lambda m, l: _maybe_unwrap(m).compute_stats(l))
         elapsed = time.time() - t0
         mse2, p2 = evaluate_and_visualize(model2, test_loader, sys, args, device, 'PartialHNN', output_dir=output_dir)
         if rank == 0:
@@ -244,7 +244,7 @@ def main():
         train_single_step(model3, train_loader, val_loader,
                           epochs=args.epochs, lr=args.lr, device=device,
                           label='[SIREN]',
-                          compute_stats_fn=lambda m, l: m.compute_stats(l))
+                          compute_stats_fn=lambda m, l: _maybe_unwrap(m).compute_stats(l))
         elapsed = time.time() - t0
         mse3, p3 = evaluate_and_visualize(model3, test_loader, sys, args, device, 'SIREN_HNN', output_dir=output_dir)
         if rank == 0:

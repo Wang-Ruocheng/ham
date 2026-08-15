@@ -354,6 +354,7 @@ def train_single_step(model, train_loader, val_loader, epochs=2000,
                       compute_stats_fn=None):
     """单步训练: 直接匹配 dx/dt"""
     model = model.to(device)
+    raw = _maybe_unwrap(model)
     if compute_stats_fn:
         compute_stats_fn(model, train_loader)
     optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-5)
@@ -371,7 +372,7 @@ def train_single_step(model, train_loader, val_loader, epochs=2000,
             xb, dxb = xb.to(device), dxb.to(device)
             xb.requires_grad_(True)
             optimizer.zero_grad()
-            loss = nn.MSELoss()(model.time_derivative(xb), dxb)
+            loss = nn.MSELoss()(raw.time_derivative(xb), dxb)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 10.0)
             optimizer.step()
@@ -384,7 +385,7 @@ def train_single_step(model, train_loader, val_loader, epochs=2000,
         for xb, dxb in val_loader:
             xb = xb.to(device); dxb = dxb.to(device)
             xb.requires_grad_(True)
-            val_loss += nn.MSELoss()(model.time_derivative(xb), dxb).item() * xb.size(0)
+            val_loss += nn.MSELoss()(raw.time_derivative(xb), dxb).item() * xb.size(0)
         val_loss /= len(val_loader.dataset)
         val_losses.append(val_loss)
         scheduler.step(val_loss)
@@ -400,7 +401,8 @@ def train_symplectic(model, train_loader, val_loader,
                      lr=1e-3, device='cuda', label=''):
     """多步辛训练: 用辛积分器预测多步轨迹"""
     model = model.to(device)
-    model.compute_stats(train_loader)
+    raw = _maybe_unwrap(model)
+    raw.compute_stats(train_loader)
     optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-5)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, mode='min', factor=0.5, patience=150, min_lr=1e-6)
@@ -416,7 +418,7 @@ def train_symplectic(model, train_loader, val_loader,
             xb, xf = xb.to(device), xf.to(device)
             x_pred = xb.clone().requires_grad_(True)
             for _ in range(n_steps):
-                x_pred = model.symplectic_step(x_pred, dt)
+                x_pred = raw.symplectic_step(x_pred, dt)
             optimizer.zero_grad()
             loss = nn.MSELoss()(x_pred, xf)
             loss.backward()
@@ -433,7 +435,7 @@ def train_symplectic(model, train_loader, val_loader,
         for xb, dxb in val_loader:
             xb = xb.to(device); dxb = dxb.to(device)
             xb.requires_grad_(True)
-            val_loss += nn.MSELoss()(model.time_derivative(xb), dxb).item() * xb.size(0)
+            val_loss += nn.MSELoss()(raw.time_derivative(xb), dxb).item() * xb.size(0)
         val_loss /= len(val_loader.dataset)
         val_losses.append(val_loss)
         scheduler.step(val_loss)
@@ -538,6 +540,7 @@ def generate_multistep_data(sys, n_trajectories=200, t_span=(0, 20),
 def integrate_rk4(model, state0, t_span, n_steps, device='cuda'):
     """RK4 积分预测轨迹"""
     model.eval()
+    raw = _maybe_unwrap(model)
     dt = (t_span[1] - t_span[0]) / n_steps
     D = len(state0)
     traj = np.zeros((n_steps, D)); traj[0] = state0
@@ -548,14 +551,14 @@ def integrate_rk4(model, state0, t_span, n_steps, device='cuda'):
             break
         x = torch.tensor(traj[i:i+1], dtype=torch.float32, device=device)
         x.requires_grad_(True)
-        k1 = model.time_derivative(x).detach().cpu().numpy()[0]
-        k2 = model.time_derivative(
+        k1 = raw.time_derivative(x).detach().cpu().numpy()[0]
+        k2 = raw.time_derivative(
             x + 0.5*dt*torch.tensor(k1, device=device, dtype=torch.float32)
         ).detach().cpu().numpy()[0]
-        k3 = model.time_derivative(
+        k3 = raw.time_derivative(
             x + 0.5*dt*torch.tensor(k2, device=device, dtype=torch.float32)
         ).detach().cpu().numpy()[0]
-        k4 = model.time_derivative(
+        k4 = raw.time_derivative(
             x + dt*torch.tensor(k3, device=device, dtype=torch.float32)
         ).detach().cpu().numpy()[0]
         traj[i+1] = traj[i] + dt * (k1 + 2*k2 + 2*k3 + k4) / 6
@@ -569,11 +572,12 @@ def evaluate_and_visualize(model, test_loader, sys, args, device, label,
         return float('nan'), 0
     os.makedirs(output_dir, exist_ok=True)
     model.eval()
+    raw = _maybe_unwrap(model)
     test_mse = 0.0; n_test = 0
     for xb, dxb in test_loader:
         xb = xb.to(device); dxb = dxb.to(device)
         xb.requires_grad_(True)
-        test_mse += nn.MSELoss()(model.time_derivative(xb), dxb).item() * xb.size(0)
+        test_mse += nn.MSELoss()(raw.time_derivative(xb), dxb).item() * xb.size(0)
         n_test += xb.size(0)
     test_mse /= n_test
     n_params = sum(p.numel() for p in model.parameters())
@@ -586,8 +590,8 @@ def evaluate_and_visualize(model, test_loader, sys, args, device, label,
     state0 = np.concatenate([theta0, p0])
 
     _, true_traj = sys.generate_trajectory(state0, t_span, n_points)
-    if isinstance(_maybe_unwrap(model), SympNet):
-        pred_traj = model.predict_trajectory(state0, t_span, n_points, device)
+    if isinstance(raw, SympNet):
+        pred_traj = raw.predict_trajectory(state0, t_span, n_points, device)
     else:
         pred_traj = integrate_rk4(model, state0, t_span, n_points, device)
 
