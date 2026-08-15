@@ -163,7 +163,9 @@ class PartialHNN(nn.Module):
         # 正则化防止奇异矩阵 (float32 精度 ~1e-7, 矩阵元素 ~1-3, 需要 >1e-6)
         eps = 1e-6
         M = M + eps * torch.eye(self.N, device=M.device).unsqueeze(0)
-        v = torch.linalg.solve(M.detach(), p.unsqueeze(-1)).squeeze(-1)  # v = M⁻¹p
+        # 使用 pinv 替代 solve 防止数值奇异导致崩溃
+        M_inv = torch.linalg.pinv(M.detach())
+        v = torch.bmm(M_inv, p.unsqueeze(-1)).squeeze(-1)  # v = M⁻¹p
 
         # ∂T/∂θ_k = ml² * v_k * Σ_j k_mat[k,j] * sin(θ_k - θ_j) * v_j
         sin_diff = torch.sin(theta.unsqueeze(1) - theta.unsqueeze(2))
