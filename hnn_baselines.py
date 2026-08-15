@@ -160,8 +160,8 @@ class PartialHNN(nn.Module):
         B = theta.shape[0]
         cos_diff = torch.cos(theta.unsqueeze(1) - theta.unsqueeze(2))
         M = self.ml2 * self.k_mat.unsqueeze(0) * cos_diff
-        # 正则化防止奇异矩阵
-        eps = 1e-8
+        # 正则化防止奇异矩阵 (float32 精度 ~1e-7, 矩阵元素 ~1-3, 需要 >1e-6)
+        eps = 1e-6
         M = M + eps * torch.eye(self.N, device=M.device).unsqueeze(0)
         v = torch.linalg.solve(M.detach(), p.unsqueeze(-1)).squeeze(-1)  # v = M⁻¹p
 
