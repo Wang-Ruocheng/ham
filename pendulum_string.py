@@ -5,6 +5,9 @@
       每个质点位置由该质点及之前所有摆角决定。
       非小角度近似，使用 sin/cos 精确计算。
 
+参数: --length = 总长度 (默认 1.0)，每节 = L/N
+      --mass   = 总质量 (默认 1.0)，每节 = M/N
+
 状态: x = [θ₀, …, θ_{N-1}, p_θ₀, …, p_θ_{N-1}] ∈ ℝ^{2N}
       其中 θ_i 为第 i 节杆与竖直方向的夹角 (rad)
       p_θ_i 为共轭动量
@@ -453,8 +456,10 @@ def visualize(args, sys, true_traj, pred_traj, test_mse, n_params, t_span=(0, 40
 def main():
     parser = argparse.ArgumentParser(description='Gravity Pendulum Chain HNN')
     parser.add_argument('--n_masses', type=int, default=20)
-    parser.add_argument('--length', type=float, default=1.0, help='杆长')
-    parser.add_argument('--mass', type=float, default=1.0, help='质点质量')
+    parser.add_argument('--length', type=float, default=1.0,
+                        help='摆链总长度 (每节长度 = total_length / n_masses)')
+    parser.add_argument('--mass', type=float, default=1.0,
+                        help='总质量 (每节质量 = total_mass / n_masses)')
     parser.add_argument('--g', type=float, default=9.81, help='重力加速度')
     parser.add_argument('--hidden_dim', type=int, default=512)
     parser.add_argument('--num_layers', type=int, default=4)
@@ -468,16 +473,21 @@ def main():
     args = parser.parse_args()
     dim = 2 * args.n_masses
 
+    # 每节长度/质量 = 总长度/质量 / N
+    seg_length = args.length / args.n_masses
+    seg_mass = args.mass / args.n_masses
+
     print("=" * 70)
     print(f"重力摆链 HNN: N={args.n_masses} 节, 状态维度={dim}")
-    print(f"杆长 l={args.length}, 质量 m={args.mass}, g={args.g}")
+    print(f"总长 L={args.length}, 总质量 M={args.mass}")
+    print(f"每节 l={seg_length:.4f}, m={seg_mass:.4f}, g={args.g}")
     print(f"MLP: {dim} -> {args.hidden_dim}x{args.num_layers} -> 1")
     print(f"训练: {'DDP' if args.ddp else '单卡'}, {args.epochs} epochs")
     print("=" * 70)
 
     print("\n--- 生成数据 ---")
     sys = DiscretePendulumString(n_masses=args.n_masses,
-                                 length=args.length, mass=args.mass, g=args.g)
+                                 length=seg_length, mass=seg_mass, g=args.g)
     data_path = f'pendulum_string_data_N{args.n_masses}.pt'
 
     if args.ddp:

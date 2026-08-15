@@ -20,15 +20,19 @@ from hnn_baselines import (
 )
 
 
-def load_or_generate_data(args, output_dir='.'):
+def load_or_generate_data(args, output_dir='.', seg_length=None, seg_mass=None):
     """加载或生成训练数据"""
     data_path = os.path.join(output_dir, f'pendulum_string_data_N{args.n_masses}.pt')
+    if seg_length is None:
+        seg_length = args.length
+    if seg_mass is None:
+        seg_mass = args.mass
     if os.path.exists(data_path):
         print(f"  加载已保存的数据: {data_path}")
         train_ds, val_ds, test_ds = torch.load(data_path, weights_only=False)
     else:
         sys = DiscretePendulumString(n_masses=args.n_masses,
-                                     length=args.length, mass=args.mass, g=args.g)
+                                     length=seg_length, mass=seg_mass, g=args.g)
         train_ds, val_ds, test_ds = sys.generate_dataset(
             n_trajectories=args.n_trajectories, seed=args.seed)
         torch.save((train_ds, val_ds, test_ds), data_path)
@@ -78,8 +82,10 @@ def summarize_results(results, output_dir='.'):
 def main():
     parser = argparse.ArgumentParser(description='HNN Baseline Runner')
     parser.add_argument('--n_masses', type=int, default=10)
-    parser.add_argument('--length', type=float, default=1.0)
-    parser.add_argument('--mass', type=float, default=1.0)
+    parser.add_argument('--length', type=float, default=1.0,
+                        help='摆链总长度 (每节长度 = total_length / n_masses)')
+    parser.add_argument('--mass', type=float, default=1.0,
+                        help='总质量 (每节质量 = total_mass / n_masses)')
     parser.add_argument('--g', type=float, default=9.81)
     parser.add_argument('--hidden_dim', type=int, default=256)
     parser.add_argument('--num_layers', type=int, default=3)
@@ -100,18 +106,24 @@ def main():
     output_dir = f'results_N{args.n_masses}'
     os.makedirs(output_dir, exist_ok=True)
 
+    # 每节长度/质量 = 总长度/质量 / N
+    seg_length = args.length / args.n_masses
+    seg_mass = args.mass / args.n_masses
+
     dim = 2 * args.n_masses
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     print("=" * 80)
     print(f"HNN Baseline 对比: N={args.n_masses}, dim={dim}")
+    print(f"总长 L={args.length}, 总质量 M={args.mass}")
+    print(f"每节 l={seg_length:.4f}, m={seg_mass:.4f}, g={args.g}")
     print(f"MLP: {dim} -> {args.hidden_dim}x{args.num_layers} -> 1")
     print(f"设备: {device}, epochs: {args.epochs}")
     print(f"输出: {output_dir}/")
     print("=" * 80)
 
     print("\n--- 加载数据 ---")
-    train_ds, val_ds, test_ds = load_or_generate_data(args, output_dir)
+    train_ds, val_ds, test_ds = load_or_generate_data(args, output_dir, seg_length, seg_mass)
 
     train_loader = DataLoader(train_ds, batch_size=args.batch_size,
                               shuffle=True, num_workers=4, pin_memory=True)
@@ -120,8 +132,8 @@ def main():
     test_loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False)
 
     sys = DiscretePendulumString(n_masses=args.n_masses,
-                                 length=args.length, mass=args.mass, g=args.g)
-    ml2 = args.mass * args.length ** 2
+                                 length=seg_length, mass=seg_mass, g=args.g)
+    ml2 = seg_mass * seg_length ** 2
 
     torch.manual_seed(args.seed); np.random.seed(args.seed)
     results = []
