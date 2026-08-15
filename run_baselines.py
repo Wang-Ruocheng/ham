@@ -8,7 +8,10 @@ import os, argparse, time
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.distributed as dist
+from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader
+from torch.utils.data.distributed import DistributedSampler
 import matplotlib.pyplot as plt
 
 from pendulum_string import DiscretePendulumString
@@ -16,27 +19,36 @@ from hnn_baselines import (
     SeparableHNN, PartialHNN, SIREN_HNN, SymplecticHNN, SympNet,
     train_single_step, train_symplectic, train_sympnet,
     generate_multistep_data,
-    evaluate_and_visualize
+    evaluate_and_visualize,
+    _maybe_unwrap,
 )
 
 
 def load_or_generate_data(args, output_dir='.', seg_length=None, seg_mass=None):
-    """加载或生成训练数据"""
+    """加载或生成训练数据 (DDP 安全: 仅 rank 0 生成)"""
     data_path = os.path.join(output_dir, f'pendulum_string_data_N{args.n_masses}.pt')
     if seg_length is None:
         seg_length = args.length
     if seg_mass is None:
         seg_mass = args.mass
-    if os.path.exists(data_path):
-        print(f"  加载已保存的数据: {data_path}")
-        train_ds, val_ds, test_ds = torch.load(data_path, weights_only=False)
-    else:
+
+    rank = int(os.environ.get('RANK', 0))
+    if rank == 0 and not os.path.exists(data_path):
         sys = DiscretePendulumString(n_masses=args.n_masses,
                                      length=seg_length, mass=seg_mass, g=args.g)
         train_ds, val_ds, test_ds = sys.generate_dataset(
             n_trajectories=args.n_trajectories, seed=args.seed)
         torch.save((train_ds, val_ds, test_ds), data_path)
-        print(f"  数据已保存: {data_path}")
+        if rank == 0:
+            print(f"  数据已保存: {data_path}")
+
+    # 所有 rank 等待 rank 0 生成完成
+    if dist.is_available() and dist.is_initialized():
+        dist.barrier()
+
+    train_ds, val_ds, test_ds = torch.load(data_path, weights_only=False)
+    if rank == 0:
+        print(f"  加载数据: {data_path}")
     return train_ds, val_ds, test_ds
 def summarize_results(results, output_dir='.'):
     """打印对比表格"""
@@ -101,34 +113,59 @@ def main():
     parser.add_argument('--model', type=str, default='all',
                         choices=['all', 'separable', 'partial', 'siren', 'symplectic', 'sympnet'],
                         help='单独运行某个模型 (default: all)')
+    parser.add_argument('--ddp', action='store_true',
+                        help='使用 DDP 多 GPU 并行训练')
     args = parser.parse_args()
 
+    # DDP 初始化
+    if args.ddp:
+        rank = int(os.environ.get('RANK', 0))
+        local_rank = int(os.environ.get('LOCAL_RANK', 0))
+        world_size = int(os.environ.get('WORLD_SIZE', 1))
+        torch.cuda.set_device(local_rank)
+        dist.init_process_group('nccl')
+        device = local_rank
+    else:
+        rank = 0
+        world_size = 1
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
     output_dir = f'results_N{args.n_masses}'
-    os.makedirs(output_dir, exist_ok=True)
+    if rank == 0:
+        os.makedirs(output_dir, exist_ok=True)
 
     # 每节长度/质量 = 总长度/质量 / N
     seg_length = args.length / args.n_masses
     seg_mass = args.mass / args.n_masses
 
     dim = 2 * args.n_masses
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    print("=" * 80)
-    print(f"HNN Baseline 对比: N={args.n_masses}, dim={dim}")
-    print(f"总长 L={args.length}, 总质量 M={args.mass}")
-    print(f"每节 l={seg_length:.4f}, m={seg_mass:.4f}, g={args.g}")
-    print(f"MLP: {dim} -> {args.hidden_dim}x{args.num_layers} -> 1")
-    print(f"设备: {device}, epochs: {args.epochs}")
-    print(f"输出: {output_dir}/")
-    print("=" * 80)
+    if rank == 0:
+        print("=" * 80)
+        print(f"HNN Baseline 对比: N={args.n_masses}, dim={dim}")
+        print(f"总长 L={args.length}, 总质量 M={args.mass}")
+        print(f"每节 l={seg_length:.4f}, m={seg_mass:.4f}, g={args.g}")
+        print(f"MLP: {dim} -> {args.hidden_dim}x{args.num_layers} -> 1")
+        print(f"设备: {device}, GPUs: {world_size}, epochs: {args.epochs}")
+        print(f"输出: {output_dir}/")
+        print("=" * 80)
 
-    print("\n--- 加载数据 ---")
+    if rank == 0:
+        print("\n--- 加载数据 ---")
     train_ds, val_ds, test_ds = load_or_generate_data(args, output_dir, seg_length, seg_mass)
 
-    train_loader = DataLoader(train_ds, batch_size=args.batch_size,
-                              shuffle=True, num_workers=4, pin_memory=True)
-    val_loader = DataLoader(val_ds, batch_size=args.batch_size,
-                            shuffle=False, num_workers=4, pin_memory=True)
+    if args.ddp:
+        train_sampler = DistributedSampler(train_ds, num_replicas=world_size, rank=rank)
+        val_sampler = DistributedSampler(val_ds, num_replicas=world_size, rank=rank, shuffle=False)
+        train_loader = DataLoader(train_ds, batch_size=args.batch_size,
+                                  sampler=train_sampler, num_workers=4, pin_memory=True)
+        val_loader = DataLoader(val_ds, batch_size=args.batch_size,
+                                sampler=val_sampler, num_workers=4, pin_memory=True)
+    else:
+        train_loader = DataLoader(train_ds, batch_size=args.batch_size,
+                                  shuffle=True, num_workers=4, pin_memory=True)
+        val_loader = DataLoader(val_ds, batch_size=args.batch_size,
+                                shuffle=False, num_workers=4, pin_memory=True)
     test_loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False)
 
     sys = DiscretePendulumString(n_masses=args.n_masses,
@@ -138,13 +175,21 @@ def main():
     torch.manual_seed(args.seed); np.random.seed(args.seed)
     results = []
 
+    def _wrap(model):
+        """如果启用 DDP，包装模型；否则返回原模型"""
+        model = model.to(device)
+        if args.ddp:
+            model = DDP(model, device_ids=[device])
+        return model
+
     # ── 1. SeparableHNN ─────────────────────────────────────
     if args.model in ('all', 'separable'):
-        print("\n" + "=" * 80)
-        print("1/4: SeparableHNN — H = T(p) + V(theta)")
-        print("=" * 80)
-        model1 = SeparableHNN(N=args.n_masses, hidden_dim=args.hidden_dim,
-                              num_layers=args.num_layers)
+        if rank == 0:
+            print("\n" + "=" * 80)
+            print("1/5: SeparableHNN — H = T(p) + V(theta)")
+            print("=" * 80)
+        model1 = _wrap(SeparableHNN(N=args.n_masses, hidden_dim=args.hidden_dim,
+                                     num_layers=args.num_layers))
         t0 = time.time()
         train_single_step(model1, train_loader, val_loader,
                           epochs=args.epochs, lr=args.lr, device=device,
@@ -152,15 +197,17 @@ def main():
                           compute_stats_fn=lambda m, l: m.compute_stats(l))
         elapsed = time.time() - t0
         mse1, p1 = evaluate_and_visualize(model1, test_loader, sys, args, device, 'SeparableHNN', output_dir=output_dir)
-        results.append(('SeparableHNN', mse1, p1, elapsed))
+        if rank == 0:
+            results.append(('SeparableHNN', mse1, p1, elapsed))
 
     # ── 2. PartialHNN ───────────────────────────────────────
     if args.model in ('all', 'partial'):
-        print("\n" + "=" * 80)
-        print("2/4: PartialHNN — 已知 M(theta), 仅学 V(theta)")
-        print("=" * 80)
-        model2 = PartialHNN(N=args.n_masses, ml2=ml2, hidden_dim=args.hidden_dim,
-                            num_layers=args.num_layers)
+        if rank == 0:
+            print("\n" + "=" * 80)
+            print("2/5: PartialHNN — 已知 M(theta), 仅学 V(theta)")
+            print("=" * 80)
+        model2 = _wrap(PartialHNN(N=args.n_masses, ml2=ml2, hidden_dim=args.hidden_dim,
+                                   num_layers=args.num_layers))
         t0 = time.time()
         train_single_step(model2, train_loader, val_loader,
                           epochs=args.epochs, lr=args.lr, device=device,
@@ -168,15 +215,17 @@ def main():
                           compute_stats_fn=lambda m, l: m.compute_stats(l))
         elapsed = time.time() - t0
         mse2, p2 = evaluate_and_visualize(model2, test_loader, sys, args, device, 'PartialHNN', output_dir=output_dir)
-        results.append(('PartialHNN', mse2, p2, elapsed))
+        if rank == 0:
+            results.append(('PartialHNN', mse2, p2, elapsed))
 
     # ── 3. SIREN_HNN ────────────────────────────────────────
     if args.model in ('all', 'siren'):
-        print("\n" + "=" * 80)
-        print("3/4: SIREN_HNN — sin 激活函数")
-        print("=" * 80)
-        model3 = SIREN_HNN(dim=dim, hidden_dim=args.hidden_dim,
-                           num_layers=args.num_layers)
+        if rank == 0:
+            print("\n" + "=" * 80)
+            print("3/5: SIREN_HNN — sin 激活函数")
+            print("=" * 80)
+        model3 = _wrap(SIREN_HNN(dim=dim, hidden_dim=args.hidden_dim,
+                                  num_layers=args.num_layers))
         t0 = time.time()
         train_single_step(model3, train_loader, val_loader,
                           epochs=args.epochs, lr=args.lr, device=device,
@@ -184,28 +233,37 @@ def main():
                           compute_stats_fn=lambda m, l: m.compute_stats(l))
         elapsed = time.time() - t0
         mse3, p3 = evaluate_and_visualize(model3, test_loader, sys, args, device, 'SIREN_HNN', output_dir=output_dir)
-        results.append(('SIREN_HNN', mse3, p3, elapsed))
+        if rank == 0:
+            results.append(('SIREN_HNN', mse3, p3, elapsed))
 
     # ── 4. SymplecticHNN ────────────────────────────────────
     if args.model in ('all', 'symplectic'):
-        print("\n" + "=" * 80)
-        print("4/4: SymplecticHNN — Separable + 多步辛训练")
-        print("=" * 80)
+        if rank == 0:
+            print("\n" + "=" * 80)
+            print("4/5: SymplecticHNN — Separable + 多步辛训练")
+            print("=" * 80)
         if args.skip_symplectic:
-            print("  [跳过] --skip_symplectic")
-            results.append(('SymplecticHNN', float('nan'), 0, 0))
+            if rank == 0:
+                print("  [跳过] --skip_symplectic")
+                results.append(('SymplecticHNN', float('nan'), 0, 0))
         else:
-            print("  生成多步训练数据...")
+            if rank == 0:
+                print("  生成多步训练数据...")
             n_steps = 5
             dt = 0.05  # 单步积分步长，与数据生成一致
             mstep_train, mstep_val = generate_multistep_data(
                 sys, n_trajectories=args.n_trajectories,
                 dt=dt, n_steps=n_steps, seed=args.seed)
-            mstep_train_loader = DataLoader(mstep_train, batch_size=args.batch_size,
-                                            shuffle=True, num_workers=4, pin_memory=True)
+            if args.ddp:
+                mstep_sampler = DistributedSampler(mstep_train, num_replicas=world_size, rank=rank)
+                mstep_train_loader = DataLoader(mstep_train, batch_size=args.batch_size,
+                                                sampler=mstep_sampler, num_workers=4, pin_memory=True)
+            else:
+                mstep_train_loader = DataLoader(mstep_train, batch_size=args.batch_size,
+                                                shuffle=True, num_workers=4, pin_memory=True)
 
-            model4 = SymplecticHNN(N=args.n_masses, hidden_dim=args.hidden_dim,
-                                   num_layers=args.num_layers)
+            model4 = _wrap(SymplecticHNN(N=args.n_masses, hidden_dim=args.hidden_dim,
+                                          num_layers=args.num_layers))
             t0 = time.time()
             train_symplectic(model4, mstep_train_loader, val_loader,
                              n_steps=n_steps, dt=dt,
@@ -213,29 +271,38 @@ def main():
                              label='[Symplectic]')
             elapsed = time.time() - t0
             mse4, p4 = evaluate_and_visualize(model4, test_loader, sys, args, device, 'SymplecticHNN', output_dir=output_dir)
-            results.append(('SymplecticHNN', mse4, p4, elapsed))
+            if rank == 0:
+                results.append(('SymplecticHNN', mse4, p4, elapsed))
 
     # ── 5. SympNet ──────────────────────────────────────────
     if args.model in ('all', 'sympnet'):
-        print("\n" + "=" * 80)
-        print("5/5: SympNet — 直接学辛映射 Φ(x) = x_{t+dt}")
-        print("=" * 80)
-        print("  生成 SympNet 训练数据 (单步状态对)...")
+        if rank == 0:
+            print("\n" + "=" * 80)
+            print("5/5: SympNet — 直接学辛映射 Φ(x) = x_{t+dt}")
+            print("=" * 80)
+            print("  生成 SympNet 训练数据 (单步状态对)...")
         dt_symp = 0.05
         symp_train, symp_val = generate_multistep_data(
             sys, n_trajectories=args.n_trajectories,
             dt=dt_symp, n_steps=1, seed=args.seed)
-        symp_train_loader = DataLoader(symp_train, batch_size=args.batch_size,
-                                       shuffle=True, num_workers=4, pin_memory=True)
+        if args.ddp:
+            symp_train_sampler = DistributedSampler(symp_train, num_replicas=world_size, rank=rank)
+            symp_train_loader = DataLoader(symp_train, batch_size=args.batch_size,
+                                           sampler=symp_train_sampler, num_workers=4, pin_memory=True)
+        else:
+            symp_train_loader = DataLoader(symp_train, batch_size=args.batch_size,
+                                           shuffle=True, num_workers=4, pin_memory=True)
         symp_val_loader = DataLoader(symp_val, batch_size=args.batch_size,
                                      shuffle=False, num_workers=4, pin_memory=True)
 
-        model5 = SympNet(N=args.n_masses, K=args.sympnet_K,
-                         hidden_dim=args.hidden_dim,
-                         num_layers=args.num_layers)
-        model5.dt = torch.tensor(dt_symp)
+        model5 = _wrap(SympNet(N=args.n_masses, K=args.sympnet_K,
+                                hidden_dim=args.hidden_dim,
+                                num_layers=args.num_layers))
+        # dt 需要设置在底层模型上
+        _maybe_unwrap(model5).dt = torch.tensor(dt_symp)
         n_params_symp = sum(p.numel() for p in model5.parameters())
-        print(f"  SympNet: K={args.sympnet_K}, params={n_params_symp:,}, dt={dt_symp}")
+        if rank == 0:
+            print(f"  SympNet: K={args.sympnet_K}, params={n_params_symp:,}, dt={dt_symp}")
 
         t0 = time.time()
         train_sympnet(model5, symp_train_loader, symp_val_loader,
@@ -243,9 +310,14 @@ def main():
                       label='[SympNet]')
         elapsed = time.time() - t0
         mse5, p5 = evaluate_and_visualize(model5, test_loader, sys, args, device, 'SympNet', output_dir=output_dir)
-        results.append(('SympNet', mse5, p5, elapsed))
+        if rank == 0:
+            results.append(('SympNet', mse5, p5, elapsed))
 
-    summarize_results(results, output_dir)
+    if rank == 0:
+        summarize_results(results, output_dir)
+
+    if args.ddp:
+        dist.destroy_process_group()
 
 
 if __name__ == '__main__':

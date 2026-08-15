@@ -12,8 +12,10 @@ import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torch.distributed as dist
 import numpy as np
 from torch.utils.data import TensorDataset, DataLoader
+from torch.utils.data.distributed import DistributedSampler
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
@@ -71,6 +73,20 @@ def make_mlp(dim_in, dim_out, hidden_dim, num_layers, activation, final_bias=Fal
     return nn.Sequential(*layers)
 
 
+def _maybe_unwrap(model):
+    """获取 DDP 包装的底层模型"""
+    if isinstance(model, nn.parallel.DistributedDataParallel):
+        return model.module
+    return model
+
+
+def _is_rank0():
+    """是否为主进程 (rank 0)"""
+    if dist.is_available() and dist.is_initialized():
+        return dist.get_rank() == 0
+    return True
+
+
 def init_weights(module, gain=1.0):
     """Xavier 初始化"""
     for m in module.modules():
@@ -95,10 +111,11 @@ class SeparableHNN(nn.Module):
         self.register_buffer('p_sigma', torch.ones(N))
 
     def compute_stats(self, loader):
-        device = next(self.parameters()).device
-        tm, ts, pm, ps = compute_split_stats(loader, self.N, device)
-        self.theta_mu = tm; self.theta_sigma = ts
-        self.p_mu = pm; self.p_sigma = ps
+        target = _maybe_unwrap(self)
+        device = next(target.parameters()).device
+        tm, ts, pm, ps = compute_split_stats(loader, target.N, device)
+        target.theta_mu = tm; target.theta_sigma = ts
+        target.p_mu = pm; target.p_sigma = ps
 
     def time_derivative(self, x):
         theta, p = x[:, :self.N], x[:, self.N:]
@@ -144,9 +161,10 @@ class PartialHNN(nn.Module):
         self.register_buffer('k_mat', (N - torch.maximum(i, j)).float())
 
     def compute_stats(self, loader):
-        device = next(self.parameters()).device
-        tm, ts, _, _ = compute_split_stats(loader, self.N, device)
-        self.theta_mu = tm; self.theta_sigma = ts
+        target = _maybe_unwrap(self)
+        device = next(target.parameters()).device
+        tm, ts, _, _ = compute_split_stats(loader, target.N, device)
+        target.theta_mu = tm; target.theta_sigma = ts
 
     def time_derivative(self, x):
         theta, p = x[:, :self.N], x[:, self.N:]
@@ -210,8 +228,9 @@ class SIREN_HNN(nn.Module):
         self.register_buffer('sigma', torch.ones(dim))
 
     def compute_stats(self, loader):
-        device = next(self.parameters()).device
-        self.mu, self.sigma = compute_full_stats(loader, self.dim, device)
+        target = _maybe_unwrap(self)
+        device = next(target.parameters()).device
+        target.mu, target.sigma = compute_full_stats(loader, target.dim, device)
 
     def forward(self, x):
         return self.net(x).squeeze(-1)
@@ -343,6 +362,9 @@ def train_single_step(model, train_loader, val_loader, epochs=2000,
     train_losses, val_losses = [], []
 
     for epoch in range(epochs):
+        if hasattr(train_loader, 'sampler') and isinstance(train_loader.sampler, DistributedSampler):
+            train_loader.sampler.set_epoch(epoch)
+
         model.train()
         train_loss = 0.0
         for xb, dxb in train_loader:
@@ -367,7 +389,7 @@ def train_single_step(model, train_loader, val_loader, epochs=2000,
         val_losses.append(val_loss)
         scheduler.step(val_loss)
 
-        if (epoch + 1) % 200 == 0:
+        if _is_rank0() and (epoch + 1) % 200 == 0:
             print(f"  {label} Epoch {epoch+1:4d}/{epochs} | "
                   f"Train: {train_loss:.6e} | Val: {val_loss:.6e}")
     return train_losses, val_losses
@@ -385,6 +407,9 @@ def train_symplectic(model, train_loader, val_loader,
     train_losses, val_losses = [], []
 
     for epoch in range(epochs):
+        if hasattr(train_loader, 'sampler') and isinstance(train_loader.sampler, DistributedSampler):
+            train_loader.sampler.set_epoch(epoch)
+
         model.train()
         train_loss = 0.0; n_samples = 0
         for xb, xf in train_loader:
@@ -413,7 +438,7 @@ def train_symplectic(model, train_loader, val_loader,
         val_losses.append(val_loss)
         scheduler.step(val_loss)
 
-        if (epoch + 1) % 200 == 0:
+        if _is_rank0() and (epoch + 1) % 200 == 0:
             print(f"  {label} Epoch {epoch+1:4d}/{epochs} | "
                   f"Train: {train_loss:.6e} | Val: {val_loss:.6e}")
     return train_losses, val_losses
@@ -432,6 +457,9 @@ def train_sympnet(model, train_loader, val_loader, epochs=2000,
     train_losses, val_losses = [], []
     
     for epoch in range(epochs):
+        if hasattr(train_loader, 'sampler') and isinstance(train_loader.sampler, DistributedSampler):
+            train_loader.sampler.set_epoch(epoch)
+
         model.train()
         train_loss = 0.0
         for xb, xf in train_loader:
@@ -459,7 +487,7 @@ def train_sympnet(model, train_loader, val_loader, epochs=2000,
         val_losses.append(val_loss)
         scheduler.step(val_loss)
         
-        if (epoch + 1) % 200 == 0:
+        if _is_rank0() and (epoch + 1) % 200 == 0:
             print(f"  {label} Epoch {epoch+1:4d}/{epochs} | "
                   f"Train: {train_loss:.6e} | Val: {val_loss:.6e}")
     return train_losses, val_losses
@@ -537,6 +565,8 @@ def integrate_rk4(model, state0, t_span, n_steps, device='cuda'):
 def evaluate_and_visualize(model, test_loader, sys, args, device, label,
                            t_span=(0, 40), n_points=1500, output_dir='.'):
     """评估模型: 测试 MSE + 轨迹预测 + 可视化"""
+    if not _is_rank0():
+        return float('nan'), 0
     os.makedirs(output_dir, exist_ok=True)
     model.eval()
     test_mse = 0.0; n_test = 0
@@ -556,7 +586,7 @@ def evaluate_and_visualize(model, test_loader, sys, args, device, label,
     state0 = np.concatenate([theta0, p0])
 
     _, true_traj = sys.generate_trajectory(state0, t_span, n_points)
-    if isinstance(model, SympNet):
+    if isinstance(_maybe_unwrap(model), SympNet):
         pred_traj = model.predict_trajectory(state0, t_span, n_points, device)
     else:
         pred_traj = integrate_rk4(model, state0, t_span, n_points, device)
