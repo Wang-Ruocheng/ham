@@ -24,8 +24,8 @@ from hnn_baselines import (
 )
 
 
-def load_or_generate_data(args, output_dir='.', seg_length=None, seg_mass=None):
-    """加载或生成训练数据 (DDP 安全: 仅 rank 0 生成)"""
+def generate_data_if_needed(args, output_dir='.', seg_length=None, seg_mass=None):
+    """预生成训练数据 (仅 rank 0，在 DDP 初始化之前调用)"""
     data_path = os.path.join(output_dir, f'pendulum_string_data_N{args.n_masses}.pt')
     if seg_length is None:
         seg_length = args.length
@@ -34,21 +34,19 @@ def load_or_generate_data(args, output_dir='.', seg_length=None, seg_mass=None):
 
     rank = int(os.environ.get('RANK', 0))
     if rank == 0 and not os.path.exists(data_path):
+        print("  生成训练数据...")
         sys = DiscretePendulumString(n_masses=args.n_masses,
                                      length=seg_length, mass=seg_mass, g=args.g)
         train_ds, val_ds, test_ds = sys.generate_dataset(
             n_trajectories=args.n_trajectories, seed=args.seed)
         torch.save((train_ds, val_ds, test_ds), data_path)
-        if rank == 0:
-            print(f"  数据已保存: {data_path}")
+        print(f"  数据已保存: {data_path}")
+    return data_path
 
-    # 所有 rank 等待 rank 0 生成完成
-    if dist.is_available() and dist.is_initialized():
-        dist.barrier()
 
+def load_data(data_path, output_dir='.'):
+    """加载已生成的训练数据 (所有 rank 调用)"""
     train_ds, val_ds, test_ds = torch.load(data_path, weights_only=False)
-    if rank == 0:
-        print(f"  加载数据: {data_path}")
     return train_ds, val_ds, test_ds
 def summarize_results(results, output_dir='.'):
     """打印对比表格"""
@@ -117,26 +115,42 @@ def main():
                         help='使用 DDP 多 GPU 并行训练')
     args = parser.parse_args()
 
-    # DDP 初始化
-    if args.ddp:
-        rank = int(os.environ.get('RANK', 0))
-        local_rank = int(os.environ.get('LOCAL_RANK', 0))
-        world_size = int(os.environ.get('WORLD_SIZE', 1))
-        torch.cuda.set_device(local_rank)
-        dist.init_process_group('nccl')
-        device = local_rank
-    else:
-        rank = 0
-        world_size = 1
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
     output_dir = f'results_N{args.n_masses}'
-    if rank == 0:
-        os.makedirs(output_dir, exist_ok=True)
 
     # 每节长度/质量 = 总长度/质量 / N
     seg_length = args.length / args.n_masses
     seg_mass = args.mass / args.n_masses
+
+    # 提前获取 rank (在 DDP 初始化之前，仅用于数据生成)
+    if args.ddp:
+        rank = int(os.environ.get('RANK', 0))
+        local_rank = int(os.environ.get('LOCAL_RANK', 0))
+        world_size = int(os.environ.get('WORLD_SIZE', 1))
+    else:
+        rank = 0
+        local_rank = 0
+        world_size = 1
+
+    if rank == 0:
+        os.makedirs(output_dir, exist_ok=True)
+
+    # ── 数据生成 (DDP 初始化之前，避免 NCCL 超时) ──
+    data_path = generate_data_if_needed(args, output_dir, seg_length, seg_mass)
+
+    # 其他 rank 等待数据文件生成完成
+    if args.ddp and rank != 0:
+        while not os.path.exists(data_path):
+            time.sleep(2)
+        # 额外等一小段时间确保文件写入完成
+        time.sleep(1)
+
+    # ── DDP 初始化 ──
+    if args.ddp:
+        torch.cuda.set_device(local_rank)
+        dist.init_process_group('nccl')
+        device = local_rank
+    else:
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     dim = 2 * args.n_masses
 
@@ -152,7 +166,7 @@ def main():
 
     if rank == 0:
         print("\n--- 加载数据 ---")
-    train_ds, val_ds, test_ds = load_or_generate_data(args, output_dir, seg_length, seg_mass)
+    train_ds, val_ds, test_ds = load_data(data_path, output_dir)
 
     if args.ddp:
         train_sampler = DistributedSampler(train_ds, num_replicas=world_size, rank=rank)
