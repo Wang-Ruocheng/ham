@@ -160,10 +160,10 @@ class PartialHNN(nn.Module):
         B = theta.shape[0]
         cos_diff = torch.cos(theta.unsqueeze(1) - theta.unsqueeze(2))
         M = self.ml2 * self.k_mat.unsqueeze(0) * cos_diff
-        # 正则化防止奇异矩阵 (float32 精度 ~1e-7, 矩阵元素 ~1-3, 需要 >1e-6)
+        # 正则化 + sanitize 防止 NaN/Inf 导致崩溃
         eps = 1e-6
         M = M + eps * torch.eye(self.N, device=M.device).unsqueeze(0)
-        # 使用 pinv 替代 solve 防止数值奇异导致崩溃
+        M = torch.nan_to_num(M, nan=0.0, posinf=1e6, neginf=-1e6)
         M_inv = torch.linalg.pinv(M.detach())
         v = torch.bmm(M_inv, p.unsqueeze(-1)).squeeze(-1)  # v = M⁻¹p
 
@@ -514,6 +514,10 @@ def integrate_rk4(model, state0, t_span, n_steps, device='cuda'):
     D = len(state0)
     traj = np.zeros((n_steps, D)); traj[0] = state0
     for i in range(n_steps - 1):
+        if np.isnan(traj[i]).any():
+            print(f"  [RK4] NaN 在 step {i}/{n_steps}，停止积分")
+            traj[i:] = traj[i-1]  # 填充最后有效值
+            break
         x = torch.tensor(traj[i:i+1], dtype=torch.float32, device=device)
         x.requires_grad_(True)
         k1 = model.time_derivative(x).detach().cpu().numpy()[0]
