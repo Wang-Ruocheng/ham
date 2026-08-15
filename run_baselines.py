@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 
 from pendulum_string import DiscretePendulumString
 from hnn_baselines import (
-    SeparableHNN, PartialHNN, SIREN_HNN, SymplecticHNN, SympNet,
+    SeparableHNN, PartialHNN, SIREN_HNN, SymplecticHNN, SympNet, FNO,
     train_single_step, train_symplectic, train_sympnet,
     generate_multistep_data,
     evaluate_and_visualize,
@@ -68,7 +68,7 @@ def summarize_results(results, output_dir='.'):
     names = [r[0] for r in results]
     mses = [r[1] if not np.isnan(r[1]) else 0 for r in results]
     n_params = [r[2] for r in results]
-    colors = ['#2196F3', '#4CAF50', '#FF9800', '#E91E63', '#9C27B0']
+    colors = ['#2196F3', '#4CAF50', '#FF9800', '#E91E63', '#9C27B0', '#00BCD4']
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
     ax1.bar(names, mses, color=colors)
@@ -108,8 +108,12 @@ def main():
                         help='跳过多步辛训练')
     parser.add_argument('--sympnet_K', type=int, default=5,
                         help='SympNet 的层数 K (default: 5)')
+    parser.add_argument('--fno_modes', type=int, default=12,
+                        help='FNO 保留的 Fourier 模态数 (default: 12)')
+    parser.add_argument('--fno_hidden', type=int, default=64,
+                        help='FNO 隐藏层维度 (default: 64)')
     parser.add_argument('--model', type=str, default='all',
-                        choices=['all', 'separable', 'partial', 'siren', 'symplectic', 'sympnet'],
+                        choices=['all', 'separable', 'partial', 'siren', 'symplectic', 'sympnet', 'fno'],
                         help='单独运行某个模型 (default: all)')
     parser.add_argument('--ddp', action='store_true',
                         help='使用 DDP 多 GPU 并行训练')
@@ -326,6 +330,37 @@ def main():
         mse5, p5 = evaluate_and_visualize(model5, test_loader, sys, args, device, 'SympNet', output_dir=output_dir)
         if rank == 0:
             results.append(('SympNet', mse5, p5, elapsed))
+
+    # ── 6. FNO — Fourier Neural Operator ─────────────────────
+    if args.model in ('all', 'fno'):
+        if rank == 0:
+            print("\n" + "=" * 80)
+            print("6/6: FNO — Fourier Neural Operator (1D 向量场学习)")
+            print("=" * 80)
+
+        model6 = _wrap(FNO(N=args.n_masses, modes=args.fno_modes,
+                           hidden_dim=args.fno_hidden,
+                           num_layers=args.num_layers))
+        n_params_fno = sum(p.numel() for p in model6.parameters())
+        if rank == 0:
+            print(f"  FNO: N={args.n_masses}, modes={args.fno_modes}, "
+                  f"hidden={args.fno_hidden}, layers={args.num_layers}, "
+                  f"params={n_params_fno:,}")
+            print(f"  关键优势: 参数不随 N 增长 (仅取决于 modes/hidden)")
+
+        def _compute_fno_stats(m, l):
+            r = _maybe_unwrap(m)
+            r.compute_stats(l)
+
+        t0 = time.time()
+        train_single_step(model6, train_loader, val_loader,
+                          epochs=args.epochs, lr=args.lr, device=device,
+                          label='[FNO]',
+                          compute_stats_fn=_compute_fno_stats)
+        elapsed = time.time() - t0
+        mse6, p6 = evaluate_and_visualize(model6, test_loader, sys, args, device, 'FNO', output_dir=output_dir)
+        if rank == 0:
+            results.append(('FNO', mse6, p6, elapsed))
 
     if rank == 0:
         summarize_results(results, output_dir)

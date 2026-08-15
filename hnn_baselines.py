@@ -5,6 +5,8 @@ HNN Baseline 模型集合
 2. PartialHNN   — 已知 M(θ)，只学 V(θ)
 3. SIREN_HNN    — sin 激活函数替代 Tanh
 4. SymplecticHNN — Separable + 多步辛积分器训练
+5. SympNet      — 直接学辛映射 Φ(x) = x_{t+dt}
+6. FNO          — Fourier Neural Operator 直接学向量场
 
 所有模型共享训练/评估基础设施。
 """
@@ -343,6 +345,143 @@ class SympNet(nn.Module):
         for d in range(D):
             traj_interp[:, d] = interp1d(t_model, traj[:, d], kind='cubic')(t_eval)
         return traj_interp
+
+
+# ============================================================
+# 6. FNO — Fourier Neural Operator (1D)
+# ============================================================
+class SpectralConv1d(nn.Module):
+    """1D Fourier 谱卷积层"""
+    def __init__(self, in_dim, out_dim, modes):
+        super().__init__()
+        self.in_dim = in_dim
+        self.out_dim = out_dim
+        self.modes = modes
+        scale = 1.0 / (in_dim * out_dim)
+        self.weights = nn.Parameter(
+            scale * torch.randn(in_dim, out_dim, modes, dtype=torch.cfloat))
+
+    def forward(self, x):
+        # x: (batch, N, in_dim)
+        B, N, _ = x.shape
+        # FFT along spatial dim
+        x_ft = torch.fft.rfft(x, dim=1)  # (B, N//2+1, in_dim)
+        out_ft = torch.zeros(B, N // 2 + 1, self.out_dim,
+                             dtype=torch.cfloat, device=x.device)
+        # 只保留前 modes 个频率分量
+        out_ft[:, :self.modes, :] = torch.einsum(
+            'bmi,iom->bmo', x_ft[:, :self.modes, :], self.weights)
+        # 逆 FFT
+        x = torch.fft.irfft(out_ft, n=N, dim=1)  # (B, N, out_dim)
+        return x
+
+
+class FNO(nn.Module):
+    """Fourier Neural Operator: 直接学习向量场 f(x) = dx/dt
+
+    架构:
+        Input:  (batch, 2N) — flat state vector
+        Reshape: (batch, N, 2) — 2 channels (θ, p) on spatial grid
+        Lift:    (batch, N, hidden_dim)
+        Fourier layers × num_layers
+        Project: (batch, N, 2)
+        Flatten: (batch, 2N)
+
+    关键特性:
+        - 分辨率不变: 参数不随 N 增长 (仅 modes 决定)
+        - 空间局部性: Fourier 层天然捕捉空间结构
+        - 无 autograd 瓶颈: 直接预测向量场，不需要 Hessian
+    """
+    def __init__(self, N, modes=12, hidden_dim=64, num_layers=4):
+        super().__init__()
+        self.N = N
+        self.modes = modes
+        self.hidden_dim = hidden_dim
+
+        # 升维: 2 → hidden_dim
+        self.fc0 = nn.Linear(2, hidden_dim)
+
+        # Fourier 层 + skip connection
+        self.convs = nn.ModuleList([
+            SpectralConv1d(hidden_dim, hidden_dim, modes)
+            for _ in range(num_layers)
+        ])
+        self.ws = nn.ModuleList([
+            nn.Conv1d(hidden_dim, hidden_dim, 1)  # 1x1 conv for skip
+            for _ in range(num_layers)
+        ])
+
+        # 降维: hidden_dim → 2
+        self.fc1 = nn.Linear(hidden_dim, 128)
+        self.fc2 = nn.Linear(128, 2)
+
+        # 归一化统计量 (2 通道 × N 空间点)
+        self.register_buffer('mu', torch.zeros(2, N))
+        self.register_buffer('sigma', torch.ones(2, N))
+
+        init_weights(self)
+
+    def compute_stats(self, loader):
+        """计算通道-空间归一化统计量"""
+        target = _maybe_unwrap(self)
+        device = next(target.parameters()).device
+        N = target.N
+        n = 0
+        # 形状 (N, 2): 每行是一个空间点的 (θ, p) 统计
+        mean = torch.zeros(N, 2, device=device)
+        for xb, _ in loader:
+            xb = xb.to(device)
+            batch = xb.shape[0]
+            xb = xb.view(batch, N, 2)  # (batch, N, 2)
+            mean += xb.sum(dim=0)  # (N, 2)
+            n += batch
+        mean = mean / n  # (N, 2)
+
+        var = torch.zeros(N, 2, device=device)
+        for xb, _ in loader:
+            xb = xb.to(device)
+            batch = xb.shape[0]
+            xb = xb.view(batch, N, 2)
+            var += ((xb - mean.unsqueeze(0)) ** 2).sum(dim=0)
+        var = var / n
+        std = var.sqrt().clamp(min=1e-6)  # (N, 2)
+
+        target.mu = mean.T  # (2, N)
+        target.sigma = std.T  # (2, N)
+
+    def forward(self, x):
+        """x: (batch, 2N) → 输出: (batch, 2N)"""
+        B = x.shape[0]
+        N = self.N
+
+        # Reshape: (batch, 2N) → (batch, N, 2)
+        x = x.view(B, N, 2)
+
+        # 归一化
+        x = (x - self.mu.T.unsqueeze(0)) / self.sigma.T.unsqueeze(0)
+
+        # 升维
+        x = self.fc0(x)  # (B, N, hidden_dim)
+
+        # Fourier 层
+        for conv, w in zip(self.convs, self.ws):
+            # Fourier 路径
+            x_ft = conv(x)  # (B, N, hidden_dim)
+            # Skip connection (1x1 卷积)
+            x_skip = w(x.permute(0, 2, 1)).permute(0, 2, 1)
+            x = x_ft + x_skip
+            x = torch.nn.functional.gelu(x)
+
+        # 降维
+        x = torch.nn.functional.gelu(self.fc1(x))
+        x = self.fc2(x)  # (B, N, 2)
+
+        # Flatten: (B, N, 2) → (B, 2N)
+        return x.reshape(B, -1)
+
+    def time_derivative(self, x):
+        """FNO 直接预测向量场，不需要 autograd"""
+        return self.forward(x)
 
 
 # ============================================================
