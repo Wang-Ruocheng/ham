@@ -5,6 +5,13 @@ __pycache__/
 
 # Output images
 *.png
+*.gif
+
+# Results
+results_*/
+
+# Data files
+*.pt
 
 # PDFs
 *.pdf

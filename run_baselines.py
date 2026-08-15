@@ -13,16 +13,16 @@ import matplotlib.pyplot as plt
 
 from pendulum_string import DiscretePendulumString
 from hnn_baselines import (
-    SeparableHNN, PartialHNN, SIREN_HNN, SymplecticHNN,
-    train_single_step, train_symplectic,
+    SeparableHNN, PartialHNN, SIREN_HNN, SymplecticHNN, SympNet,
+    train_single_step, train_symplectic, train_sympnet,
     generate_multistep_data,
     evaluate_and_visualize
 )
 
 
-def load_or_generate_data(args):
+def load_or_generate_data(args, output_dir='.'):
     """加载或生成训练数据"""
-    data_path = f'pendulum_string_data_N{args.n_masses}.pt'
+    data_path = os.path.join(output_dir, f'pendulum_string_data_N{args.n_masses}.pt')
     if os.path.exists(data_path):
         print(f"  加载已保存的数据: {data_path}")
         train_ds, val_ds, test_ds = torch.load(data_path, weights_only=False)
@@ -34,7 +34,7 @@ def load_or_generate_data(args):
         torch.save((train_ds, val_ds, test_ds), data_path)
         print(f"  数据已保存: {data_path}")
     return train_ds, val_ds, test_ds
-def summarize_results(results):
+def summarize_results(results, output_dir='.'):
     """打印对比表格"""
     print("\n" + "=" * 80)
     print("BASELINE 对比总结")
@@ -54,7 +54,7 @@ def summarize_results(results):
     names = [r[0] for r in results]
     mses = [r[1] if not np.isnan(r[1]) else 0 for r in results]
     n_params = [r[2] for r in results]
-    colors = ['#2196F3', '#4CAF50', '#FF9800', '#E91E63']
+    colors = ['#2196F3', '#4CAF50', '#FF9800', '#E91E63', '#9C27B0']
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
     ax1.bar(names, mses, color=colors)
@@ -71,8 +71,9 @@ def summarize_results(results):
         ax2.text(i, v * 1.02, f'{v:,}', ha='center', fontsize=9)
 
     plt.tight_layout()
-    plt.savefig('baseline_comparison.png', dpi=150)
-    print("对比图已保存: baseline_comparison.png")
+    fname = os.path.join(output_dir, 'baseline_comparison.png')
+    plt.savefig(fname, dpi=150)
+    print(f"对比图已保存: {fname}")
     plt.close()
 def main():
     parser = argparse.ArgumentParser(description='HNN Baseline Runner')
@@ -89,10 +90,15 @@ def main():
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--skip_symplectic', action='store_true',
                         help='跳过多步辛训练')
+    parser.add_argument('--sympnet_K', type=int, default=5,
+                        help='SympNet 的层数 K (default: 5)')
     parser.add_argument('--model', type=str, default='all',
-                        choices=['all', 'separable', 'partial', 'siren', 'symplectic'],
+                        choices=['all', 'separable', 'partial', 'siren', 'symplectic', 'sympnet'],
                         help='单独运行某个模型 (default: all)')
     args = parser.parse_args()
+
+    output_dir = f'results_N{args.n_masses}'
+    os.makedirs(output_dir, exist_ok=True)
 
     dim = 2 * args.n_masses
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -101,10 +107,11 @@ def main():
     print(f"HNN Baseline 对比: N={args.n_masses}, dim={dim}")
     print(f"MLP: {dim} -> {args.hidden_dim}x{args.num_layers} -> 1")
     print(f"设备: {device}, epochs: {args.epochs}")
+    print(f"输出: {output_dir}/")
     print("=" * 80)
 
     print("\n--- 加载数据 ---")
-    train_ds, val_ds, test_ds = load_or_generate_data(args)
+    train_ds, val_ds, test_ds = load_or_generate_data(args, output_dir)
 
     train_loader = DataLoader(train_ds, batch_size=args.batch_size,
                               shuffle=True, num_workers=4, pin_memory=True)
@@ -132,7 +139,7 @@ def main():
                           label='[Separable]',
                           compute_stats_fn=lambda m, l: m.compute_stats(l))
         elapsed = time.time() - t0
-        mse1, p1 = evaluate_and_visualize(model1, test_loader, sys, args, device, 'SeparableHNN')
+        mse1, p1 = evaluate_and_visualize(model1, test_loader, sys, args, device, 'SeparableHNN', output_dir=output_dir)
         results.append(('SeparableHNN', mse1, p1, elapsed))
 
     # ── 2. PartialHNN ───────────────────────────────────────
@@ -148,7 +155,7 @@ def main():
                           label='[Partial]',
                           compute_stats_fn=lambda m, l: m.compute_stats(l))
         elapsed = time.time() - t0
-        mse2, p2 = evaluate_and_visualize(model2, test_loader, sys, args, device, 'PartialHNN')
+        mse2, p2 = evaluate_and_visualize(model2, test_loader, sys, args, device, 'PartialHNN', output_dir=output_dir)
         results.append(('PartialHNN', mse2, p2, elapsed))
 
     # ── 3. SIREN_HNN ────────────────────────────────────────
@@ -164,7 +171,7 @@ def main():
                           label='[SIREN]',
                           compute_stats_fn=lambda m, l: m.compute_stats(l))
         elapsed = time.time() - t0
-        mse3, p3 = evaluate_and_visualize(model3, test_loader, sys, args, device, 'SIREN_HNN')
+        mse3, p3 = evaluate_and_visualize(model3, test_loader, sys, args, device, 'SIREN_HNN', output_dir=output_dir)
         results.append(('SIREN_HNN', mse3, p3, elapsed))
 
     # ── 4. SymplecticHNN ────────────────────────────────────
@@ -193,10 +200,40 @@ def main():
                              epochs=args.epochs, lr=args.lr, device=device,
                              label='[Symplectic]')
             elapsed = time.time() - t0
-            mse4, p4 = evaluate_and_visualize(model4, test_loader, sys, args, device, 'SymplecticHNN')
+            mse4, p4 = evaluate_and_visualize(model4, test_loader, sys, args, device, 'SymplecticHNN', output_dir=output_dir)
             results.append(('SymplecticHNN', mse4, p4, elapsed))
 
-    summarize_results(results)
+    # ── 5. SympNet ──────────────────────────────────────────
+    if args.model in ('all', 'sympnet'):
+        print("\n" + "=" * 80)
+        print("5/5: SympNet — 直接学辛映射 Φ(x) = x_{t+dt}")
+        print("=" * 80)
+        print("  生成 SympNet 训练数据 (单步状态对)...")
+        dt_symp = 0.05
+        symp_train, symp_val = generate_multistep_data(
+            sys, n_trajectories=args.n_trajectories,
+            dt=dt_symp, n_steps=1, seed=args.seed)
+        symp_train_loader = DataLoader(symp_train, batch_size=args.batch_size,
+                                       shuffle=True, num_workers=4, pin_memory=True)
+        symp_val_loader = DataLoader(symp_val, batch_size=args.batch_size,
+                                     shuffle=False, num_workers=4, pin_memory=True)
+
+        model5 = SympNet(N=args.n_masses, K=args.sympnet_K,
+                         hidden_dim=args.hidden_dim,
+                         num_layers=args.num_layers)
+        model5.dt = torch.tensor(dt_symp)
+        n_params_symp = sum(p.numel() for p in model5.parameters())
+        print(f"  SympNet: K={args.sympnet_K}, params={n_params_symp:,}, dt={dt_symp}")
+
+        t0 = time.time()
+        train_sympnet(model5, symp_train_loader, symp_val_loader,
+                      epochs=args.epochs, lr=args.lr, device=device,
+                      label='[SympNet]')
+        elapsed = time.time() - t0
+        mse5, p5 = evaluate_and_visualize(model5, test_loader, sys, args, device, 'SympNet', output_dir=output_dir)
+        results.append(('SympNet', mse5, p5, elapsed))
+
+    summarize_results(results, output_dir)
 
 
 if __name__ == '__main__':

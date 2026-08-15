@@ -8,6 +8,7 @@ HNN Baseline 模型集合
 
 所有模型共享训练/评估基础设施。
 """
+import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -147,13 +148,6 @@ class PartialHNN(nn.Module):
         tm, ts, _, _ = compute_split_stats(loader, self.N, device)
         self.theta_mu = tm; self.theta_sigma = ts
 
-    def _compute_T(self, theta, p):
-        B = theta.shape[0]
-        cos_diff = torch.cos(theta.unsqueeze(1) - theta.unsqueeze(2))
-        M = self.ml2 * self.k_mat.unsqueeze(0) * cos_diff
-        M_inv_p = torch.linalg.solve(M, p.unsqueeze(-1)).squeeze(-1)
-        return 0.5 * (p * M_inv_p).sum(dim=-1)
-
     def time_derivative(self, x):
         theta, p = x[:, :self.N], x[:, self.N:]
         theta_n = (theta - self.theta_mu) / self.theta_sigma
@@ -166,6 +160,9 @@ class PartialHNN(nn.Module):
         B = theta.shape[0]
         cos_diff = torch.cos(theta.unsqueeze(1) - theta.unsqueeze(2))
         M = self.ml2 * self.k_mat.unsqueeze(0) * cos_diff
+        # 正则化防止奇异矩阵
+        eps = 1e-8
+        M = M + eps * torch.eye(self.N, device=M.device).unsqueeze(0)
         v = torch.linalg.solve(M.detach(), p.unsqueeze(-1)).squeeze(-1)  # v = M⁻¹p
 
         # ∂T/∂θ_k = ml² * v_k * Σ_j k_mat[k,j] * sin(θ_k - θ_j) * v_j
@@ -232,6 +229,99 @@ class SIREN_HNN(nn.Module):
 class SymplecticHNN(SeparableHNN):
     """与 SeparableHNN 相同模型，但训练用多步辛积分器"""
     pass
+
+
+# ============================================================
+# 5. SympNet — 直接学辛映射，绕过梯度瓶颈
+# ============================================================
+class SympNet(nn.Module):
+    """SympNet: 直接学辛映射 Φ(x) = x_{t+Δt}
+    
+    论文: Jin, Zhang, Zhu (2020), "SympNets: Intrinsic structure-preserving
+    symplectic networks for identifying Hamiltonian systems"
+    
+    核心: K 层交替的 G (梯度) 和 S (剪切) 模块，保证保辛。
+    优势: Loss 只涉及一阶导数，无 HNN 的 Hessian 梯度瓶颈。
+    
+    架构:
+        q_k = q_{k-1} + W_k · p_{k-1}          (S 模块)
+        p_k = p_{k-1} - a_k · ∇V_k(q_k)        (G 模块)
+    """
+    def __init__(self, N, K=5, hidden_dim=128, num_layers=2):
+        super().__init__()
+        self.N = N
+        self.K = K
+        
+        # S 模块: 可学习的 N×N 矩阵 W_k
+        self.W = nn.ParameterList([
+            nn.Parameter(torch.eye(N) * 0.01) for _ in range(K)
+        ])
+        
+        # G 模块: 可学习的势能网络 V_k(q)
+        self.V_nets = nn.ModuleList([
+            make_mlp(N, 1, hidden_dim, num_layers, nn.Tanh(), final_bias=False)
+            for _ in range(K)
+        ])
+        for vn in self.V_nets:
+            init_weights(vn)
+        
+        # 每层的步长 a_k
+        self.a = nn.Parameter(torch.ones(K) * 0.1)
+        
+        # 训练步长 dt
+        self.register_buffer('dt', torch.tensor(0.05))
+    
+    def forward(self, x):
+        """一次辛映射: (q, p) → (q', p')
+        
+        训练时 (self.training=True): create_graph=True，维持完整计算图
+        推理时 (self.training=False): create_graph=False，不保留梯度图
+        """
+        q, p = x[:, :self.N], x[:, self.N:]
+        for k in range(self.K):
+            # S 模块: q ← q + W_k · p
+            q = q + p @ self.W[k]
+            # G 模块: p ← p - a_k · ∇V_k(q)
+            q.requires_grad_(True)
+            V = self.V_nets[k](q)
+            dV = torch.autograd.grad(V.sum(), q, create_graph=self.training)[0]
+            p = p - self.a[k] * dV
+        return torch.cat([q, p], dim=-1)
+    
+    def time_derivative(self, x):
+        """近似时间导数: dx/dt ≈ (Φ(x) - x) / dt"""
+        x_next = self.forward(x)
+        return (x_next - x) / self.dt
+    
+    def predict_trajectory(self, state0, t_span, n_points, device='cpu'):
+        """预测轨迹: 用模型自身 dt 积分，然后插值到 n_points 个时间点
+        
+        注意: 不需要 RK4 积分器，SympNet 自身就是积分器。
+        """
+        self.eval()
+        dt_model = self.dt.item()
+        total_time = t_span[1] - t_span[0]
+        n_steps = int(total_time / dt_model)
+        D = len(state0)
+        traj = np.zeros((n_steps + 1, D))
+        traj[0] = state0
+        
+        # 自动检测模型所在设备
+        model_device = next(self.parameters()).device
+        
+        for i in range(n_steps):
+            x = torch.tensor(traj[i:i+1], dtype=torch.float32, device=model_device)
+            x_next = self.forward(x).detach().cpu().numpy()[0]
+            traj[i+1] = x_next
+        
+        # 插值到目标时间点（与 true trajectory 对齐）
+        from scipy.interpolate import interp1d
+        t_model = np.linspace(t_span[0], t_span[1], n_steps + 1)
+        t_eval = np.linspace(t_span[0], t_span[1], n_points)
+        traj_interp = np.zeros((n_points, D))
+        for d in range(D):
+            traj_interp[:, d] = interp1d(t_model, traj[:, d], kind='cubic')(t_eval)
+        return traj_interp
 
 
 # ============================================================
@@ -327,6 +417,52 @@ def train_symplectic(model, train_loader, val_loader,
     return train_losses, val_losses
 
 
+def train_sympnet(model, train_loader, val_loader, epochs=2000,
+                  lr=1e-3, device='cuda', label=''):
+    """SympNet 训练: 直接监督状态迁移 (x_t, x_{t+dt})
+    
+    Loss 只涉及一阶导数，无 HNN 的 Hessian 瓶颈。
+    """
+    model = model.to(device)
+    optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-5)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode='min', factor=0.5, patience=150, min_lr=1e-6)
+    train_losses, val_losses = [], []
+    
+    for epoch in range(epochs):
+        model.train()
+        train_loss = 0.0
+        for xb, xf in train_loader:
+            xb, xf = xb.to(device), xf.to(device)
+            xb.requires_grad_(True)  # 需要梯度通过 autograd.grad 的 create_graph
+            optimizer.zero_grad()
+            x_pred = model(xb)
+            loss = nn.MSELoss()(x_pred, xf)
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 10.0)
+            optimizer.step()
+            train_loss += loss.item() * xb.size(0)
+        train_loss /= len(train_loader.dataset)
+        train_losses.append(train_loss)
+        
+        # 验证: 用状态迁移 MSE
+        model.eval()
+        val_loss = 0.0
+        for xb, xf in val_loader:
+            xb, xf = xb.to(device), xf.to(device)
+            xb.requires_grad_(True)
+            x_pred = model(xb)
+            val_loss += nn.MSELoss()(x_pred, xf).item() * xb.size(0)
+        val_loss /= len(val_loader.dataset)
+        val_losses.append(val_loss)
+        scheduler.step(val_loss)
+        
+        if (epoch + 1) % 200 == 0:
+            print(f"  {label} Epoch {epoch+1:4d}/{epochs} | "
+                  f"Train: {train_loss:.6e} | Val: {val_loss:.6e}")
+    return train_losses, val_losses
+
+
 # ============================================================
 # 生成多步训练数据
 # ============================================================
@@ -393,8 +529,9 @@ def integrate_rk4(model, state0, t_span, n_steps, device='cuda'):
 
 
 def evaluate_and_visualize(model, test_loader, sys, args, device, label,
-                           t_span=(0, 40), n_points=1500):
+                           t_span=(0, 40), n_points=1500, output_dir='.'):
     """评估模型: 测试 MSE + 轨迹预测 + 可视化"""
+    os.makedirs(output_dir, exist_ok=True)
     model.eval()
     test_mse = 0.0; n_test = 0
     for xb, dxb in test_loader:
@@ -413,7 +550,10 @@ def evaluate_and_visualize(model, test_loader, sys, args, device, label,
     state0 = np.concatenate([theta0, p0])
 
     _, true_traj = sys.generate_trajectory(state0, t_span, n_points)
-    pred_traj = integrate_rk4(model, state0, t_span, n_points, device)
+    if isinstance(model, SympNet):
+        pred_traj = model.predict_trajectory(state0, t_span, n_points, device)
+    else:
+        pred_traj = integrate_rk4(model, state0, t_span, n_points, device)
 
     t_eval = np.linspace(*t_span, n_points)
     N = args.n_masses
@@ -462,7 +602,7 @@ def evaluate_and_visualize(model, test_loader, sys, args, device, label,
 
     fig.suptitle(f'{label} | N={N} | {n_params:,} params | test MSE={test_mse:.4e}',
                  fontsize=14, fontweight='bold')
-    fname = f'pendulum_string_{label.replace(" ", "_").lower()}.png'
+    fname = os.path.join(output_dir, f'pendulum_string_{label.replace(" ", "_").lower()}.png')
     plt.savefig(fname, dpi=150)
     print(f"  可视化已保存: {fname}")
     plt.close()
@@ -514,7 +654,7 @@ def evaluate_and_visualize(model, test_loader, sys, args, device, label,
         return ax_t, ax_p
 
     anim = FuncAnimation(fig_anim, animate, frames=n_gif, interval=50, blit=False)
-    gif_fname = f'pendulum_string_{label.replace(" ", "_").lower()}.gif'
+    gif_fname = os.path.join(output_dir, f'pendulum_string_{label.replace(" ", "_").lower()}.gif')
     anim.save(gif_fname, writer='pillow', fps=20, dpi=100)
     print(f"  GIF 已保存: {gif_fname}")
     plt.close(fig_anim)
