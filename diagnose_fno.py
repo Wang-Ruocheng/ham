@@ -151,9 +151,9 @@ def main():
     print(f"设备: {device}, N={N}")
 
     sys_pend = DiscretePendulumString(n_masses=N)
-    train_set, val_set, test_set = generate_multistep_data(
+    train_val, test_set = generate_multistep_data(
         sys_pend, n_trajectories=args.n_trajectories, seed=42)
-    train_loader = DataLoader(train_set, batch_size=256, shuffle=False)
+    train_loader = DataLoader(train_val, batch_size=256, shuffle=False)
     test_loader = DataLoader(test_set, batch_size=256, shuffle=False)
 
     print_data_stats(train_loader, "训练集", N)
