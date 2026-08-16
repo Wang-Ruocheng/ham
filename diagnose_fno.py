@@ -54,6 +54,89 @@ def print_data_stats(loader, label, N):
               f"min={dp[:,i].min():.6f}, max={dp[:,i].max():.6f}")
 
     return X, dX
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
+
+def plot_io(model, loader, N, device, output_dir='.'):
+    """绘制 FNO 输入→输出函数图像"""
+    raw = _maybe_unwrap(model)
+    model.eval()
+
+    # 收集所有测试数据
+    all_x, all_dx = [], []
+    for xb, dxb in loader:
+        all_x.append(xb); all_dx.append(dxb)
+    X = torch.cat(all_x, dim=0)
+    dX_true = torch.cat(all_dx, dim=0)
+
+    X_dev = X.to(device)
+    X_dev.requires_grad_(True)
+    with torch.no_grad():
+        dX_pred = raw.time_derivative(X_dev).cpu()
+
+    dX_true_np = dX_true.numpy()
+    dX_pred_np = dX_pred.numpy()
+    X_np = X.numpy()
+
+    dtheta_true = dX_true_np[:, :N].ravel()
+    dtheta_pred = dX_pred_np[:, :N].ravel()
+    dp_true = dX_true_np[:, N:].ravel()
+    dp_pred = dX_pred_np[:, N:].ravel()
+
+    fig, axes = plt.subplots(2, 2, figsize=(14, 12))
+
+    # 1) 散点: dθ/dt 预测 vs 真实
+    ax = axes[0, 0]
+    ax.scatter(dtheta_true, dtheta_pred, alpha=0.3, s=4, color='C0')
+    lim = max(abs(dtheta_true).max(), abs(dtheta_pred).max()) * 1.1
+    ax.plot([-lim, lim], [-lim, lim], 'k--', lw=0.8)
+    ax.set_xlim(-lim, lim); ax.set_ylim(-lim, lim)
+    ax.set_xlabel('True dθ/dt'); ax.set_ylabel('Pred dθ/dt')
+    mse_t = np.mean((dtheta_true - dtheta_pred) ** 2)
+    ax.set_title(f'dθ/dt (MSE={mse_t:.4e})')
+    ax.set_aspect('equal'); ax.grid(alpha=0.3)
+
+    # 2) 散点: dp/dt 预测 vs 真实
+    ax = axes[0, 1]
+    ax.scatter(dp_true, dp_pred, alpha=0.3, s=4, color='C3')
+    lim = max(abs(dp_true).max(), abs(dp_pred).max()) * 1.1
+    ax.plot([-lim, lim], [-lim, lim], 'k--', lw=0.8)
+    ax.set_xlim(-lim, lim); ax.set_ylim(-lim, lim)
+    ax.set_xlabel('True dp/dt'); ax.set_ylabel('Pred dp/dt')
+    mse_p = np.mean((dp_true - dp_pred) ** 2)
+    ax.set_title(f'dp/dt (MSE={mse_p:.4e})')
+    ax.set_aspect('equal'); ax.grid(alpha=0.3)
+
+    # 3) 空间轮廓: 一个样本的 dθ/dt 和 dp/dt 沿摆链
+    ax = axes[1, 0]
+    si = 0  # 第一个样本
+    idx = np.arange(N)
+    ax.plot(idx, dX_true_np[si, :N], 'o-', color='C0', label='True dθ/dt', ms=5)
+    ax.plot(idx, dX_pred_np[si, :N], 's--', color='C1', label='Pred dθ/dt', ms=5)
+    ax.set_xlabel('Pendulum index'); ax.set_ylabel('dθ/dt')
+    ax.set_title(f'Spatial profile (sample {si})')
+    ax.legend(); ax.grid(alpha=0.3)
+
+    # 4) 误差直方图
+    ax = axes[1, 1]
+    err_theta = dtheta_pred - dtheta_true
+    err_p = dp_pred - dp_true
+    ax.hist(err_theta, bins=60, alpha=0.5, label=f'dθ/dt err (std={err_theta.std():.3f})', color='C0')
+    ax.hist(err_p, bins=60, alpha=0.5, label=f'dp/dt err (std={err_p.std():.5f})', color='C3')
+    ax.set_xlabel('Prediction error'); ax.set_ylabel('Count')
+    ax.set_title('Error distribution')
+    ax.legend(); ax.grid(alpha=0.3)
+
+    fig.suptitle(f'FNO I/O Mapping | N={N} | {sum(p.numel() for p in model.parameters()):,} params',
+                 fontsize=13, fontweight='bold')
+    plt.tight_layout()
+
+    fname = os.path.join(output_dir, 'fno_io_plot.png')
+    plt.savefig(fname, dpi=150)
+    print(f"\n  函数图像已保存: {fname}")
+    plt.close()
 def print_model_io(model, loader, N, device, n_samples=5):
     """打印模型的输入输出对比"""
     raw = _maybe_unwrap(model)
@@ -175,6 +258,7 @@ def main():
     model = model.to(device)
     model.compute_stats(train_loader)
     print_model_io(model, test_loader, N, device, n_samples=5)
+    plot_io(model, test_loader, N, device)
 
 
 if __name__ == '__main__':
