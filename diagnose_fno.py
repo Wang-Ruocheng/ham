@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from pendulum_string import DiscretePendulumString
-from hnn_baselines import FNO, _maybe_unwrap, generate_multistep_data
+from hnn_baselines import FNO, _maybe_unwrap
 
 
 def print_data_stats(loader, label, N):
@@ -235,12 +235,11 @@ def main():
     print(f"设备: {device}, N={N}")
 
     sys_pend = DiscretePendulumString(n_masses=N)
-    train_val, test_set = generate_multistep_data(
-        sys_pend, n_trajectories=args.n_trajectories, seed=42)
-    train_loader = DataLoader(train_val, batch_size=256, shuffle=False)
+    _, _, test_set = sys_pend.generate_dataset(
+        n_trajectories=args.n_trajectories, seed=42)
     test_loader = DataLoader(test_set, batch_size=256, shuffle=False)
 
-    print_data_stats(train_loader, "训练集", N)
+    print_data_stats(test_loader, "测试集", N)
 
     if args.data_only:
         print("\n✓ 数据统计完成 (--data_only)")
@@ -271,7 +270,7 @@ def main():
         model.load_state_dict(sd)
 
     model = model.to(device)
-    model.compute_stats(train_loader)
+    model.compute_stats(test_loader)
     print_model_io(model, test_loader, N, device, n_samples=5)
     plot_io(model, test_loader, N, device)
 
