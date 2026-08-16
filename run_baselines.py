@@ -222,6 +222,8 @@ def main():
         mse1, p1 = evaluate_and_visualize(model1, test_loader, sys, args, device, 'SeparableHNN', output_dir=output_dir)
         if rank == 0:
             results.append(('SeparableHNN', mse1, p1, elapsed))
+            torch.save(_maybe_unwrap(model1).state_dict(),
+                       os.path.join(output_dir, 'separable_checkpoint.pt'))
 
     # ── 2. PartialHNN ───────────────────────────────────────
     if args.model in ('all', 'partial'):
@@ -240,6 +242,8 @@ def main():
         mse2, p2 = evaluate_and_visualize(model2, test_loader, sys, args, device, 'PartialHNN', output_dir=output_dir)
         if rank == 0:
             results.append(('PartialHNN', mse2, p2, elapsed))
+            torch.save(_maybe_unwrap(model2).state_dict(),
+                       os.path.join(output_dir, 'partial_checkpoint.pt'))
 
     # ── 3. SIREN_HNN ────────────────────────────────────────
     if args.model in ('all', 'siren'):
@@ -258,6 +262,8 @@ def main():
         mse3, p3 = evaluate_and_visualize(model3, test_loader, sys, args, device, 'SIREN_HNN', output_dir=output_dir)
         if rank == 0:
             results.append(('SIREN_HNN', mse3, p3, elapsed))
+            torch.save(_maybe_unwrap(model3).state_dict(),
+                       os.path.join(output_dir, 'siren_checkpoint.pt'))
 
     # ── 4. SymplecticHNN ────────────────────────────────────
     if args.model in ('all', 'symplectic'):
@@ -296,6 +302,8 @@ def main():
             mse4, p4 = evaluate_and_visualize(model4, test_loader, sys, args, device, 'SymplecticHNN', output_dir=output_dir)
             if rank == 0:
                 results.append(('SymplecticHNN', mse4, p4, elapsed))
+                torch.save(_maybe_unwrap(model4).state_dict(),
+                           os.path.join(output_dir, 'symplectic_checkpoint.pt'))
 
     # ── 5. SympNet ──────────────────────────────────────────
     if args.model in ('all', 'sympnet'):
@@ -335,6 +343,8 @@ def main():
         mse5, p5 = evaluate_and_visualize(model5, test_loader, sys, args, device, 'SympNet', output_dir=output_dir)
         if rank == 0:
             results.append(('SympNet', mse5, p5, elapsed))
+            torch.save(_maybe_unwrap(model5).state_dict(),
+                       os.path.join(output_dir, 'sympnet_checkpoint.pt'))
 
     # ── 6. FNO — Fourier Neural Operator ─────────────────────
     if args.model in ('all', 'fno'):
@@ -363,6 +373,10 @@ def main():
                           label='[FNO]',
                           compute_stats_fn=_compute_fno_stats)
         elapsed = time.time() - t0
+        if rank == 0:
+            ckpt_path = os.path.join(output_dir, 'fno_checkpoint.pt')
+            torch.save(_maybe_unwrap(model6).state_dict(), ckpt_path)
+            print(f"  FNO checkpoint saved: {ckpt_path}")
         mse6, p6 = evaluate_and_visualize(model6, test_loader, sys, args, device, 'FNO', output_dir=output_dir)
         if rank == 0:
             results.append(('FNO', mse6, p6, elapsed))
@@ -396,6 +410,8 @@ def main():
                                           'GraphHNN', output_dir=output_dir)
         if rank == 0:
             results.append(('GraphHNN', mse7, p7, elapsed))
+            torch.save(_maybe_unwrap(model7).state_dict(),
+                       os.path.join(output_dir, 'graph_checkpoint.pt'))
 
     # ── 8. CHNN — Constrained HNN ──────────────────────────
     if args.model in ('all', 'chnn'):
@@ -480,6 +496,8 @@ def main():
             print(f"\n  [CHNN] 测试 MSE (笛卡尔): {test_mse:.6e} | "
                   f"参数: {n_params_chnn:,}")
             results.append(('CHNN', test_mse, n_params_chnn, elapsed))
+            torch.save(raw_chnn.state_dict(),
+                       os.path.join(output_dir, 'chnn_checkpoint.pt'))
 
     if rank == 0:
         summarize_results(results, output_dir)
