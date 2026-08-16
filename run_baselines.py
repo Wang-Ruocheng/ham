@@ -375,7 +375,15 @@ def main():
         elapsed = time.time() - t0
         if rank == 0:
             ckpt_path = os.path.join(output_dir, 'fno_checkpoint.pt')
-            torch.save(_maybe_unwrap(model6).state_dict(), ckpt_path)
+            torch.save({
+                'model_state_dict': _maybe_unwrap(model6).state_dict(),
+                'config': {
+                    'N': args.n_masses,
+                    'modes': args.fno_modes,
+                    'hidden_dim': args.fno_hidden,
+                    'num_layers': args.num_layers,
+                }
+            }, ckpt_path)
             print(f"  FNO checkpoint saved: {ckpt_path}")
         mse6, p6 = evaluate_and_visualize(model6, test_loader, sys, args, device, 'FNO', output_dir=output_dir)
         if rank == 0:

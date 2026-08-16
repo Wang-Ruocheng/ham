@@ -3,7 +3,7 @@ FNO 诊断脚本: 打印输入输出对，检查数值尺度
 ===========================================
 用法:
   只看数据统计:  python diagnose_fno.py --n_masses 20 --data_only
-  加载模型诊断:  python diagnose_fno.py --ckpt results_N20/fno.pt --n_masses 20
+  加载模型诊断:  python diagnose_fno.py --ckpt results_N20/fno_checkpoint.pt --n_masses 20
 """
 
 import os, argparse, sys
@@ -226,7 +226,8 @@ def main():
     parser.add_argument('--n_trajectories', type=int, default=10)
     parser.add_argument('--fno_modes', type=int, default=12)
     parser.add_argument('--fno_hidden', type=int, default=64)
-    parser.add_argument('--num_layers', type=int, default=4)
+    parser.add_argument('--num_layers', type=int, default=3,
+                        help='FNO Fourier 层数 (需与训练时一致)')
     args = parser.parse_args()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -245,15 +246,29 @@ def main():
         print("\n✓ 数据统计完成 (--data_only)")
         return
 
-    model = FNO(N=N, modes=args.fno_modes, hidden_dim=args.fno_hidden,
-                num_layers=args.num_layers)
+    # 加载 checkpoint（自动推断配置）
+    fno_modes = args.fno_modes
+    fno_hidden = args.fno_hidden
+    num_layers = args.num_layers
     if args.ckpt and os.path.exists(args.ckpt):
         print(f"\n加载 checkpoint: {args.ckpt}")
         ckpt = torch.load(args.ckpt, map_location=device, weights_only=False)
+        if 'config' in ckpt:
+            cfg = ckpt['config']
+            fno_modes = cfg.get('modes', fno_modes)
+            fno_hidden = cfg.get('hidden_dim', fno_hidden)
+            num_layers = cfg.get('num_layers', num_layers)
+            print(f"  自动检测配置: modes={fno_modes}, hidden={fno_hidden}, "
+                  f"layers={num_layers}")
         sd = ckpt.get('model_state_dict', ckpt)
-        model.load_state_dict(sd)
     else:
         print(f"\n⚠️ 未加载 checkpoint，使用随机初始化模型")
+        sd = None
+
+    model = FNO(N=N, modes=fno_modes, hidden_dim=fno_hidden,
+                num_layers=num_layers)
+    if sd is not None:
+        model.load_state_dict(sd)
 
     model = model.to(device)
     model.compute_stats(train_loader)
