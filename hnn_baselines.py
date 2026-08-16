@@ -370,9 +370,10 @@ class SpectralConv1d(nn.Module):
         x_ft = torch.fft.rfft(x, dim=1)  # (B, N//2+1, in_dim)
         out_ft = torch.zeros(B, N // 2 + 1, self.out_dim,
                              dtype=torch.cfloat, device=x.device)
-        # 只保留前 modes 个频率分量
-        out_ft[:, :self.modes, :] = torch.einsum(
-            'bmi,iom->bmo', x_ft[:, :self.modes, :], self.weights)
+        # 有效 modes 数不能超过 rfft 输出大小
+        M = min(self.modes, N // 2 + 1)
+        out_ft[:, :M, :] = torch.einsum(
+            'bmi,iom->bmo', x_ft[:, :M, :], self.weights[:, :, :M])
         # 逆 FFT
         x = torch.fft.irfft(out_ft, n=N, dim=1)  # (B, N, out_dim)
         return x
