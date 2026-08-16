@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 from pendulum_string import DiscretePendulumString
 from hnn_baselines import (
     SeparableHNN, PartialHNN, SIREN_HNN, SymplecticHNN, SympNet, FNO,
+    GraphHNN, CHNN,
     train_single_step, train_symplectic, train_sympnet,
     generate_multistep_data,
     evaluate_and_visualize,
@@ -68,7 +69,7 @@ def summarize_results(results, output_dir='.'):
     names = [r[0] for r in results]
     mses = [r[1] if not np.isnan(r[1]) else 0 for r in results]
     n_params = [r[2] for r in results]
-    colors = ['#2196F3', '#4CAF50', '#FF9800', '#E91E63', '#9C27B0', '#00BCD4']
+    colors = ['#2196F3', '#4CAF50', '#FF9800', '#E91E63', '#9C27B0', '#00BCD4', '#795548', '#FF5722']
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
     ax1.bar(names, mses, color=colors)
@@ -112,8 +113,12 @@ def main():
                         help='FNO 保留的 Fourier 模态数 (default: 12)')
     parser.add_argument('--fno_hidden', type=int, default=64,
                         help='FNO 隐藏层维度 (default: 64)')
+    parser.add_argument('--graph_hidden', type=int, default=128,
+                        help='GraphHNN 隐藏层维度 (default: 128)')
+    parser.add_argument('--chnn_hidden', type=int, default=256,
+                        help='CHNN 隐藏层维度 (default: 256)')
     parser.add_argument('--model', type=str, default='all',
-                        choices=['all', 'separable', 'partial', 'siren', 'symplectic', 'sympnet', 'fno'],
+                        choices=['all', 'separable', 'partial', 'siren', 'symplectic', 'sympnet', 'fno', 'graph', 'chnn'],
                         help='单独运行某个模型 (default: all)')
     parser.add_argument('--ddp', action='store_true',
                         help='使用 DDP 多 GPU 并行训练')
@@ -361,6 +366,120 @@ def main():
         mse6, p6 = evaluate_and_visualize(model6, test_loader, sys, args, device, 'FNO', output_dir=output_dir)
         if rank == 0:
             results.append(('FNO', mse6, p6, elapsed))
+
+    # ── 7. GraphHNN ────────────────────────────────────────
+    if args.model in ('all', 'graph'):
+        if rank == 0:
+            print("\n" + "=" * 80)
+            print("7/8: GraphHNN — 图结构参数共享 HNN (节点+边 MLP)")
+            print("=" * 80)
+
+        model7 = _wrap(GraphHNN(N=args.n_masses, hidden_dim=args.graph_hidden,
+                                 num_layers=args.num_layers))
+        n_params_graph = sum(p.numel() for p in model7.parameters())
+        if rank == 0:
+            print(f"  GraphHNN: N={args.n_masses}, hidden={args.graph_hidden}, "
+                  f"layers={args.num_layers}, params={n_params_graph:,}")
+            print(f"  关键优势: 共享节点/边 MLP，参数 O(1) 每节点")
+
+        def _compute_graph_stats(m, l):
+            r = _maybe_unwrap(m)
+            r.compute_stats(l)
+
+        t0 = time.time()
+        train_single_step(model7, train_loader, val_loader,
+                          epochs=args.epochs, lr=args.lr, device=device,
+                          label='[GraphHNN]',
+                          compute_stats_fn=_compute_graph_stats)
+        elapsed = time.time() - t0
+        mse7, p7 = evaluate_and_visualize(model7, test_loader, sys, args, device,
+                                          'GraphHNN', output_dir=output_dir)
+        if rank == 0:
+            results.append(('GraphHNN', mse7, p7, elapsed))
+
+    # ── 8. CHNN — Constrained HNN ──────────────────────────
+    if args.model in ('all', 'chnn'):
+        if rank == 0:
+            print("\n" + "=" * 80)
+            print("8/8: CHNN — 笛卡尔坐标约束 HNN (Lagrange 乘子)")
+            print("=" * 80)
+            print("  生成笛卡尔坐标训练数据...")
+
+        cart_data_path = os.path.join(output_dir,
+                                      f'cartesian_data_N{args.n_masses}.pt')
+        if rank == 0:
+            if not os.path.exists(cart_data_path):
+                cart_train, cart_val, cart_test = sys.generate_cartesian_dataset(
+                    n_trajectories=args.n_trajectories, seed=args.seed)
+                torch.save((cart_train, cart_val, cart_test), cart_data_path)
+                print(f"  笛卡尔数据已保存: {cart_data_path}")
+            else:
+                cart_train, cart_val, cart_test = torch.load(
+                    cart_data_path, weights_only=False)
+                print(f"  加载已保存的笛卡尔数据: {cart_data_path}")
+
+        if args.ddp:
+            dist.barrier()
+            if rank != 0:
+                cart_train, cart_val, cart_test = torch.load(
+                    cart_data_path, weights_only=False)
+                print(f"  [rank {rank}] 加载笛卡尔数据: {cart_data_path}")
+
+            cart_train_sampler = DistributedSampler(
+                cart_train, num_replicas=world_size, rank=rank)
+            cart_val_sampler = DistributedSampler(
+                cart_val, num_replicas=world_size, rank=rank, shuffle=False)
+            cart_train_loader = DataLoader(cart_train, batch_size=args.batch_size,
+                                           sampler=cart_train_sampler,
+                                           num_workers=4, pin_memory=True)
+            cart_val_loader = DataLoader(cart_val, batch_size=args.batch_size,
+                                         sampler=cart_val_sampler,
+                                         num_workers=4, pin_memory=True)
+            cart_test_loader = DataLoader(cart_test, batch_size=args.batch_size,
+                                          shuffle=False)
+        else:
+            cart_train_loader = DataLoader(cart_train, batch_size=args.batch_size,
+                                           shuffle=True, num_workers=4, pin_memory=True)
+            cart_val_loader = DataLoader(cart_val, batch_size=args.batch_size,
+                                         shuffle=False, num_workers=4, pin_memory=True)
+            cart_test_loader = DataLoader(cart_test, batch_size=args.batch_size,
+                                          shuffle=False)
+
+        model8 = _wrap(CHNN(N=args.n_masses, l=seg_length, m=seg_mass,
+                             hidden_dim=args.chnn_hidden,
+                             num_layers=args.num_layers))
+        n_params_chnn = sum(p.numel() for p in model8.parameters())
+        if rank == 0:
+            print(f"  CHNN: N={args.n_masses}, dim={4*args.n_masses}, "
+                  f"l={seg_length:.4f}, m={seg_mass:.4f}, "
+                  f"hidden={args.chnn_hidden}, params={n_params_chnn:,}")
+            print(f"  关键优势: 笛卡尔坐标 + 显式约束 Lagrange 乘子")
+
+        def _compute_chnn_stats(m, l):
+            r = _maybe_unwrap(m)
+            r.compute_stats(l)
+
+        t0 = time.time()
+        train_single_step(model8, cart_train_loader, cart_val_loader,
+                          epochs=args.epochs, lr=args.lr, device=device,
+                          label='[CHNN]',
+                          compute_stats_fn=_compute_chnn_stats)
+        elapsed = time.time() - t0
+
+        # CHNN 评估（笛卡尔测试集）
+        if rank == 0:
+            model8.eval()
+            raw_chnn = _maybe_unwrap(model8)
+            test_mse = 0.0; n_test = 0
+            for xb, dxb in cart_test_loader:
+                xb = xb.to(device); dxb = dxb.to(device)
+                xb.requires_grad_(True)
+                test_mse += nn.MSELoss()(raw_chnn.time_derivative(xb), dxb).item() * xb.size(0)
+                n_test += xb.size(0)
+            test_mse /= n_test
+            print(f"\n  [CHNN] 测试 MSE (笛卡尔): {test_mse:.6e} | "
+                  f"参数: {n_params_chnn:,}")
+            results.append(('CHNN', test_mse, n_params_chnn, elapsed))
 
     if rank == 0:
         summarize_results(results, output_dir)

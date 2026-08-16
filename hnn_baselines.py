@@ -7,6 +7,8 @@ HNN Baseline 模型集合
 4. SymplecticHNN — Separable + 多步辛积分器训练
 5. SympNet      — 直接学辛映射 Φ(x) = x_{t+dt}
 6. FNO          — Fourier Neural Operator 直接学向量场
+7. GraphHNN     — 图结构参数共享 HNN (节点+边 MLP)
+8. CHNN         — 笛卡尔坐标约束 HNN (Lagrange 乘子)
 
 所有模型共享训练/评估基础设施。
 """
@@ -482,6 +484,184 @@ class FNO(nn.Module):
     def time_derivative(self, x):
         """FNO 直接预测向量场，不需要 autograd"""
         return self.forward(x)
+
+
+# ============================================================
+# 7. GraphHNN — Hamiltonian Graph Network
+# ============================================================
+class GraphHNN(nn.Module):
+    """Hamiltonian Graph Network: 图结构参数共享 HNN
+
+    H = Σ_i H_node(θ_i, p_i) + Σ_{edges} H_edge(θ_i - θ_{i+1})
+
+    所有节点共享一组 MLP，所有边共享另一组 MLP。
+    参数不随 N 增长（O(1) 每节点），利用链式图结构。
+    """
+    def __init__(self, N, hidden_dim=128, num_layers=3):
+        super().__init__()
+        self.N = N
+        self.node_net = make_mlp(2, 1, hidden_dim, num_layers, nn.Tanh())
+        self.edge_net = make_mlp(1, 1, hidden_dim // 2, num_layers, nn.Tanh())
+        init_weights(self.node_net)
+        init_weights(self.edge_net)
+        self.register_buffer('theta_mu', torch.zeros(N))
+        self.register_buffer('theta_sigma', torch.ones(N))
+        self.register_buffer('p_mu', torch.zeros(N))
+        self.register_buffer('p_sigma', torch.ones(N))
+
+    def compute_stats(self, loader):
+        target = _maybe_unwrap(self)
+        device = next(target.parameters()).device
+        tm, ts, pm, ps = compute_split_stats(loader, target.N, device)
+        target.theta_mu = tm
+        target.theta_sigma = ts
+        target.p_mu = pm
+        target.p_sigma = ps
+
+    def hamiltonian(self, theta_n, p_n):
+        """计算标量哈密顿量 H = Σ node + Σ edge"""
+        # 节点能量: (θ_i, p_i) → 共享 MLP
+        theta_p = torch.stack([theta_n, p_n], dim=-1)  # (B, N, 2)
+        H_node = self.node_net(theta_p).squeeze(-1)    # (B, N)
+        H = H_node.sum(dim=-1)                          # (B,)
+
+        # 边能量: (θ_i - θ_{i+1}) → 共享 MLP
+        theta_diff = theta_n[:, :-1] - theta_n[:, 1:]   # (B, N-1)
+        H_edge = self.edge_net(theta_diff.unsqueeze(-1)).squeeze(-1)  # (B, N-1)
+        H = H + H_edge.sum(dim=-1)
+        return H
+
+    def time_derivative(self, x):
+        theta, p = x[:, :self.N], x[:, self.N:]
+        theta_n = (theta - self.theta_mu) / self.theta_sigma
+        p_n = (p - self.p_mu) / self.p_sigma
+
+        H = self.hamiltonian(theta_n, p_n)
+        dH_dtheta_n = torch.autograd.grad(H.sum(), theta_n, create_graph=True)[0]
+        dH_dp_n = torch.autograd.grad(H.sum(), p_n, create_graph=True)[0]
+
+        dH_dp = dH_dp_n / self.p_sigma
+        dH_dtheta = dH_dtheta_n / self.theta_sigma
+
+        return torch.cat([dH_dp, -dH_dtheta], dim=-1)
+
+
+# ============================================================
+# 8. CHNN — Constrained HNN (笛卡尔坐标)
+# ============================================================
+class CHNN(nn.Module):
+    """Constrained Hamiltonian Neural Network
+
+    在笛卡尔坐标 (x, y, p_x, p_y) 中学习哈密顿量，
+    显式强制执行刚性杆约束，通过 Lagrange 乘子求解。
+
+    约束: N 个距离约束 g_k(q) = 0
+      g_1 = x_1² + y_1² - l² = 0
+      g_k = (x_k - x_{k-1})² + (y_k - y_{k-1})² - l² = 0  (k=2..N)
+
+    动力学:
+      q̇ = M^{-1} p
+      ṗ = -∂H/∂q - C^T λ
+      其中 C = ∂g/∂q, λ 由约束一致性条件解出
+    """
+    def __init__(self, N, l, m, hidden_dim=256, num_layers=3):
+        super().__init__()
+        self.N = N
+        self.l = l    # 每节杆长
+        self.m = m    # 每个质点质量
+        self.dim = 4 * N  # 2N 位置 + 2N 动量
+        self.H_net = make_mlp(4 * N, 1, hidden_dim, num_layers, nn.Tanh())
+        init_weights(self.H_net)
+        self.register_buffer('mu', torch.zeros(4 * N))
+        self.register_buffer('sigma', torch.ones(4 * N))
+
+    def compute_stats(self, loader):
+        target = _maybe_unwrap(self)
+        device = next(target.parameters()).device
+        target.mu, target.sigma = compute_full_stats(loader, target.dim, device)
+
+    def constraint_jacobian(self, q):
+        """约束 Jacobian C = ∂g/∂q ∈ R^{B×N×2N}
+
+        q: (batch, 2N) = [x_1, y_1, ..., x_N, y_N]
+        """
+        B = q.shape[0]
+        N = self.N
+        C = torch.zeros(B, N, 2 * N, device=q.device)
+
+        # g_1 = x_1² + y_1² - l²
+        C[:, 0, 0] = 2 * q[:, 0]   # ∂g_1/∂x_1
+        C[:, 0, 1] = 2 * q[:, 1]   # ∂g_1/∂y_1
+
+        # g_k = (x_k - x_{k-1})² + (y_k - y_{k-1})² - l²  (k=2..N)
+        for k in range(1, N):
+            dx = q[:, 2 * k] - q[:, 2 * k - 2]
+            dy = q[:, 2 * k + 1] - q[:, 2 * k - 1]
+            C[:, k, 2 * k - 2] = -2 * dx
+            C[:, k, 2 * k - 1] = -2 * dy
+            C[:, k, 2 * k] = 2 * dx
+            C[:, k, 2 * k + 1] = 2 * dy
+
+        return C  # (B, N, 2N)
+
+    def constraint_acceleration(self, q_dot):
+        """计算 Ċ q̇ ∈ R^N
+
+        q_dot: (batch, 2N) = [ẋ_1, ẏ_1, ..., ẋ_N, ẏ_N]
+        """
+        B = q_dot.shape[0]
+        N = self.N
+        vx = q_dot[:, 0::2]   # (B, N)
+        vy = q_dot[:, 1::2]   # (B, N)
+
+        Cdot_qdot = torch.zeros(B, N, device=q_dot.device)
+        Cdot_qdot[:, 0] = 2 * (vx[:, 0] ** 2 + vy[:, 0] ** 2)
+        for k in range(1, N):
+            dvx = vx[:, k] - vx[:, k - 1]
+            dvy = vy[:, k] - vy[:, k - 1]
+            Cdot_qdot[:, k] = 2 * (dvx ** 2 + dvy ** 2)
+
+        return Cdot_qdot  # (B, N)
+
+    def time_derivative(self, x):
+        """x: (batch, 4N) = [q, p]"""
+        B = x.shape[0]
+        N = self.N
+        q = x[:, :2 * N]
+        p = x[:, 2 * N:]
+
+        x_norm = (x - self.mu) / self.sigma
+        H = self.H_net(x_norm)
+        dH_dx_norm = torch.autograd.grad(H.sum(), x_norm, create_graph=True)[0]
+        dH_dx = dH_dx_norm / self.sigma
+        dH_dq = dH_dx[:, :2 * N]   # (B, 2N)
+
+        # q̇ = M^{-1} p = p / m
+        q_dot = p / self.m
+
+        C = self.constraint_jacobian(q)   # (B, N, 2N)
+        Cdot_qdot = self.constraint_acceleration(q_dot)  # (B, N)
+
+        # C M^{-1} C^T = (1/m) C C^T
+        CCT = torch.bmm(C, C.transpose(1, 2))  # (B, N, N)
+        M_inv_block = CCT / self.m
+
+        # 正则化防止奇异
+        eye = torch.eye(N, device=x.device).unsqueeze(0).expand(B, -1, -1)
+        M_inv_block = M_inv_block + 1e-6 * eye
+
+        # RHS = -C M^{-1} ∂H/∂q + Ċ q̇
+        rhs = (-torch.bmm(C, dH_dq.unsqueeze(-1)).squeeze(-1) / self.m
+               + Cdot_qdot)  # (B, N)
+
+        # 求解 Lagrange 乘子 λ
+        lamb = torch.linalg.solve(M_inv_block, rhs.unsqueeze(-1)).squeeze(-1)  # (B, N)
+
+        # ṗ = -∂H/∂q - C^T λ
+        CT_lambda = torch.bmm(C.transpose(1, 2), lamb.unsqueeze(-1)).squeeze(-1)  # (B, 2N)
+        p_dot = -dH_dq - CT_lambda
+
+        return torch.cat([q_dot, p_dot], dim=-1)
 
 
 # ============================================================

@@ -150,6 +150,95 @@ class DiscretePendulumString:
         print(f"  数据生成完成。")
         return train_ds, val_ds, test_ds
 
+    # ── 笛卡尔坐标转换与数据集 ──────────────────────────────
+    def angle_to_cartesian_state(self, state):
+        """将角度坐标状态转换为笛卡尔坐标状态
+
+        state: [θ₀, …, θ_{N-1}, p_θ₀, …, p_θ_{N-1}]  (2N,)
+        返回: [x₁, y₁, …, x_N, y_N, p_x₁, p_y₁, …, p_x_N, p_y_N]  (4N,)
+        """
+        theta = state[:self.N]
+        p_theta = state[self.N:]
+
+        # 位置: x_k = l Σ_{j=0}^{k} sin(θ_j), y_k = -l Σ_{j=0}^{k} cos(θ_j)
+        sin_cum = np.cumsum(np.sin(theta))
+        cos_cum = np.cumsum(np.cos(theta))
+        x = self.l * sin_cum
+        y = -self.l * cos_cum
+
+        # 速度: θ̇ = M^{-1}(θ) p_θ → 笛卡尔速度
+        M = self.inertia_matrix(theta)
+        theta_dot = np.linalg.solve(M, p_theta)
+
+        # v_x_k = l Σ_{j=0}^{k} cos(θ_j) θ̇_j, v_y_k = l Σ_{j=0}^{k} sin(θ_j) θ̇_j
+        vx = self.l * np.cumsum(np.cos(theta) * theta_dot)
+        vy = self.l * np.cumsum(np.sin(theta) * theta_dot)
+
+        # 笛卡尔动量: p_x = m v_x, p_y = m v_y
+        px = self.m * vx
+        py = self.m * vy
+
+        # 交织: [x₁, y₁, x₂, y₂, …, x_N, y_N, p_x₁, p_y₁, …]
+        q = np.zeros(2 * self.N)
+        p = np.zeros(2 * self.N)
+        q[0::2] = x; q[1::2] = y
+        p[0::2] = px; p[1::2] = py
+
+        return np.concatenate([q, p])
+
+    def generate_cartesian_dataset(self, n_trajectories=200, t_span=(0, 20),
+                                   n_points=300, train_ratio=0.7, val_ratio=0.15,
+                                   seed=42):
+        """生成笛卡尔坐标数据集，时间导数用有限差分计算
+
+        返回: (train_ds, val_ds, test_ds) — TensorDataset(x, dx/dt)
+              其中 x ∈ ℝ^{4N}, dx/dt ∈ ℝ^{4N}
+        """
+        np.random.seed(seed)
+        xs_list, dxs_list = [], []
+        dt = (t_span[1] - t_span[0]) / n_points
+
+        for traj_idx in range(n_trajectories):
+            if traj_idx % 20 == 0:
+                print(f"  生成笛卡尔轨迹 {traj_idx}/{n_trajectories}...")
+            theta0 = np.random.uniform(-np.pi, np.pi, self.N)
+            omega0 = np.random.uniform(-1.0, 1.0, self.N)
+            M0 = self.inertia_matrix(theta0)
+            p0 = M0 @ omega0
+            state0 = np.concatenate([theta0, p0])
+            _, traj = self.generate_trajectory(state0, t_span, n_points + 1,
+                                               rtol=1e-6, atol=1e-8)
+
+            # 转换为笛卡尔坐标
+            cart_traj = np.array([self.angle_to_cartesian_state(traj[i])
+                                  for i in range(n_points + 1)])
+
+            # 有限差分计算时间导数
+            for i in range(n_points):
+                xs_list.append(cart_traj[i])
+                dxs_list.append((cart_traj[i + 1] - cart_traj[i]) / dt)
+
+        xs = np.stack(xs_list)
+        dxs = np.stack(dxs_list)
+        n_total = len(xs)
+        indices = np.random.permutation(n_total)
+        n_train = int(train_ratio * n_total)
+        n_val = int(val_ratio * n_total)
+
+        xs_t = torch.tensor(xs, dtype=torch.float32)
+        dxs_t = torch.tensor(dxs, dtype=torch.float32)
+
+        train_ds = TensorDataset(xs_t[indices[:n_train]], dxs_t[indices[:n_train]])
+        val_ds = TensorDataset(xs_t[indices[n_train:n_train + n_val]],
+                               dxs_t[indices[n_train:n_train + n_val]])
+        test_ds = TensorDataset(xs_t[indices[n_train + n_val:]],
+                                dxs_t[indices[n_train + n_val:]])
+
+        cart_dim = 4 * self.N
+        print(f"  笛卡尔数据集 ({cart_dim}D): {n_total} 样本 | "
+              f"训练 {n_train} | 验证 {n_val} | 测试 {n_total - n_train - n_val}")
+        return train_ds, val_ds, test_ds
+
 
 # ============================================================
 # 标准 HNN
