@@ -16,9 +16,9 @@ import matplotlib.pyplot as plt
 
 from pendulum_string import DiscretePendulumString
 from hnn_baselines import (
-    SeparableHNN, PartialHNN, SIREN_HNN, SymplecticHNN, SympNet, FNO,
+    SeparableHNN, PartialHNN, SIREN_HNN, SymplecticHNN, SympNet, FNO, FNOFlow,
     GraphHNN, CHNN,
-    train_single_step, train_symplectic, train_sympnet,
+    train_single_step, train_symplectic, train_sympnet, train_fno_flow,
     generate_multistep_data,
     evaluate_and_visualize,
     _maybe_unwrap,
@@ -69,7 +69,7 @@ def summarize_results(results, output_dir='.'):
     names = [r[0] for r in results]
     mses = [r[1] if not np.isnan(r[1]) else 0 for r in results]
     n_params = [r[2] for r in results]
-    colors = ['#2196F3', '#4CAF50', '#FF9800', '#E91E63', '#9C27B0', '#00BCD4', '#795548', '#FF5722']
+    colors = ['#2196F3', '#4CAF50', '#FF9800', '#E91E63', '#9C27B0', '#00BCD4', '#607D8B', '#795548', '#FF5722']
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
     ax1.bar(names, mses, color=colors)
@@ -112,13 +112,15 @@ def main():
     parser.add_argument('--fno_modes', type=int, default=12,
                         help='FNO 保留的 Fourier 模态数 (default: 12)')
     parser.add_argument('--fno_hidden', type=int, default=64,
-                        help='FNO 隐藏层维度 (default: 64)')
+                        help='FNO/FNOFlow 隐藏层维度 (default: 64)')
+    parser.add_argument('--fno_flow_dt', type=float, default=0.05,
+                        help='FNOFlow 单步时间步长 (default: 0.05)')
     parser.add_argument('--graph_hidden', type=int, default=128,
                         help='GraphHNN 隐藏层维度 (default: 128)')
     parser.add_argument('--chnn_hidden', type=int, default=256,
                         help='CHNN 隐藏层维度 (default: 256)')
     parser.add_argument('--model', type=str, default='all',
-                        choices=['all', 'separable', 'partial', 'siren', 'symplectic', 'sympnet', 'fno', 'graph', 'chnn'],
+                        choices=['all', 'separable', 'partial', 'siren', 'symplectic', 'sympnet', 'fno', 'fno_flow', 'graph', 'chnn'],
                         help='单独运行某个模型 (default: all)')
     parser.add_argument('--ddp', action='store_true',
                         help='使用 DDP 多 GPU 并行训练')
@@ -209,7 +211,7 @@ def main():
     if args.model in ('all', 'separable'):
         if rank == 0:
             print("\n" + "=" * 80)
-            print("1/5: SeparableHNN — H = T(p) + V(theta)")
+            print("1/9: SeparableHNN — H = T(p) + V(theta)")
             print("=" * 80)
         model1 = _wrap(SeparableHNN(N=args.n_masses, hidden_dim=args.hidden_dim,
                                      num_layers=args.num_layers))
@@ -229,7 +231,7 @@ def main():
     if args.model in ('all', 'partial'):
         if rank == 0:
             print("\n" + "=" * 80)
-            print("2/5: PartialHNN — 已知 M(theta), 仅学 V(theta)")
+            print("2/9: PartialHNN — 已知 M(theta), 仅学 V(theta)")
             print("=" * 80)
         model2 = _wrap(PartialHNN(N=args.n_masses, ml2=ml2, hidden_dim=args.hidden_dim,
                                    num_layers=args.num_layers))
@@ -249,7 +251,7 @@ def main():
     if args.model in ('all', 'siren'):
         if rank == 0:
             print("\n" + "=" * 80)
-            print("3/5: SIREN_HNN — sin 激活函数")
+            print("3/9: SIREN_HNN — sin 激活函数")
             print("=" * 80)
         model3 = _wrap(SIREN_HNN(dim=dim, hidden_dim=args.hidden_dim,
                                   num_layers=args.num_layers))
@@ -269,7 +271,7 @@ def main():
     if args.model in ('all', 'symplectic'):
         if rank == 0:
             print("\n" + "=" * 80)
-            print("4/5: SymplecticHNN — Separable + 多步辛训练")
+            print("4/9: SymplecticHNN — Separable + 多步辛训练")
             print("=" * 80)
         if args.skip_symplectic:
             if rank == 0:
@@ -309,7 +311,7 @@ def main():
     if args.model in ('all', 'sympnet'):
         if rank == 0:
             print("\n" + "=" * 80)
-            print("5/5: SympNet — 直接学辛映射 Φ(x) = x_{t+dt}")
+            print("5/9: SympNet — 直接学辛映射 Φ(x) = x_{t+dt}")
             print("=" * 80)
             print("  生成 SympNet 训练数据 (单步状态对)...")
         dt_symp = 0.05
@@ -350,7 +352,7 @@ def main():
     if args.model in ('all', 'fno'):
         if rank == 0:
             print("\n" + "=" * 80)
-            print("6/6: FNO — Fourier Neural Operator (1D 向量场学习)")
+            print("6/9: FNO — Fourier Neural Operator (1D 向量场学习)")
             print("=" * 80)
 
         model6 = _wrap(FNO(N=args.n_masses, modes=args.fno_modes,
@@ -389,16 +391,82 @@ def main():
         if rank == 0:
             results.append(('FNO', mse6, p6, elapsed))
 
-    # ── 7. GraphHNN ────────────────────────────────────────
+    # ── 6.5. FNOFlow — Flow Map ─────────────────────────────
+    if args.model in ('all', 'fno_flow'):
+        if rank == 0:
+            print("\n" + "=" * 80)
+            print("7/9: FNOFlow — FNO 直接学习流映射 x_t → x_{t+dt}")
+            print("=" * 80)
+            print("  生成 FNOFlow 训练数据 (单步状态对)...")
+
+        dt_flow = args.fno_flow_dt
+        flow_train, flow_val = generate_multistep_data(
+            sys, n_trajectories=args.n_trajectories,
+            dt=dt_flow, n_steps=1, seed=args.seed)
+        if args.ddp:
+            flow_sampler = DistributedSampler(flow_train, num_replicas=world_size, rank=rank)
+            flow_train_loader = DataLoader(flow_train, batch_size=args.batch_size,
+                                           sampler=flow_sampler, num_workers=4, pin_memory=True)
+        else:
+            flow_train_loader = DataLoader(flow_train, batch_size=args.batch_size,
+                                           shuffle=True, num_workers=4, pin_memory=True)
+        flow_val_loader = DataLoader(flow_val, batch_size=args.batch_size,
+                                     shuffle=False, num_workers=4, pin_memory=True)
+
+        model7 = _wrap(FNOFlow(N=args.n_masses, dt=dt_flow,
+                               modes=args.fno_modes,
+                               hidden_dim=args.fno_hidden,
+                               num_layers=args.num_layers))
+        n_params_fnoflow = sum(p.numel() for p in model7.parameters())
+        if rank == 0:
+            print(f"  FNOFlow: N={args.n_masses}, dt={dt_flow}, "
+                  f"modes={args.fno_modes}, hidden={args.fno_hidden}, "
+                  f"layers={args.num_layers}, params={n_params_fnoflow:,}")
+            print(f"  关键优势: 直接预测 x_{t+dt}，无需 RK4 积分")
+
+        t0 = time.time()
+        train_fno_flow(model7, flow_train_loader, flow_val_loader,
+                       epochs=args.epochs, lr=args.lr, device=device,
+                       label='[FNOFlow]')
+        elapsed = time.time() - t0
+
+        # 评估: 用 flow 数据测试 MSE
+        if rank == 0:
+            model7.eval()
+            raw_fnoflow = _maybe_unwrap(model7)
+            test_mse = 0.0; n_test = 0
+            for xb, xf in flow_val_loader:
+                xb, xf = xb.to(device), xf.to(device)
+                with torch.no_grad():
+                    test_mse += nn.MSELoss()(raw_fnoflow.predict_next(xb), xf).item() * xb.size(0)
+                n_test += xb.size(0)
+            test_mse /= n_test
+            print(f"\n  [FNOFlow] 测试 MSE (x_{t+dt}): {test_mse:.6e} | "
+                  f"参数: {n_params_fnoflow:,}")
+
+            ckpt_path = os.path.join(output_dir, 'fnoflow_checkpoint.pt')
+            torch.save({
+                'model_state_dict': raw_fnoflow.state_dict(),
+                'config': {
+                    'N': args.n_masses, 'dt': dt_flow,
+                    'modes': args.fno_modes,
+                    'hidden_dim': args.fno_hidden,
+                    'num_layers': args.num_layers,
+                }
+            }, ckpt_path)
+            print(f"  FNOFlow checkpoint saved: {ckpt_path}")
+            results.append(('FNOFlow', test_mse, n_params_fnoflow, elapsed))
+
+    # ── 8. GraphHNN ────────────────────────────────────────
     if args.model in ('all', 'graph'):
         if rank == 0:
             print("\n" + "=" * 80)
-            print("7/8: GraphHNN — 图结构参数共享 HNN (节点+边 MLP)")
+            print("8/9: GraphHNN — 图结构参数共享 HNN (节点+边 MLP)")
             print("=" * 80)
 
-        model7 = _wrap(GraphHNN(N=args.n_masses, hidden_dim=args.graph_hidden,
+        model8 = _wrap(GraphHNN(N=args.n_masses, hidden_dim=args.graph_hidden,
                                  num_layers=args.num_layers))
-        n_params_graph = sum(p.numel() for p in model7.parameters())
+        n_params_graph = sum(p.numel() for p in model8.parameters())
         if rank == 0:
             print(f"  GraphHNN: N={args.n_masses}, hidden={args.graph_hidden}, "
                   f"layers={args.num_layers}, params={n_params_graph:,}")
@@ -409,23 +477,23 @@ def main():
             r.compute_stats(l)
 
         t0 = time.time()
-        train_single_step(model7, train_loader, val_loader,
+        train_single_step(model8, train_loader, val_loader,
                           epochs=args.epochs, lr=args.lr, device=device,
                           label='[GraphHNN]',
                           compute_stats_fn=_compute_graph_stats)
         elapsed = time.time() - t0
-        mse7, p7 = evaluate_and_visualize(model7, test_loader, sys, args, device,
+        mse8, p8 = evaluate_and_visualize(model8, test_loader, sys, args, device,
                                           'GraphHNN', output_dir=output_dir)
         if rank == 0:
-            results.append(('GraphHNN', mse7, p7, elapsed))
-            torch.save(_maybe_unwrap(model7).state_dict(),
+            results.append(('GraphHNN', mse8, p8, elapsed))
+            torch.save(_maybe_unwrap(model8).state_dict(),
                        os.path.join(output_dir, 'graph_checkpoint.pt'))
 
-    # ── 8. CHNN — Constrained HNN ──────────────────────────
+    # ── 9. CHNN — Constrained HNN ──────────────────────────
     if args.model in ('all', 'chnn'):
         if rank == 0:
             print("\n" + "=" * 80)
-            print("8/8: CHNN — 笛卡尔坐标约束 HNN (Lagrange 乘子)")
+            print("9/9: CHNN — 笛卡尔坐标约束 HNN (Lagrange 乘子)")
             print("=" * 80)
             print("  生成笛卡尔坐标训练数据...")
 
@@ -469,10 +537,10 @@ def main():
             cart_test_loader = DataLoader(cart_test, batch_size=args.batch_size,
                                           shuffle=False)
 
-        model8 = _wrap(CHNN(N=args.n_masses, l=seg_length, m=seg_mass,
+        model9 = _wrap(CHNN(N=args.n_masses, l=seg_length, m=seg_mass,
                              hidden_dim=args.chnn_hidden,
                              num_layers=args.num_layers))
-        n_params_chnn = sum(p.numel() for p in model8.parameters())
+        n_params_chnn = sum(p.numel() for p in model9.parameters())
         if rank == 0:
             print(f"  CHNN: N={args.n_masses}, dim={4*args.n_masses}, "
                   f"l={seg_length:.4f}, m={seg_mass:.4f}, "
@@ -484,7 +552,7 @@ def main():
             r.compute_stats(l)
 
         t0 = time.time()
-        train_single_step(model8, cart_train_loader, cart_val_loader,
+        train_single_step(model9, cart_train_loader, cart_val_loader,
                           epochs=args.epochs, lr=args.lr, device=device,
                           label='[CHNN]',
                           compute_stats_fn=_compute_chnn_stats)
@@ -492,8 +560,8 @@ def main():
 
         # CHNN 评估（笛卡尔测试集）
         if rank == 0:
-            model8.eval()
-            raw_chnn = _maybe_unwrap(model8)
+            model9.eval()
+            raw_chnn = _maybe_unwrap(model9)
             test_mse = 0.0; n_test = 0
             for xb, dxb in cart_test_loader:
                 xb = xb.to(device); dxb = dxb.to(device)

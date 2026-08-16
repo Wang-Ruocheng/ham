@@ -502,6 +502,135 @@ class FNO(nn.Module):
         """FNO 直接预测向量场，不需要 autograd"""
         return self.forward(x)
 
+class FNOFlow(nn.Module):
+    """FNO-Flow: 直接学习流映射 x_t → x_{t+dt}
+
+    与 FNO 的区别:
+        - FNO 学的是向量场 dx/dt，需要 RK4 积分
+        - FNOFlow 直接学下一步状态，迭代推理即可
+
+    架构同 FNO: Fourier 层 + skip connection.
+    输出归一化使用 x_{t+dt} 的统计量（与输入统计量接近）。
+    """
+    def __init__(self, N, dt=0.05, modes=12, hidden_dim=64, num_layers=4):
+        super().__init__()
+        self.N = N
+        self.dt = dt
+        self.modes = modes
+        self.hidden_dim = hidden_dim
+
+        # 升维: 2 → hidden_dim
+        self.fc0 = nn.Linear(2, hidden_dim)
+
+        # Fourier 层 + skip connection
+        self.convs = nn.ModuleList([
+            SpectralConv1d(hidden_dim, hidden_dim, modes)
+            for _ in range(num_layers)
+        ])
+        self.ws = nn.ModuleList([
+            nn.Conv1d(hidden_dim, hidden_dim, 1)
+            for _ in range(num_layers)
+        ])
+
+        # 降维: hidden_dim → 2
+        self.fc1 = nn.Linear(hidden_dim, 128)
+        self.fc2 = nn.Linear(128, 2)
+
+        # 输入归一化
+        self.register_buffer('mu', torch.zeros(2, N))
+        self.register_buffer('sigma', torch.ones(2, N))
+        # 输出归一化 (x_{t+dt} 的统计量)
+        self.register_buffer('out_mu', torch.zeros(2, N))
+        self.register_buffer('out_sigma', torch.ones(2, N))
+
+        init_weights(self)
+
+    def compute_stats(self, loader):
+        """计算输入和输出的通道-空间归一化统计量"""
+        target = _maybe_unwrap(self)
+        device = next(target.parameters()).device
+        N = target.N
+        n = 0
+        mean = torch.zeros(N, 2, device=device)
+        out_mean = torch.zeros(N, 2, device=device)
+        for xb, yb in loader:
+            xb, yb = xb.to(device), yb.to(device)
+            batch = xb.shape[0]
+            xb = xb.view(batch, N, 2)
+            yb = yb.view(batch, N, 2)
+            mean += xb.sum(dim=0)
+            out_mean += yb.sum(dim=0)
+            n += batch
+        mean = mean / n
+        out_mean = out_mean / n
+
+        var = torch.zeros(N, 2, device=device)
+        out_var = torch.zeros(N, 2, device=device)
+        for xb, yb in loader:
+            xb, yb = xb.to(device), yb.to(device)
+            batch = xb.shape[0]
+            xb = xb.view(batch, N, 2)
+            yb = yb.view(batch, N, 2)
+            var += ((xb - mean.unsqueeze(0)) ** 2).sum(dim=0)
+            out_var += ((yb - out_mean.unsqueeze(0)) ** 2).sum(dim=0)
+        var = var / n
+        out_var = out_var / n
+
+        target.mu = mean.T
+        target.sigma = var.sqrt().clamp(min=1e-6).T
+        target.out_mu = out_mean.T
+        target.out_sigma = out_var.sqrt().clamp(min=1e-6).T
+
+    def forward(self, x):
+        """x: (batch, 2N) → x_{t+dt}: (batch, 2N)"""
+        B = x.shape[0]
+        N = self.N
+
+        x = x.view(B, N, 2)
+        x = (x - self.mu.T.unsqueeze(0)) / self.sigma.T.unsqueeze(0)
+
+        x = self.fc0(x)
+        for conv, w in zip(self.convs, self.ws):
+            x_ft = conv(x)
+            x_skip = w(x.permute(0, 2, 1)).permute(0, 2, 1)
+            x = x_ft + x_skip
+            x = torch.nn.functional.gelu(x)
+
+        x = torch.nn.functional.gelu(self.fc1(x))
+        x = self.fc2(x)
+
+        # 输出反归一化
+        x = x * self.out_sigma.T.unsqueeze(0) + self.out_mu.T.unsqueeze(0)
+
+        return x.reshape(B, -1)
+
+    def predict_next(self, x):
+        """单步预测: x_t → x_{t+dt}"""
+        return self.forward(x)
+
+    def predict_trajectory(self, state0, t_span, n_steps, device='cuda'):
+        """迭代预测轨迹 (无需 RK4)"""
+        self.eval()
+        dt = (t_span[1] - t_span[0]) / n_steps
+        D = len(state0)
+        traj = np.zeros((n_steps, D))
+        traj[0] = state0
+
+        # 计算需要多少模型步（模型 dt 可能不等于请求 dt）
+        steps_per_model = max(1, int(round(dt / self.dt)))
+        model_dt = dt / steps_per_model
+
+        for i in range(n_steps - 1):
+            if np.isnan(traj[i]).any():
+                print(f"  [FNOFlow] NaN at step {i}/{n_steps}")
+                traj[i:] = traj[i - 1]
+                break
+            x = torch.tensor(traj[i:i + 1], dtype=torch.float32, device=device)
+            for _ in range(steps_per_model):
+                with torch.no_grad():
+                    x = self.predict_next(x)
+            traj[i + 1] = x.cpu().numpy()[0]
+        return traj
 
 # ============================================================
 # 7. GraphHNN — Hamiltonian Graph Network
@@ -831,6 +960,55 @@ def train_sympnet(model, train_loader, val_loader, epochs=2000,
     return train_losses, val_losses
 
 
+def train_fno_flow(model, train_loader, val_loader, epochs=2000,
+                   lr=1e-3, device='cuda', label=''):
+    """FNO-Flow 训练: 直接监督状态迁移 x_t → x_{t+dt}
+
+    与 SympNet 训练类似，但 FNOFlow 不需要 autograd (无 HNN 结构)。
+    """
+    model = model.to(device)
+    raw = _maybe_unwrap(model)
+    raw.compute_stats(train_loader)
+    optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-5)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode='min', factor=0.5, patience=150, min_lr=1e-6)
+    train_losses, val_losses = [], []
+
+    for epoch in range(epochs):
+        if hasattr(train_loader, 'sampler') and isinstance(train_loader.sampler, DistributedSampler):
+            train_loader.sampler.set_epoch(epoch)
+
+        model.train()
+        train_loss = 0.0
+        for xb, xf in train_loader:
+            xb, xf = xb.to(device), xf.to(device)
+            optimizer.zero_grad()
+            x_pred = raw.predict_next(xb)
+            loss = nn.MSELoss()(x_pred, xf)
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 10.0)
+            optimizer.step()
+            train_loss += loss.item() * xb.size(0)
+        train_loss /= len(train_loader.dataset)
+        train_losses.append(train_loss)
+
+        model.eval()
+        val_loss = 0.0
+        for xb, xf in val_loader:
+            xb, xf = xb.to(device), xf.to(device)
+            with torch.no_grad():
+                x_pred = raw.predict_next(xb)
+            val_loss += nn.MSELoss()(x_pred, xf).item() * xb.size(0)
+        val_loss /= len(val_loader.dataset)
+        val_losses.append(val_loss)
+        scheduler.step(val_loss)
+
+        if _is_rank0() and (epoch + 1) % 200 == 0:
+            print(f"  {label} Epoch {epoch+1:4d}/{epochs} | "
+                  f"Train: {train_loss:.6e} | Val: {val_loss:.6e}")
+    return train_losses, val_losses
+
+
 # ============================================================
 # 生成多步训练数据
 # ============================================================
@@ -901,6 +1079,35 @@ def integrate_rk4(model, state0, t_span, n_steps, device='cuda'):
     return traj
 
 
+def predict_flow_trajectory(model, state0, t_span, n_steps, device='cuda'):
+    """迭代预测轨迹 (FNOFlow / SympNet 等 flow 模型)
+
+    与 integrate_rk4 不同，flow 模型直接预测 x_{t+dt}，无需 RK4。
+    """
+    model.eval()
+    raw = _maybe_unwrap(model)
+    dt = (t_span[1] - t_span[0]) / n_steps
+    D = len(state0)
+    traj = np.zeros((n_steps, D)); traj[0] = state0
+
+    # 模型步长 vs 请求步长
+    model_dt = getattr(raw, 'dt', dt)
+    model_dt = model_dt.item() if isinstance(model_dt, torch.Tensor) else model_dt
+    steps_per_model = max(1, int(round(dt / model_dt)))
+
+    for i in range(n_steps - 1):
+        if np.isnan(traj[i]).any():
+            print(f"  [Flow] NaN at step {i}/{n_steps}")
+            traj[i:] = traj[i - 1]
+            break
+        x = torch.tensor(traj[i:i + 1], dtype=torch.float32, device=device)
+        for _ in range(steps_per_model):
+            with torch.no_grad():
+                x = raw.predict_next(x)
+        traj[i + 1] = x.cpu().numpy()[0]
+    return traj
+
+
 def evaluate_and_visualize(model, test_loader, sys, args, device, label,
                            t_span=(0, 40), n_points=1500, output_dir='.'):
     """评估模型: 测试 MSE + 轨迹预测 + 可视化"""
@@ -909,11 +1116,18 @@ def evaluate_and_visualize(model, test_loader, sys, args, device, label,
     os.makedirs(output_dir, exist_ok=True)
     model.eval()
     raw = _maybe_unwrap(model)
+    is_flow = isinstance(raw, FNOFlow)
+
     test_mse = 0.0; n_test = 0
-    for xb, dxb in test_loader:
-        xb = xb.to(device); dxb = dxb.to(device)
-        xb.requires_grad_(True)
-        test_mse += nn.MSELoss()(raw.time_derivative(xb), dxb).item() * xb.size(0)
+    for xb, yb in test_loader:
+        xb = xb.to(device); yb = yb.to(device)
+        if is_flow:
+            # FNOFlow: 比较 x_{t+dt} 预测 vs 真实
+            with torch.no_grad():
+                test_mse += nn.MSELoss()(raw.predict_next(xb), yb).item() * xb.size(0)
+        else:
+            xb.requires_grad_(True)
+            test_mse += nn.MSELoss()(raw.time_derivative(xb), yb).item() * xb.size(0)
         n_test += xb.size(0)
     test_mse /= n_test
     n_params = sum(p.numel() for p in model.parameters())
@@ -926,7 +1140,7 @@ def evaluate_and_visualize(model, test_loader, sys, args, device, label,
     state0 = np.concatenate([theta0, p0])
 
     _, true_traj = sys.generate_trajectory(state0, t_span, n_points)
-    if isinstance(raw, SympNet):
+    if isinstance(raw, (SympNet, FNOFlow)):
         pred_traj = raw.predict_trajectory(state0, t_span, n_points, device)
     else:
         pred_traj = integrate_rk4(model, state0, t_span, n_points, device)
