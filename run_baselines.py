@@ -422,7 +422,7 @@ def main():
             print(f"  FNOFlow: N={args.n_masses}, dt={dt_flow}, "
                   f"modes={args.fno_modes}, hidden={args.fno_hidden}, "
                   f"layers={args.num_layers}, params={n_params_fnoflow:,}")
-            print(f"  关键优势: 直接预测 x_{t+dt}，无需 RK4 积分")
+            print(f"  关键优势: 直接预测 x{{t+dt}}，无需 RK4 积分")
 
         t0 = time.time()
         train_fno_flow(model7, flow_train_loader, flow_val_loader,
@@ -441,7 +441,7 @@ def main():
                     test_mse += nn.MSELoss()(raw_fnoflow.predict_next(xb), xf).item() * xb.size(0)
                 n_test += xb.size(0)
             test_mse /= n_test
-            print(f"\n  [FNOFlow] 测试 MSE (x_{t+dt}): {test_mse:.6e} | "
+            print(f"\n  [FNOFlow] 测试 MSE (x{{t+dt}}): {test_mse:.6e} | "
                   f"参数: {n_params_fnoflow:,}")
 
             ckpt_path = os.path.join(output_dir, 'fnoflow_checkpoint.pt')
