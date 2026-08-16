@@ -418,39 +418,52 @@ class FNO(nn.Module):
         self.fc1 = nn.Linear(hidden_dim, 128)
         self.fc2 = nn.Linear(128, 2)
 
-        # 归一化统计量 (2 通道 × N 空间点)
+        # 输入归一化统计量 (2 通道 × N 空间点)
         self.register_buffer('mu', torch.zeros(2, N))
         self.register_buffer('sigma', torch.ones(2, N))
+        # 输出归一化统计量 (dx/dt 的逐点 std)
+        self.register_buffer('dx_mu', torch.zeros(2, N))
+        self.register_buffer('dx_sigma', torch.ones(2, N))
 
         init_weights(self)
 
     def compute_stats(self, loader):
-        """计算通道-空间归一化统计量"""
+        """计算输入和输出的通道-空间归一化统计量"""
         target = _maybe_unwrap(self)
         device = next(target.parameters()).device
         N = target.N
         n = 0
-        # 形状 (N, 2): 每行是一个空间点的 (θ, p) 统计
+        # 输入统计: (N, 2) 每行是一个空间点的 (θ, p)
         mean = torch.zeros(N, 2, device=device)
-        for xb, _ in loader:
-            xb = xb.to(device)
+        # 输出统计: (N, 2) 每行是 (dθ/dt, dp/dt)
+        dx_mean = torch.zeros(N, 2, device=device)
+        for xb, dxb in loader:
+            xb, dxb = xb.to(device), dxb.to(device)
             batch = xb.shape[0]
             xb = xb.view(batch, N, 2)  # (batch, N, 2)
+            dxb = dxb.view(batch, N, 2)
             mean += xb.sum(dim=0)  # (N, 2)
+            dx_mean += dxb.sum(dim=0)
             n += batch
-        mean = mean / n  # (N, 2)
+        mean = mean / n
+        dx_mean = dx_mean / n
 
         var = torch.zeros(N, 2, device=device)
-        for xb, _ in loader:
-            xb = xb.to(device)
+        dx_var = torch.zeros(N, 2, device=device)
+        for xb, dxb in loader:
+            xb, dxb = xb.to(device), dxb.to(device)
             batch = xb.shape[0]
             xb = xb.view(batch, N, 2)
+            dxb = dxb.view(batch, N, 2)
             var += ((xb - mean.unsqueeze(0)) ** 2).sum(dim=0)
+            dx_var += ((dxb - dx_mean.unsqueeze(0)) ** 2).sum(dim=0)
         var = var / n
-        std = var.sqrt().clamp(min=1e-6)  # (N, 2)
+        dx_var = dx_var / n
 
-        target.mu = mean.T  # (2, N)
-        target.sigma = std.T  # (2, N)
+        target.mu = mean.T         # (2, N)
+        target.sigma = var.sqrt().clamp(min=1e-6).T  # (2, N)
+        target.dx_mu = dx_mean.T
+        target.dx_sigma = dx_var.sqrt().clamp(min=1e-6).T
 
     def forward(self, x):
         """x: (batch, 2N) → 输出: (batch, 2N)"""
@@ -477,7 +490,10 @@ class FNO(nn.Module):
 
         # 降维
         x = torch.nn.functional.gelu(self.fc1(x))
-        x = self.fc2(x)  # (B, N, 2)
+        x = self.fc2(x)  # (B, N, 2) — 归一化空间的预测
+
+        # 输出反归一化: 从归一化空间映射回原始空间
+        x = x * self.dx_sigma.T.unsqueeze(0) + self.dx_mu.T.unsqueeze(0)
 
         # Flatten: (B, N, 2) → (B, 2N)
         return x.reshape(B, -1)
