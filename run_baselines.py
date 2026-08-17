@@ -101,9 +101,9 @@ def main():
     parser.add_argument('--hidden_dim', type=int, default=256)
     parser.add_argument('--num_layers', type=int, default=3)
     parser.add_argument('--batch_size', type=int, default=4096)
-    parser.add_argument('--epochs', type=int, default=1000)
+    parser.add_argument('--epochs', type=int, default=2000)
     parser.add_argument('--lr', type=float, default=1e-3)
-    parser.add_argument('--n_trajectories', type=int, default=100)
+    parser.add_argument('--n_trajectories', type=int, default=500)
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--skip_symplectic', action='store_true',
                         help='跳过多步辛训练')
