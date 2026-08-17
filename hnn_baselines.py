@@ -503,13 +503,9 @@ class FNO(nn.Module):
         return self.forward(x)
 
 class FNOFlow(nn.Module):
-    """FNO-Flow (残差形式): 学习 Δx = x_{t+dt} - x_t, 预测 = x_t + Δx
+    """FNO-Flow (双分支残差形式): 学习 Δx = x_{t+dt} - x_t, 预测 = x_t + Δx
 
-    与 FNO 的区别:
-        - FNO 学的是向量场 dx/dt，需要 RK4 积分
-        - FNOFlow 直接学下一步状态，迭代推理即可
-
-    架构同 FNO: Fourier 层 + skip connection.
+    θ 和 p 各用独立的 FNO 分支，共享输入归一化。
     输出归一化使用 Δx 的统计量。
     """
     def __init__(self, N, dt=0.05, modes=12, hidden_dim=64, num_layers=4, dropout=0.0):
@@ -519,22 +515,31 @@ class FNOFlow(nn.Module):
         self.modes = modes
         self.hidden_dim = hidden_dim
 
-        # 升维: 2 → hidden_dim
-        self.fc0 = nn.Linear(2, hidden_dim)
-
-        # Fourier 层 + skip connection
-        self.convs = nn.ModuleList([
+        # θ 分支: 独立的 Fourier 层
+        self.theta_fc0 = nn.Linear(2, hidden_dim)
+        self.theta_convs = nn.ModuleList([
             SpectralConv1d(hidden_dim, hidden_dim, modes)
             for _ in range(num_layers)
         ])
-        self.ws = nn.ModuleList([
+        self.theta_ws = nn.ModuleList([
             nn.Conv1d(hidden_dim, hidden_dim, 1)
             for _ in range(num_layers)
         ])
+        self.theta_fc1 = nn.Linear(hidden_dim, 128)
+        self.theta_fc2 = nn.Linear(128, 1)
 
-        # 降维: hidden_dim → 2
-        self.fc1 = nn.Linear(hidden_dim, 128)
-        self.fc2 = nn.Linear(128, 2)
+        # p 分支: 独立的 Fourier 层
+        self.p_fc0 = nn.Linear(2, hidden_dim)
+        self.p_convs = nn.ModuleList([
+            SpectralConv1d(hidden_dim, hidden_dim, modes)
+            for _ in range(num_layers)
+        ])
+        self.p_ws = nn.ModuleList([
+            nn.Conv1d(hidden_dim, hidden_dim, 1)
+            for _ in range(num_layers)
+        ])
+        self.p_fc1 = nn.Linear(hidden_dim, 128)
+        self.p_fc2 = nn.Linear(128, 1)
 
         self.dropout = nn.Dropout(dropout) if dropout > 0 else nn.Identity()
 
@@ -546,6 +551,20 @@ class FNOFlow(nn.Module):
         self.register_buffer('delta_sigma', torch.ones(2, N))
 
         init_weights(self)
+
+    def _fno_branch(self, x, fc0, convs, ws, fc1, fc2):
+        """FNO 分支: (B, N, 2) → (B, N, out_dim)"""
+        h = fc0(x)
+        for conv, w in zip(convs, ws):
+            h_ft = conv(h)
+            h_skip = w(h.permute(0, 2, 1)).permute(0, 2, 1)
+            h = h_ft + h_skip
+            h = torch.nn.functional.gelu(h)
+            h = self.dropout(h)
+        h = torch.nn.functional.gelu(fc1(h))
+        h = self.dropout(h)
+        h = fc2(h)
+        return h
 
     def compute_stats(self, loader):
         """计算输入和残差 Δx 的通道-空间归一化统计量"""
@@ -592,17 +611,12 @@ class FNOFlow(nn.Module):
         x_view = x.view(B, N, 2)
         x_norm = (x_view - self.mu.T.unsqueeze(0)) / self.sigma.T.unsqueeze(0)
 
-        h = self.fc0(x_norm)
-        for conv, w in zip(self.convs, self.ws):
-            h_ft = conv(h)
-            h_skip = w(h.permute(0, 2, 1)).permute(0, 2, 1)
-            h = h_ft + h_skip
-            h = torch.nn.functional.gelu(h)
-            h = self.dropout(h)
-
-        h = torch.nn.functional.gelu(self.fc1(h))
-        h = self.dropout(h)
-        h = self.fc2(h)
+        # 双分支: θ 和 p 各用独立的 FNO
+        h_theta = self._fno_branch(x_norm, self.theta_fc0, self.theta_convs,
+                                   self.theta_ws, self.theta_fc1, self.theta_fc2)
+        h_p = self._fno_branch(x_norm, self.p_fc0, self.p_convs,
+                               self.p_ws, self.p_fc1, self.p_fc2)
+        h = torch.cat([h_theta, h_p], dim=-1)  # (B, N, 2)
 
         # 输出反归一化 → Δx
         delta = h * self.delta_sigma.T.unsqueeze(0) + self.delta_mu.T.unsqueeze(0)
