@@ -41,7 +41,7 @@ def main():
 
     model = FNOFlow(N=N, dt=dt, modes=modes, hidden_dim=hidden_dim,
                     num_layers=num_layers)
-    model.load_state_dict(ckpt['model_state_dict'])
+    model.load_state_dict(ckpt['model_state_dict'], strict=False)
     model = model.to(device)
     model.eval()
     print(f"  N={N}, dt={dt}, params={sum(p.numel() for p in model.parameters()):,}")
@@ -53,10 +53,10 @@ def main():
     print(f"    输入 sigma(theta): {raw.sigma[0].mean().item():.4f} +/- {raw.sigma[0].std().item():.4f}")
     print(f"    输入 mu   (p):     {raw.mu[1].mean().item():.4f} +/- {raw.mu[1].std().item():.4f}")
     print(f"    输入 sigma(p):     {raw.sigma[1].mean().item():.4f} +/- {raw.sigma[1].std().item():.4f}")
-    print(f"    输出 mu   (theta): {raw.out_mu[0].mean().item():.4f} +/- {raw.out_mu[0].std().item():.4f}")
-    print(f"    输出 sigma(theta): {raw.out_sigma[0].mean().item():.4f} +/- {raw.out_sigma[0].std().item():.4f}")
-    print(f"    输出 mu   (p):     {raw.out_mu[1].mean().item():.4f} +/- {raw.out_mu[1].std().item():.4f}")
-    print(f"    输出 sigma(p):     {raw.out_sigma[1].mean().item():.4f} +/- {raw.out_sigma[1].std().item():.4f}")
+    print(f"    Δx mu   (theta):   {raw.delta_mu[0].mean().item():.4f} +/- {raw.delta_mu[0].std().item():.4f}")
+    print(f"    Δx sigma(theta):   {raw.delta_sigma[0].mean().item():.4f} +/- {raw.delta_sigma[0].std().item():.4f}")
+    print(f"    Δx mu   (p):       {raw.delta_mu[1].mean().item():.4f} +/- {raw.delta_mu[1].std().item():.4f}")
+    print(f"    Δx sigma(p):       {raw.delta_sigma[1].mean().item():.4f} +/- {raw.delta_sigma[1].std().item():.4f}")
 
     # 生成测试数据，取第一个样本
     sys = DiscretePendulumString(n_masses=N, length=1.0, mass=1.0, g=9.81)
@@ -72,12 +72,14 @@ def main():
         y_pred = _maybe_unwrap(model).predict_next(xb.to(device)).cpu()[0].numpy()
 
     # 打印统计
+    delta_np = y_pred - x_np
     print(f"\n  输入 x_t:   theta std={x_np[:N].std():.4f}, p std={x_np[N:].std():.4f}")
     print(f"  真实 x_t+dt: theta std={y_np[:N].std():.4f}, p std={y_np[N:].std():.4f}")
     print(f"  预测 x_t+dt: theta std={y_pred[:N].std():.4f}, p std={y_pred[N:].std():.4f}")
     mse = np.mean((y_pred - y_np) ** 2)
     id_mse = np.mean((x_np - y_np) ** 2)
     print(f"  MSE: {mse:.6e}  |  Identity MSE: {id_mse:.6e}  |  ratio: {mse/id_mse:.4f}")
+    print(f"  预测 Δx: theta std={delta_np[:N].std():.6f}, p std={delta_np[N:].std():.6f}")
 
     # 绘图
     idx = np.arange(N)

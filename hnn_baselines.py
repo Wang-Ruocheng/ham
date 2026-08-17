@@ -503,14 +503,14 @@ class FNO(nn.Module):
         return self.forward(x)
 
 class FNOFlow(nn.Module):
-    """FNO-Flow: 直接学习流映射 x_t → x_{t+dt}
+    """FNO-Flow (残差形式): 学习 Δx = x_{t+dt} - x_t, 预测 = x_t + Δx
 
     与 FNO 的区别:
         - FNO 学的是向量场 dx/dt，需要 RK4 积分
         - FNOFlow 直接学下一步状态，迭代推理即可
 
     架构同 FNO: Fourier 层 + skip connection.
-    输出归一化使用 x_{t+dt} 的统计量（与输入统计量接近）。
+    输出归一化使用 Δx 的统计量。
     """
     def __init__(self, N, dt=0.05, modes=12, hidden_dim=64, num_layers=4):
         super().__init__()
@@ -539,74 +539,74 @@ class FNOFlow(nn.Module):
         # 输入归一化
         self.register_buffer('mu', torch.zeros(2, N))
         self.register_buffer('sigma', torch.ones(2, N))
-        # 输出归一化 (x_{t+dt} 的统计量)
-        self.register_buffer('out_mu', torch.zeros(2, N))
-        self.register_buffer('out_sigma', torch.ones(2, N))
+        # 输出归一化 (Δx = x_{t+dt} - x_t 的统计量)
+        self.register_buffer('delta_mu', torch.zeros(2, N))
+        self.register_buffer('delta_sigma', torch.ones(2, N))
 
         init_weights(self)
 
     def compute_stats(self, loader):
-        """计算输入和输出的通道-空间归一化统计量"""
+        """计算输入和残差 Δx 的通道-空间归一化统计量"""
         target = _maybe_unwrap(self)
         device = next(target.parameters()).device
         N = target.N
         n = 0
         mean = torch.zeros(N, 2, device=device)
-        out_mean = torch.zeros(N, 2, device=device)
+        delta_mean = torch.zeros(N, 2, device=device)
         for xb, yb in loader:
             xb, yb = xb.to(device), yb.to(device)
             batch = xb.shape[0]
             xb = xb.view(batch, N, 2)
             yb = yb.view(batch, N, 2)
             mean += xb.sum(dim=0)
-            out_mean += yb.sum(dim=0)
+            delta_mean += (yb - xb).sum(dim=0)
             n += batch
         mean = mean / n
-        out_mean = out_mean / n
+        delta_mean = delta_mean / n
 
         var = torch.zeros(N, 2, device=device)
-        out_var = torch.zeros(N, 2, device=device)
+        delta_var = torch.zeros(N, 2, device=device)
         for xb, yb in loader:
             xb, yb = xb.to(device), yb.to(device)
             batch = xb.shape[0]
             xb = xb.view(batch, N, 2)
             yb = yb.view(batch, N, 2)
+            delta = yb - xb
             var += ((xb - mean.unsqueeze(0)) ** 2).sum(dim=0)
-            out_var += ((yb - out_mean.unsqueeze(0)) ** 2).sum(dim=0)
+            delta_var += ((delta - delta_mean.unsqueeze(0)) ** 2).sum(dim=0)
         var = var / n
-        out_var = out_var / n
+        delta_var = delta_var / n
 
         target.mu = mean.T
         target.sigma = var.sqrt().clamp(min=1e-6).T
-        target.out_mu = out_mean.T
-        target.out_sigma = out_var.sqrt().clamp(min=1e-6).T
+        target.delta_mu = delta_mean.T
+        target.delta_sigma = delta_var.sqrt().clamp(min=1e-6).T
 
     def forward(self, x):
-        """x: (batch, 2N) → x_{t+dt}: (batch, 2N)"""
+        """x: (batch, 2N) → Δx: (batch, 2N)  残差预测"""
         B = x.shape[0]
         N = self.N
 
-        x = x.view(B, N, 2)
-        x = (x - self.mu.T.unsqueeze(0)) / self.sigma.T.unsqueeze(0)
+        x_view = x.view(B, N, 2)
+        x_norm = (x_view - self.mu.T.unsqueeze(0)) / self.sigma.T.unsqueeze(0)
 
-        x = self.fc0(x)
+        h = self.fc0(x_norm)
         for conv, w in zip(self.convs, self.ws):
-            x_ft = conv(x)
-            x_skip = w(x.permute(0, 2, 1)).permute(0, 2, 1)
-            x = x_ft + x_skip
-            x = torch.nn.functional.gelu(x)
+            h_ft = conv(h)
+            h_skip = w(h.permute(0, 2, 1)).permute(0, 2, 1)
+            h = h_ft + h_skip
+            h = torch.nn.functional.gelu(h)
 
-        x = torch.nn.functional.gelu(self.fc1(x))
-        x = self.fc2(x)
+        h = torch.nn.functional.gelu(self.fc1(h))
+        h = self.fc2(h)
 
-        # 输出反归一化
-        x = x * self.out_sigma.T.unsqueeze(0) + self.out_mu.T.unsqueeze(0)
-
-        return x.reshape(B, -1)
+        # 输出反归一化 → Δx
+        delta = h * self.delta_sigma.T.unsqueeze(0) + self.delta_mu.T.unsqueeze(0)
+        return delta.reshape(B, -1)
 
     def predict_next(self, x):
-        """单步预测: x_t → x_{t+dt}"""
-        return self.forward(x)
+        """单步预测: x_t → x_t + Δx = x_{t+dt}"""
+        return x + self.forward(x)
 
     def predict_trajectory(self, state0, t_span, n_steps, device='cuda'):
         """迭代预测轨迹 (无需 RK4)"""
