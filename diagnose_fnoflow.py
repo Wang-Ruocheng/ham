@@ -46,6 +46,18 @@ def main():
     model.eval()
     print(f"  N={N}, dt={dt}, params={sum(p.numel() for p in model.parameters()):,}")
 
+    # 检查归一化参数
+    raw = _maybe_unwrap(model)
+    print(f"\n  归一化参数检查:")
+    print(f"    输入 mu   (theta): {raw.mu[0].mean().item():.4f} +/- {raw.mu[0].std().item():.4f}")
+    print(f"    输入 sigma(theta): {raw.sigma[0].mean().item():.4f} +/- {raw.sigma[0].std().item():.4f}")
+    print(f"    输入 mu   (p):     {raw.mu[1].mean().item():.4f} +/- {raw.mu[1].std().item():.4f}")
+    print(f"    输入 sigma(p):     {raw.sigma[1].mean().item():.4f} +/- {raw.sigma[1].std().item():.4f}")
+    print(f"    输出 mu   (theta): {raw.out_mu[0].mean().item():.4f} +/- {raw.out_mu[0].std().item():.4f}")
+    print(f"    输出 sigma(theta): {raw.out_sigma[0].mean().item():.4f} +/- {raw.out_sigma[0].std().item():.4f}")
+    print(f"    输出 mu   (p):     {raw.out_mu[1].mean().item():.4f} +/- {raw.out_mu[1].std().item():.4f}")
+    print(f"    输出 sigma(p):     {raw.out_sigma[1].mean().item():.4f} +/- {raw.out_sigma[1].std().item():.4f}")
+
     # 生成测试数据，取第一个样本
     sys = DiscretePendulumString(n_masses=N, length=1.0, mass=1.0, g=9.81)
     _, test_ds = generate_multistep_data(
