@@ -262,11 +262,7 @@ def main():
     device = args.device if torch.cuda.is_available() else 'cpu'
     print(f"设备: {device}")
 
-    total_length = 1.0
-    seg_length = total_length / args.n_masses
-    total_mass = 1.0
-    seg_mass = total_mass / args.n_masses
-    sys = DiscretePendulumString(N=args.n_masses, l=seg_length, m=seg_mass, g=9.81)
+    sys = DiscretePendulumString(n_masses=args.n_masses, length=1.0, mass=1.0, g=9.81)
 
     print(f"\n生成测试数据 (N={args.n_masses}, dt={args.dt})...")
     _, test_ds = generate_multistep_data(
