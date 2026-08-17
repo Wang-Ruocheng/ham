@@ -512,7 +512,7 @@ class FNOFlow(nn.Module):
     架构同 FNO: Fourier 层 + skip connection.
     输出归一化使用 Δx 的统计量。
     """
-    def __init__(self, N, dt=0.05, modes=12, hidden_dim=64, num_layers=4):
+    def __init__(self, N, dt=0.05, modes=12, hidden_dim=64, num_layers=4, dropout=0.0):
         super().__init__()
         self.N = N
         self.dt = dt
@@ -535,6 +535,8 @@ class FNOFlow(nn.Module):
         # 降维: hidden_dim → 2
         self.fc1 = nn.Linear(hidden_dim, 128)
         self.fc2 = nn.Linear(128, 2)
+
+        self.dropout = nn.Dropout(dropout) if dropout > 0 else nn.Identity()
 
         # 输入归一化
         self.register_buffer('mu', torch.zeros(2, N))
@@ -596,8 +598,10 @@ class FNOFlow(nn.Module):
             h_skip = w(h.permute(0, 2, 1)).permute(0, 2, 1)
             h = h_ft + h_skip
             h = torch.nn.functional.gelu(h)
+            h = self.dropout(h)
 
         h = torch.nn.functional.gelu(self.fc1(h))
+        h = self.dropout(h)
         h = self.fc2(h)
 
         # 输出反归一化 → Δx

@@ -109,10 +109,12 @@ def main():
                         help='跳过多步辛训练')
     parser.add_argument('--sympnet_K', type=int, default=5,
                         help='SympNet 的层数 K (default: 5)')
-    parser.add_argument('--fno_modes', type=int, default=12,
-                        help='FNO 保留的 Fourier 模态数 (default: 12)')
-    parser.add_argument('--fno_hidden', type=int, default=64,
-                        help='FNO/FNOFlow 隐藏层维度 (default: 64)')
+    parser.add_argument('--fno_modes', type=int, default=24,
+                        help='FNO 保留的 Fourier 模态数 (default: 24)')
+    parser.add_argument('--fno_hidden', type=int, default=128,
+                        help='FNO/FNOFlow 隐藏层维度 (default: 128)')
+    parser.add_argument('--fno_dropout', type=float, default=0.1,
+                        help='FNOFlow dropout 率 (default: 0.1)')
     parser.add_argument('--fno_flow_dt', type=float, default=0.05,
                         help='FNOFlow 单步时间步长 (default: 0.05)')
     parser.add_argument('--graph_hidden', type=int, default=128,
@@ -416,12 +418,14 @@ def main():
         model7 = _wrap(FNOFlow(N=args.n_masses, dt=dt_flow,
                                modes=args.fno_modes,
                                hidden_dim=args.fno_hidden,
-                               num_layers=args.num_layers))
+                               num_layers=args.num_layers,
+                               dropout=args.fno_dropout))
         n_params_fnoflow = sum(p.numel() for p in model7.parameters())
         if rank == 0:
             print(f"  FNOFlow: N={args.n_masses}, dt={dt_flow}, "
                   f"modes={args.fno_modes}, hidden={args.fno_hidden}, "
-                  f"layers={args.num_layers}, params={n_params_fnoflow:,}")
+                  f"layers={args.num_layers}, dropout={args.fno_dropout}, "
+                  f"params={n_params_fnoflow:,}")
             print(f"  关键优势: 直接预测 x{{t+dt}}，无需 RK4 积分")
 
         t0 = time.time()
@@ -443,6 +447,7 @@ def main():
                     'modes': args.fno_modes,
                     'hidden_dim': args.fno_hidden,
                     'num_layers': args.num_layers,
+                    'dropout': args.fno_dropout,
                 }
             }, ckpt_path)
             print(f"  FNOFlow checkpoint saved: {ckpt_path}")

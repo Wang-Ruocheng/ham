@@ -38,13 +38,14 @@ def main():
     modes = config.get('modes', 12)
     hidden_dim = config.get('hidden_dim', 64)
     num_layers = config.get('num_layers', 3)
+    dropout = config.get('dropout', 0.0)
 
     model = FNOFlow(N=N, dt=dt, modes=modes, hidden_dim=hidden_dim,
-                    num_layers=num_layers)
+                    num_layers=num_layers, dropout=dropout)
     model.load_state_dict(ckpt['model_state_dict'], strict=False)
     model = model.to(device)
     model.eval()
-    print(f"  N={N}, dt={dt}, params={sum(p.numel() for p in model.parameters()):,}")
+    print(f"  N={N}, dt={dt}, modes={modes}, hidden={hidden_dim}, layers={num_layers}, dropout={dropout}, params={sum(p.numel() for p in model.parameters()):,}")
 
     # 检查归一化参数
     raw = _maybe_unwrap(model)
