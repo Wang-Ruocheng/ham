@@ -430,20 +430,11 @@ def main():
                        label='[FNOFlow]')
         elapsed = time.time() - t0
 
-        # 评估: 用 flow 数据测试 MSE
+        # 评估: 轨迹预测 + GIF（复用 evaluate_and_visualize，已支持 FNOFlow）
+        raw_fnoflow = _maybe_unwrap(model7)
+        mse7, p7 = evaluate_and_visualize(model7, flow_val_loader, sys, args, device,
+                                          'FNOFlow', output_dir=output_dir)
         if rank == 0:
-            model7.eval()
-            raw_fnoflow = _maybe_unwrap(model7)
-            test_mse = 0.0; n_test = 0
-            for xb, xf in flow_val_loader:
-                xb, xf = xb.to(device), xf.to(device)
-                with torch.no_grad():
-                    test_mse += nn.MSELoss()(raw_fnoflow.predict_next(xb), xf).item() * xb.size(0)
-                n_test += xb.size(0)
-            test_mse /= n_test
-            print(f"\n  [FNOFlow] 测试 MSE (x{{t+dt}}): {test_mse:.6e} | "
-                  f"参数: {n_params_fnoflow:,}")
-
             ckpt_path = os.path.join(output_dir, 'fnoflow_checkpoint.pt')
             torch.save({
                 'model_state_dict': raw_fnoflow.state_dict(),
@@ -455,7 +446,7 @@ def main():
                 }
             }, ckpt_path)
             print(f"  FNOFlow checkpoint saved: {ckpt_path}")
-            results.append(('FNOFlow', test_mse, n_params_fnoflow, elapsed))
+            results.append(('FNOFlow', mse7, p7, elapsed))
 
     # ── 8. GraphHNN ────────────────────────────────────────
     if args.model in ('all', 'graph'):
