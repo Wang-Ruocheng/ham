@@ -962,9 +962,9 @@ def train_sympnet(model, train_loader, val_loader, epochs=2000,
 
 def train_fno_flow(model, train_loader, val_loader, epochs=2000,
                    lr=1e-3, device='cuda', label=''):
-    """FNO-Flow 训练: 直接监督状态迁移 x_t → x_{t+dt}
+    """FNO-Flow 训练: 残差 Δx 在归一化空间计算 loss
 
-    与 SympNet 训练类似，但 FNOFlow 不需要 autograd (无 HNN 结构)。
+    关键: loss 在归一化空间计算，平衡 θ 和 p 通道的梯度（避免 p 主导）。
     """
     model = model.to(device)
     raw = _maybe_unwrap(model)
@@ -973,6 +973,16 @@ def train_fno_flow(model, train_loader, val_loader, epochs=2000,
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, mode='min', factor=0.5, patience=150, min_lr=1e-6)
     train_losses, val_losses = [], []
+
+    def _loss_norm(delta_pred, delta_true):
+        """在归一化空间计算 MSE: 平衡 θ/p 通道"""
+        B = delta_pred.shape[0]
+        N = raw.N
+        dp = delta_pred.view(B, N, 2)
+        dt = delta_true.view(B, N, 2)
+        dp_n = (dp - raw.delta_mu.T.unsqueeze(0)) / raw.delta_sigma.T.unsqueeze(0)
+        dt_n = (dt - raw.delta_mu.T.unsqueeze(0)) / raw.delta_sigma.T.unsqueeze(0)
+        return nn.MSELoss()(dp_n, dt_n)
 
     for epoch in range(epochs):
         if hasattr(train_loader, 'sampler') and isinstance(train_loader.sampler, DistributedSampler):
@@ -983,8 +993,9 @@ def train_fno_flow(model, train_loader, val_loader, epochs=2000,
         for xb, xf in train_loader:
             xb, xf = xb.to(device), xf.to(device)
             optimizer.zero_grad()
-            x_pred = raw.predict_next(xb)
-            loss = nn.MSELoss()(x_pred, xf)
+            delta_pred = raw.forward(xb)
+            delta_true = xf - xb
+            loss = _loss_norm(delta_pred, delta_true)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 10.0)
             optimizer.step()
@@ -997,8 +1008,9 @@ def train_fno_flow(model, train_loader, val_loader, epochs=2000,
         for xb, xf in val_loader:
             xb, xf = xb.to(device), xf.to(device)
             with torch.no_grad():
-                x_pred = raw.predict_next(xb)
-            val_loss += nn.MSELoss()(x_pred, xf).item() * xb.size(0)
+                delta_pred = raw.forward(xb)
+                delta_true = xf - xb
+            val_loss += _loss_norm(delta_pred, delta_true).item() * xb.size(0)
         val_loss /= len(val_loader.dataset)
         val_losses.append(val_loss)
         scheduler.step(val_loss)
@@ -1119,19 +1131,29 @@ def evaluate_and_visualize(model, test_loader, sys, args, device, label,
     is_flow = isinstance(raw, FNOFlow)
 
     test_mse = 0.0; n_test = 0
+    test_mse_theta = 0.0; test_mse_p = 0.0
+    N_flow = raw.N if is_flow else 0
     for xb, yb in test_loader:
         xb = xb.to(device); yb = yb.to(device)
         if is_flow:
             # FNOFlow: 比较 x_{t+dt} 预测 vs 真实
             with torch.no_grad():
-                test_mse += nn.MSELoss()(raw.predict_next(xb), yb).item() * xb.size(0)
+                pred = raw.predict_next(xb)
+                test_mse += nn.MSELoss()(pred, yb).item() * xb.size(0)
+                test_mse_theta += nn.MSELoss()(pred[:, :N_flow], yb[:, :N_flow]).item() * xb.size(0)
+                test_mse_p += nn.MSELoss()(pred[:, N_flow:], yb[:, N_flow:]).item() * xb.size(0)
         else:
             xb.requires_grad_(True)
             test_mse += nn.MSELoss()(raw.time_derivative(xb), yb).item() * xb.size(0)
         n_test += xb.size(0)
     test_mse /= n_test
+    test_mse_theta = test_mse_theta / n_test if is_flow else 0
+    test_mse_p = test_mse_p / n_test if is_flow else 0
     n_params = sum(p.numel() for p in model.parameters())
-    print(f"\n  [{label}] 测试 MSE: {test_mse:.6e} | 参数: {n_params:,}")
+    if is_flow:
+        print(f"\n  [{label}] 测试 MSE: {test_mse:.6e} | θ: {test_mse_theta:.6e} | p: {test_mse_p:.6e} | 参数: {n_params:,}")
+    else:
+        print(f"\n  [{label}] 测试 MSE: {test_mse:.6e} | 参数: {n_params:,}")
 
     # 轨迹预测
     print(f"  [{label}] 轨迹预测 (θ₀ = π/4)...")
