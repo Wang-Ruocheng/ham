@@ -505,8 +505,8 @@ class FNO(nn.Module):
 class FNOFlow(nn.Module):
     """FNO-Flow (双分支残差形式): 学习 Δx = x_{t+dt} - x_t, 预测 = x_t + Δx
 
-    θ 和 p 各用独立的 FNO 分支，共享输入归一化。
-    输出归一化使用 Δx 的统计量。
+    θ 用 (sin θ, cos θ) 编码，天然处理角度周期性。
+    θ 和 p 各用独立的 FNO 分支。
     """
     def __init__(self, N, dt=0.05, modes=12, hidden_dim=64, num_layers=4, dropout=0.0):
         super().__init__()
@@ -515,8 +515,11 @@ class FNOFlow(nn.Module):
         self.modes = modes
         self.hidden_dim = hidden_dim
 
+        # 输入: (sin_θ, cos_θ, p) 共 3 通道
+        in_dim = 3
+
         # θ 分支: 独立的 Fourier 层
-        self.theta_fc0 = nn.Linear(2, hidden_dim)
+        self.theta_fc0 = nn.Linear(in_dim, hidden_dim)
         self.theta_convs = nn.ModuleList([
             SpectralConv1d(hidden_dim, hidden_dim, modes)
             for _ in range(num_layers)
@@ -529,7 +532,7 @@ class FNOFlow(nn.Module):
         self.theta_fc2 = nn.Linear(128, 1)
 
         # p 分支: 独立的 Fourier 层
-        self.p_fc0 = nn.Linear(2, hidden_dim)
+        self.p_fc0 = nn.Linear(in_dim, hidden_dim)
         self.p_convs = nn.ModuleList([
             SpectralConv1d(hidden_dim, hidden_dim, modes)
             for _ in range(num_layers)
@@ -543,17 +546,24 @@ class FNOFlow(nn.Module):
 
         self.dropout = nn.Dropout(dropout) if dropout > 0 else nn.Identity()
 
-        # 输入归一化
-        self.register_buffer('mu', torch.zeros(2, N))
-        self.register_buffer('sigma', torch.ones(2, N))
-        # 输出归一化 (Δx = x_{t+dt} - x_t 的统计量)
+        # 输入归一化: 3 通道 (sin_θ, cos_θ, p)
+        self.register_buffer('mu', torch.zeros(in_dim, N))
+        self.register_buffer('sigma', torch.ones(in_dim, N))
+        # 输出归一化: 2 通道 (Δθ, Δp)
         self.register_buffer('delta_mu', torch.zeros(2, N))
         self.register_buffer('delta_sigma', torch.ones(2, N))
 
         init_weights(self)
 
+    @staticmethod
+    def _encode(x_view):
+        """将 (B, N, 2) 的 (θ, p) 编码为 (B, N, 3) 的 (sin_θ, cos_θ, p)"""
+        theta = x_view[..., 0:1]
+        p = x_view[..., 1:2]
+        return torch.cat([torch.sin(theta), torch.cos(theta), p], dim=-1)
+
     def _fno_branch(self, x, fc0, convs, ws, fc1, fc2):
-        """FNO 分支: (B, N, 2) → (B, N, out_dim)"""
+        """FNO 分支: (B, N, in_dim) → (B, N, out_dim)"""
         h = fc0(x)
         for conv, w in zip(convs, ws):
             h_ft = conv(h)
@@ -567,40 +577,42 @@ class FNOFlow(nn.Module):
         return h
 
     def compute_stats(self, loader):
-        """计算输入和残差 Δx 的通道-空间归一化统计量"""
+        """计算输入 (sin_θ, cos_θ, p) 和残差 Δx 的归一化统计量"""
         target = _maybe_unwrap(self)
         device = next(target.parameters()).device
         N = target.N
         n = 0
-        mean = torch.zeros(N, 2, device=device)
+        mean = torch.zeros(N, 3, device=device)
         delta_mean = torch.zeros(N, 2, device=device)
         for xb, yb in loader:
             xb, yb = xb.to(device), yb.to(device)
             batch = xb.shape[0]
-            xb = xb.view(batch, N, 2)
-            yb = yb.view(batch, N, 2)
-            mean += xb.sum(dim=0)
-            delta_mean += (yb - xb).sum(dim=0)
+            xb_v = xb.view(batch, N, 2)
+            yb_v = yb.view(batch, N, 2)
+            xb_enc = self._encode(xb_v)  # (B, N, 3)
+            mean += xb_enc.sum(dim=0)
+            delta_mean += (yb_v - xb_v).sum(dim=0)
             n += batch
         mean = mean / n
         delta_mean = delta_mean / n
 
-        var = torch.zeros(N, 2, device=device)
+        var = torch.zeros(N, 3, device=device)
         delta_var = torch.zeros(N, 2, device=device)
         for xb, yb in loader:
             xb, yb = xb.to(device), yb.to(device)
             batch = xb.shape[0]
-            xb = xb.view(batch, N, 2)
-            yb = yb.view(batch, N, 2)
-            delta = yb - xb
-            var += ((xb - mean.unsqueeze(0)) ** 2).sum(dim=0)
+            xb_v = xb.view(batch, N, 2)
+            yb_v = yb.view(batch, N, 2)
+            xb_enc = self._encode(xb_v)
+            delta = yb_v - xb_v
+            var += ((xb_enc - mean.unsqueeze(0)) ** 2).sum(dim=0)
             delta_var += ((delta - delta_mean.unsqueeze(0)) ** 2).sum(dim=0)
         var = var / n
         delta_var = delta_var / n
 
-        target.mu = mean.T
+        target.mu = mean.T         # (3, N)
         target.sigma = var.sqrt().clamp(min=1e-6).T
-        target.delta_mu = delta_mean.T
+        target.delta_mu = delta_mean.T  # (2, N)
         target.delta_sigma = delta_var.sqrt().clamp(min=1e-6).T
 
     def forward(self, x):
@@ -609,7 +621,8 @@ class FNOFlow(nn.Module):
         N = self.N
 
         x_view = x.view(B, N, 2)
-        x_norm = (x_view - self.mu.T.unsqueeze(0)) / self.sigma.T.unsqueeze(0)
+        x_enc = self._encode(x_view)  # (B, N, 3): sin_θ, cos_θ, p
+        x_norm = (x_enc - self.mu.T.unsqueeze(0)) / self.sigma.T.unsqueeze(0)
 
         # 双分支: θ 和 p 各用独立的 FNO
         h_theta = self._fno_branch(x_norm, self.theta_fc0, self.theta_convs,
@@ -1043,7 +1056,8 @@ def train_fno_flow(model, train_loader, val_loader, epochs=2000,
 # 生成多步训练数据
 # ============================================================
 def generate_multistep_data(sys, n_trajectories=200, t_span=(0, 20),
-                            dt=0.05, n_steps=5, seed=42):
+                            dt=0.05, n_steps=5, seed=42,
+                            omega_range=(-3.0, 3.0)):
     """生成多步训练数据: (x_t, x_{t+n*dt}) 对，dt 为单步积分步长"""
     n_points = int((t_span[1] - t_span[0]) / dt) + 1
     np.random.seed(seed)
@@ -1053,7 +1067,7 @@ def generate_multistep_data(sys, n_trajectories=200, t_span=(0, 20),
         if traj_idx % 20 == 0:
             print(f"  生成多步轨迹 {traj_idx}/{n_trajectories}...")
         theta0 = np.random.uniform(-np.pi, np.pi, sys.N)
-        omega0 = np.random.uniform(-1.0, 1.0, sys.N)
+        omega0 = np.random.uniform(omega_range[0], omega_range[1], sys.N)
         M0 = sys.inertia_matrix(theta0)
         p0 = M0 @ omega0
         state0 = np.concatenate([theta0, p0])
