@@ -159,7 +159,7 @@ $$
 \lambda_c\mathcal L_{\mathrm{comm}}.
 $$
 
-- $\mathcal L_Q$（锚点，$\lambda_Q=1$，2D 下为 2）：在微观层 $\mathcal D_0$ 固定理论坐标 $\mathbf g_0$。将 $\mathcal D_0$ 均分为两半 $\mathcal D_0^A,\mathcal D_0^B$，令 $\mathbf g_0^A=Q(\mathcal D_0^A)$，$\mathbf g_0^B=Q(\mathcal D_0^B)$，$\mathbf g_0=(\mathbf g_0^A+\mathbf g_0^B)/2$。则
+- **$\mathcal L_Q$（锚点，$\lambda_Q=1$，2D 下为 2）**：在微观层 $\mathcal D_0$ 固定理论坐标 $\mathbf g_0$。将 $\mathcal D_0$ 均分为两半 $\mathcal D_0^A,\mathcal D_0^B$，令 $\mathbf g_0^A=Q(\mathcal D_0^A)$，$\mathbf g_0^B=Q(\mathcal D_0^B)$，$\mathbf g_0=(\mathbf g_0^A+\mathbf g_0^B)/2$。则
   $$
   \mathcal L_Q = 10\cdot\underbrace{\|\mathbf g_0^A-\mathbf g_0^B\|^2}_{\text{子集一致性}}
   +\underbrace{\bigl\|\mathrm{ReLU}(1-\sigma(\mathbf g_0))\bigr\|^2}_{\text{非坍缩}}
@@ -168,14 +168,14 @@ $$
   $$
   其中 $\sigma(\mathbf g_0)$ 是 $\mathbf g_0$ 沿 system 维的标准差向量（2D 版改用$\|\sigma(\mathbf g_0)-1\|^2$），$\mathbf p_0$ 是 $\mathcal D_0$ 的局域 spin pattern经验分布（1D: 3-spin pattern, 2D: $2\times2$ plaquette），$d(\cdot)$ 为上三角成对欧氏距离，$\mathrm{corr}$ 为 Pearson 相关系数（等价于 $1-\rho$，其中 $\rho$为 Spearman 秩相关在连续极限下的替代）。
 
-- $\mathcal L_{\mathrm{split}}$（粗粒化一致性，$\lambda_s=5$）：对所有 $k\ge1$，要求同一系综的子集在粗粒化后仍编码一致：
+- **$\mathcal L_{\mathrm{split}}$（粗粒化一致性，$\lambda_s=5$）**：对所有 $k\ge1$，要求同一系综的子集在粗粒化后仍编码一致：
   $$
   \mathcal L_{\mathrm{split}}=\frac{1}{(K-1)d}\sum_{k=1}^{K-1}
   \bigl\|Q(\mathcal D_k^A)-Q(\mathcal D_k^B)\bigr\|^2
   $$
   其中 $K$ 为总层数，$d$ 为理论坐标维度。本质上是 $\mathcal L_Q$ 中子集一致性的多层级推广。
   
-- $\mathcal L_{\mathrm{separation}}$（自适应防坍缩，$\lambda_d=2$）：定义每层$\mathbf g_k=(\mathbf g_k^A+\mathbf g_k^B)/2$ 的统计量：
+- **$\mathcal L_{\mathrm{separation}}$（自适应防坍缩，$\lambda_d=2$）**：定义每层$\mathbf g_k=(\mathbf g_k^A+\mathbf g_k^B)/2$ 的统计量：
   $$
   \begin{aligned}
   \sigma_{\text{pairwise},k} &= \mathrm{mean}(\|\mathbf g_k^{(i)}-\mathbf g_k^{(j)}\|^2)_{i<j} \\[2pt]
