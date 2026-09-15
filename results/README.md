@@ -45,9 +45,3 @@ locked into one magnetization sector, so Q learned the sign shortcut.
 sector locking and every Q training view is exactly spin-flip paired. The
 learned scalar R has one data-supported unstable fixed point; its posthoc
 critical-coupling calibration is recorded in `critical_flow_analysis.json`.
-
-`fixed_majority_qr_ising_2d/` is the controlled ablation with the same data and
-training schedule but a fixed Z2-equivariant 2x2 majority-rule C. Only Q and R
-are optimized. It localizes the critical coupling substantially better than
-the learned-C run, while its fixed-point derivative remains far below the
-universal thermal eigenvalue.

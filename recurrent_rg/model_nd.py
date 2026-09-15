@@ -166,30 +166,7 @@ class RecurrentRGNetwork(nn.Module):
         )
 
 
-class FixedMajorityCoarseGrainer2D(nn.Module):
-    """Parameter-free 2x2 majority blocking with an odd tie break.
 
-    A tied block inherits its upper-left spin, which makes the complete map
-    exactly Z2 equivariant: ``C(-X) = -C(X)``.
-    """
-
-    def forward(self, configurations: torch.Tensor) -> torch.Tensor:
-        if configurations.ndim != 5 or configurations.shape[-1] != 1:
-            raise ValueError("expected [systems,samples,L,L,1]")
-        systems, samples, height, width, channels = configurations.shape
-        if height % 2 or width % 2:
-            raise ValueError("majority blocking requires even spatial sizes")
-        blocks = configurations.reshape(
-            systems, samples, height // 2, 2, width // 2, 2, channels
-        )
-        block_sum = blocks.sum(dim=(3, 5))
-        tie_break = configurations[:, :, ::2, ::2, :]
-        one = torch.ones((), dtype=configurations.dtype, device=configurations.device)
-        return torch.where(
-            block_sum > 0,
-            one,
-            torch.where(block_sum < 0, -one, tie_break),
-        )
 
 
 class RecurrentRGNetwork1D(RecurrentRGNetwork):

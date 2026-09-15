@@ -22,7 +22,7 @@ import torch.nn.functional as F
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from experiments._utils import QCRWeights
+from experiments._utils import QCRWeights, balanced_views
 from experiments.ensemble_theory_encoder_ising_1d import (
     encoder_objective,
     fit_probe,
@@ -120,12 +120,6 @@ def qcr_objective(
     return total, terms
 
 
-def fixed_subset(configurations: torch.Tensor, samples: int) -> torch.Tensor:
-    if 2 * samples > configurations.shape[1]:
-        raise ValueError("evaluation requires at least twice eval_samples configurations")
-    return configurations[:, : 2 * samples]
-
-
 def evaluate_objective(
     model: RecurrentRGNetwork1D,
     configurations: torch.Tensor,
@@ -133,7 +127,7 @@ def evaluate_objective(
 ) -> dict[str, float]:
     model.eval()
     with torch.no_grad():
-        total, terms = qcr_objective(model, fixed_subset(configurations, samples))
+        total, terms = qcr_objective(model, balanced_views(configurations, samples))
     return {"total": float(total)} | {name: float(value) for name, value in terms.items()}
 
 
@@ -162,8 +156,13 @@ def train(
     for epoch in range(epochs):
         model.train()
         systems = torch.randperm(train_x.shape[0], generator=generator)[:system_batch]
-        samples = torch.randperm(train_x.shape[1], generator=generator)[: 2 * sample_batch]
-        batch = train_x[systems][:, samples]
+        if sample_batch % 2:
+            raise ValueError("sample_batch must be even for exact spin-flip pairing")
+        half = sample_batch // 2
+        samples = torch.randperm(train_x.shape[1], generator=generator)[: 2 * half]
+        selected = train_x[systems][:, samples]
+        first_base, second_base = selected[:, :half], selected[:, half:]
+        batch = torch.cat((first_base, -first_base, second_base, -second_base), dim=1)
 
         optimizer.zero_grad(set_to_none=True)
         loss, _ = qcr_objective(model, batch)
@@ -188,7 +187,8 @@ def direct_and_rollout(
 ) -> tuple[list[torch.Tensor], np.ndarray, np.ndarray, np.ndarray]:
     model.eval()
     with torch.no_grad():
-        levels = model.coarse_grain(fixed_subset(configurations, samples))
+        subset = balanced_views(configurations, samples)
+        levels = model.coarse_grain(subset)
         direct = torch.stack([model.theory_encoder(level) for level in levels], dim=1)
         rollout = [direct[:, 0]]
         for _ in range(model.levels - 1):
@@ -431,6 +431,7 @@ def main() -> None:
             "snr_off": 2.0,
             "snr_on": 3.0,
             "gate_and_source_target_stop_gradient": True,
+            "exact_global_spin_flip_pairing": True,
         },
         "loss_weights": QCRWeights().__dict__,
         "initial_test_objective": initial_test,

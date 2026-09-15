@@ -22,11 +22,8 @@ import torch.nn.functional as F
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from experiments._utils import QCRWeights
-from experiments.ensemble_theory_encoder_ising_1d import (
-    correlation_loss,
-    upper_triangle,
-)
+from experiments._utils import QCRWeights, balanced_views
+from experiments.ensemble_theory_encoder_ising_1d import encoder_objective
 from recurrent_rg.ising import DTYPE
 from recurrent_rg.ising2d import bond_sum_2d, sample_wolff_ensembles
 from recurrent_rg.metrics import rank_correlation, mean_pairwise_square
@@ -47,37 +44,6 @@ def plaquette_distribution(configurations: torch.Tensor) -> torch.Tensor:
         + torch.roll(torch.roll(bits, -1, dims=2), -1, dims=3)
     )
     return F.one_hot(pattern, num_classes=16).to(configurations.dtype).mean(dim=(1, 2, 3))
-
-
-def encoder_objective_2d(
-    encoder: torch.nn.Module,
-    first: torch.Tensor,
-    second: torch.Tensor,
-) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
-    """Subset consistency, noncollapse, and local-distribution geometry."""
-    first_g = encoder(first)
-    second_g = encoder(second)
-    consistency = F.mse_loss(first_g, second_g)
-    joined_g = 0.5 * (first_g + second_g)
-    std_per_dim = joined_g.std(dim=0, unbiased=False)
-    variance = (std_per_dim - 1.0).square().mean()
-    centered = joined_g - joined_g.mean(dim=0, keepdim=True)
-    covariance = centered.T @ centered / max(joined_g.shape[0], 1)
-    covariance = (covariance - torch.diag(torch.diag(covariance))).square().mean()
-    distributions = 0.5 * (
-        plaquette_distribution(first) + plaquette_distribution(second)
-    )
-    geometry = correlation_loss(
-        upper_triangle(torch.cdist(joined_g, joined_g)),
-        upper_triangle(torch.cdist(distributions, distributions)),
-    )
-    total = 10.0 * consistency + variance + covariance + geometry
-    return total, {
-        "consistency": consistency,
-        "variance": variance,
-        "covariance": covariance,
-        "geometry": geometry,
-    }
 
 
 def qcr_objective(
@@ -104,8 +70,9 @@ def qcr_objective(
         [model.theory_encoder(level[:, midpoint:]) for level in levels], dim=1
     )
     direct = 0.5 * (first + second)
-    anchor, _ = encoder_objective_2d(
-        model.theory_encoder, microscopic[:, :midpoint], microscopic[:, midpoint:]
+    anchor, _ = encoder_objective(
+        model.theory_encoder, microscopic[:, :midpoint], microscopic[:, midpoint:],
+        pattern_fn=plaquette_distribution,
     )
     coarse_consistency = F.mse_loss(first[:, 1:], second[:, 1:])
 
@@ -159,24 +126,13 @@ def evaluate(
     subset = balanced_views(configurations, samples)
     with torch.no_grad():
         if objective == "q":
-            total, terms = encoder_objective_2d(
-                model.theory_encoder, subset[:, :samples], subset[:, samples:]
+            total, terms = encoder_objective(
+                model.theory_encoder, subset[:, :samples], subset[:, samples:],
+                pattern_fn=plaquette_distribution,
             )
         else:
             total, terms = qcr_objective(model, subset)
     return {"total": float(total)} | {key: float(value) for key, value in terms.items()}
-
-
-def balanced_views(configurations: torch.Tensor, samples: int) -> torch.Tensor:
-    """Build two exactly spin-flip-balanced ensemble views of ``samples`` each."""
-    if samples % 2:
-        raise ValueError("sample count must be even for exact spin-flip pairing")
-    half = samples // 2
-    if 2 * half > configurations.shape[1]:
-        raise ValueError("not enough configurations for two balanced views")
-    first = configurations[:, :half]
-    second = configurations[:, half : 2 * half]
-    return torch.cat((first, -first, second, -second), dim=1)
 
 
 def train_stage(
@@ -224,8 +180,9 @@ def train_stage(
         batch = torch.cat((first_base, -first_base, second_base, -second_base), dim=1)
         optimizer.zero_grad(set_to_none=True)
         if objective == "q":
-            loss, _ = encoder_objective_2d(
-                model.theory_encoder, batch[:, :sample_batch], batch[:, sample_batch:]
+            loss, _ = encoder_objective(
+                model.theory_encoder, batch[:, :sample_batch], batch[:, sample_batch:],
+                pattern_fn=plaquette_distribution,
             )
         else:
             loss, _ = qcr_objective(model, batch)

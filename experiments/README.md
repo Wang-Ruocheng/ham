@@ -51,16 +51,7 @@ kernel in its default learned-C mode. Each finite ensemble view is exactly
 paired as `(X, -X)` so that Q cannot use the sign of spontaneous magnetization
 as a shortcut. The sampler also randomizes the recorded global spin
 orientation, an exact zero-field Z2 operation that prevents ordered-sector
-locking. Select the fixed majority control with `--kernel majority`:
-
-```bash
-python experiments/joint_qcr_ising_2d.py --kernel learned
-python experiments/joint_qcr_ising_2d.py \
-  --kernel majority \
-  --output-dir results/fixed_majority_qr_ising_2d
-```
-
-`unsupervised_recurrent_rg_ising_1d.py` jointly trains the RSMI kernel and the
+locking.
 theory encoder/flow/action modules from configurations only. Couplings are kept
 out of the training objective and are loaded only for post-training evaluation:
 

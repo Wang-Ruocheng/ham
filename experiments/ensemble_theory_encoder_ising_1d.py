@@ -49,15 +49,24 @@ def encoder_objective(
     encoder: torch.nn.Module,
     first: torch.Tensor,
     second: torch.Tensor,
+    *,
+    pattern_fn: callable | None = None,
 ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
-    """Subset invariance, noncollapse, and distribution-geometry preservation."""
+    """Subset invariance, noncollapse, and distribution-geometry preservation.
+
+    ``pattern_fn`` receives a configuration tensor and returns empirical
+    probabilities of local spin patterns (default: three-spin patterns for 1D).
+    """
+    if pattern_fn is None:
+        pattern_fn = local_pattern_distribution
+
     first_g = encoder(first)
     second_g = encoder(second)
     consistency = F.mse_loss(first_g, second_g)
 
     joined_g = 0.5 * (first_g + second_g)
     std = joined_g.std(dim=0, unbiased=False)
-    variance = F.relu(1.0 - std).square().mean()
+    variance = (std - 1.0).square().mean()
 
     centered = joined_g - joined_g.mean(dim=0, keepdim=True)
     covariance = centered.T @ centered / max(joined_g.shape[0], 1)
@@ -65,7 +74,7 @@ def encoder_objective(
     covariance_loss = off_diagonal.square().mean()
 
     patterns = 0.5 * (
-        local_pattern_distribution(first) + local_pattern_distribution(second)
+        pattern_fn(first) + pattern_fn(second)
     )
     latent_distance = upper_triangle(torch.cdist(joined_g, joined_g))
     distribution_distance = upper_triangle(torch.cdist(patterns, patterns))
