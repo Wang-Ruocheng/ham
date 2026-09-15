@@ -165,8 +165,8 @@ $$
 
   $$
   \mathcal L_Q = 10\cdot\underbrace{\|\mathbf g_0^A-\mathbf g_0^B\|^2}_{\text{子集一致性}}
-  +\underbrace{\bigl\|\mathrm{ReLU}(1-\sigma(\mathbf g_0))\bigr\|^2}_{\text{非坍缩}}
-  +\underbrace{\bigl\|\mathrm{offdiag}(\mathrm{Cov}(\mathbf g_0))\bigr\|_F^2}_{\text{去相关}}
+  +\underbrace{\bigl\Vert\mathrm{ReLU}(1-\sigma(\mathbf g_0))\bigr\Vert^2}_{\text{非坍缩}}
+  +\underbrace{\bigl\Vert\mathrm{offdiag}(\mathrm{Cov}(\mathbf g_0))\bigr\Vert_F^2}_{\text{去相关}}
   +\underbrace{\Bigl(1-\mathrm{corr}(d(\mathbf g_0),\,d(\mathbf p_0))\Bigr)}_{\text{局域几何}}
   $$
 
@@ -176,7 +176,7 @@ $$
 
   $$
   \mathcal L_{\mathrm{split}}=\frac{1}{(K-1)d}\sum_{k=1}^{K-1}
-  \bigl\|Q(\mathcal D_k^A)-Q(\mathcal D_k^B)\bigr\|^2
+  \bigl\VertQ(\mathcal D_k^A)-Q(\mathcal D_k^B)\bigr\Vert^2
   $$
 
   其中 $K$ 为总层数， $d$ 为理论坐标维度。本质上是 $\mathcal L_Q$ 中子集一致性的多层级推广。
@@ -206,7 +206,7 @@ $$
 
   $$
   \mathcal L_{\mathrm{comm}}=\frac{1}{(K-1)d}\sum_{k=0}^{K-2}
-  \bigl\|R(\mathbf g_k)-\mathbf g_{k+1}\bigr\|^2
+  \bigl\VertR(\mathbf g_k)-\mathbf g_{k+1}\bigr\Vert^2
   $$
 
   这保证粗粒化 $C$ 在构型空间中的信息压缩，与 $R$ 在理论空间中的流是对易的——「先编码再推演」等于「先粗粒化再编码」。
