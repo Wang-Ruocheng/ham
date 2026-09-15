@@ -176,7 +176,7 @@ $$
 
 $$
 \mathcal L_{\mathrm{split}}=\frac{1}{(K-1)d}\sum_{k=1}^{K-1}
-\VertQ(\mathcal D_k^A)-Q(\mathcal D_k^B)\Vert^2
+\Vert Q(\mathcal D_k^A)-Q(\mathcal D_k^B)\Vert^2
 $$
 
 其中 $K$ 为总层数， $d$ 为理论坐标维度。本质上是 $\mathcal L_Q$ 中子集一致性的多层级推广。
@@ -185,9 +185,9 @@ $$
 
 $$
 \begin{aligned}
-\sigma_{\text{pairwise},k} &= \mathrm{mean}(\|\mathbf g_k^{(i)}-\mathbf g_k^{(j)}\|^2)_{i<j} \\[2pt]
-\sigma_{\text{split},k} &= \tfrac12(\|\mathbf g_k^A-\mathbf g_k^B\|^2) \\[2pt]
-\mathrm{SNR}_k &= \frac{\mathrm{spread}(\mathbf g_k)}{\sqrt{\sigma_{\text{split},k}}} \\[2pt]
+\sigma_{\text{pairwise},k} &= \mathrm{mean}(\|\mathbf g_k^{(i)}-\mathbf g_k^{(j)}\|^2)_{i<j} \\
+\sigma_{\text{split},k} &= \tfrac12(\|\mathbf g_k^A-\mathbf g_k^B\|^2) \\
+\mathrm{SNR}_k &= \frac{\mathrm{spread}(\mathbf g_k)}{\sqrt{\sigma_{\text{split},k}}} \\
 s_k &= \mathrm{ReLU}\!(\sigma_{\text{pairwise},k}-2\cdot\sigma_{\text{split},k})
 \end{aligned}
 $$
@@ -206,7 +206,7 @@ $$
 
 $$
 \mathcal L_{\mathrm{comm}}=\frac{1}{(K-1)d}\sum_{k=0}^{K-2}
-\VertR(\mathbf g_k)-\mathbf g_{k+1}\Vert^2
+\Vert R(\mathbf g_k)-\mathbf g_{k+1}\Vert^2
 $$
 
 这保证粗粒化 $C$ 在构型空间中的信息压缩，与 $R$ 在理论空间中的流是对易的——「先编码再推演」等于「先粗粒化再编码」。
