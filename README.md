@@ -105,10 +105,8 @@ $$
 
 构型空间的 RG 与理论空间的 RG 应给出一致的下一尺度：
 $$
-\begin{aligned}
-&D\text{: 系综分布，}B\text{ 系综，}N\text{ 个格点，形状 }[d,B,N]\\
-&\mathbf g\text{: }m\text{ 个物理量，形状 }[d,m]
-\end{aligned}
+D\text{: 系综分布，}B\text{ 系综，}N\text{ 个格点，形状 }[d,B,N]\\
+\mathbf g\text{: }m\text{ 个物理量，形状 }[d,m]
 $$
 
 $$
