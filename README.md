@@ -162,11 +162,11 @@ $$
 - **$\mathcal L_Q$（锚点，$\lambda_Q=1$，2D 下为 2）**：在微观层 $\mathcal D_0$ 固定理论坐标 $\mathbf g_0$。将 $\mathcal D_0$ 均分为两半 $\mathcal D_0^A,\mathcal D_0^B$，令 $\mathbf g_0^A=Q(\mathcal D_0^A)$，$\mathbf g_0^B=Q(\mathcal D_0^B)$，$\mathbf g_0=(\mathbf g_0^A+\mathbf g_0^B)/2$。则
   $$
   \mathcal L_Q = 10\cdot\underbrace{\|\mathbf g_0^A-\mathbf g_0^B\|^2}_{\text{子集一致性}}
-  +\underbrace{\bigl\|\mathrm{ReLU}(1-\sigma(\mathbf g_0))\bigr\|^2}_{\text{非坍缩}}
-  +\underbrace{\bigl\|\mathrm{offdiag}(\mathrm{Cov}(\mathbf g_0))\bigr\|_F^2}_{\text{去相关}}
-  +\underbrace{\Bigl(1-\mathrm{corr}(d(\mathbf g_0),\,d(\mathbf p_0))\Bigr)}_{\text{局域几何}}
+  +\underbrace{\bigl\|\operatorname{ReLU}(1-\sigma(\mathbf g_0))\bigr\|^2}_{\text{非坍缩}}
+  +\underbrace{\bigl\|\operatorname{offdiag}(\operatorname{Cov}(\mathbf g_0))\bigr\|_F^2}_{\text{去相关}}
+  +\underbrace{\Bigl(1-\operatorname{corr}(d(\mathbf g_0),\,d(\mathbf p_0))\Bigr)}_{\text{局域几何}}
   $$
-  其中 $\sigma(\mathbf g_0)$ 是 $\mathbf g_0$ 沿 system 维的标准差向量（2D 版改用$\|\sigma(\mathbf g_0)-1\|^2$），$\mathbf p_0$ 是 $\mathcal D_0$ 的局域 spin pattern经验分布（1D: 3-spin pattern, 2D: $2\times2$ plaquette），$d(\cdot)$ 为上三角成对欧氏距离，$\mathrm{corr}$ 为 Pearson 相关系数（等价于 $1-\rho$，其中 $\rho$为 Spearman 秩相关在连续极限下的替代）。
+  其中 $\sigma(\mathbf g_0)$ 是 $\mathbf g_0$ 沿 system 维的标准差向量（2D 版改用$\|\sigma(\mathbf g_0)-1\|^2$），$\mathbf p_0$ 是 $\mathcal D_0$ 的局域 spin pattern经验分布（1D: 3-spin pattern, 2D: $2\times2$ plaquette），$d(\cdot)$ 为上三角成对欧氏距离，$\operatorname{corr}$ 为 Pearson 相关系数（等价于 $1-\rho$，其中 $\rho$为 Spearman 秩相关在连续极限下的替代）。
 
 - **$\mathcal L_{\mathrm{split}}$（粗粒化一致性，$\lambda_s=5$）**：对所有 $k\ge1$，要求同一系综的子集在粗粒化后仍编码一致：
   $$
@@ -178,19 +178,19 @@ $$
 - **$\mathcal L_{\mathrm{separation}}$（自适应防坍缩，$\lambda_d=2$）**：定义每层$\mathbf g_k=(\mathbf g_k^A+\mathbf g_k^B)/2$ 的统计量：
   $$
   \begin{aligned}
-  \sigma_{\text{pairwise},k} &= \mathrm{mean}(\|\mathbf g_k^{(i)}-\mathbf g_k^{(j)}\|^2)_{i<j} \\[2pt]
+  \sigma_{\text{pairwise},k} &= \operatorname{mean}(\|\mathbf g_k^{(i)}-\mathbf g_k^{(j)}\|^2)_{i<j} \\[2pt]
   \sigma_{\text{split},k} &= \tfrac12\bigl(\|\mathbf g_k^A-\mathbf g_k^B\|^2\bigr) \\[2pt]
-  \mathrm{SNR}_k &= \frac{\mathrm{spread}(\mathbf g_k)}{\sqrt{\sigma_{\text{split},k}}} \\[2pt]
-  s_k &= \mathrm{ReLU}\!\bigl(\sigma_{\text{pairwise},k}-2\cdot\sigma_{\text{split},k}\bigr)
+  \mathrm{SNR}_k &= \frac{\operatorname{spread}(\mathbf g_k)}{\sqrt{\sigma_{\text{split},k}}} \\[2pt]
+  s_k &= \operatorname{ReLU}\!\bigl(\sigma_{\text{pairwise},k}-2\cdot\sigma_{\text{split},k}\bigr)
   \end{aligned}
   $$
   对 $k\ge1$，当前一层 $\mathrm{SNR}_{k-1}>2$ 时才激活惩罚（gate 从 0 线性升到 1，在 $\mathrm{SNR}_{k-1}=3$ 时饱和），并要求当前层保留上一层的至少 5% 可分辨信号：
   $$
   \mathcal L_{\mathrm{separation}}=\sum_{k=1}^{K-1}
-  0.5^{\,k-1}\cdot\mathrm{gate}(\mathrm{SNR}_{k-1})\cdot
-  \mathrm{ReLU}\!\bigl(0.05\cdot s_{k-1}-s_k\bigr)
+  0.5^{\,k-1}\cdot\operatorname{gate}(\mathrm{SNR}_{k-1})\cdot
+  \operatorname{ReLU}\!\bigl(0.05\cdot s_{k-1}-s_k\bigr)
   $$
-  其中 $\mathrm{spread}(\mathbf g_k)=\sqrt{\mathrm{mean}(\sigma_{\dim}(\mathbf g_k)^2)}$。gate 与 target signal 均 detach，不反向传播梯度。衰减 $0.5^{k-1}$ 反映物理直觉：更深层携带更少可分辨信息，防止 RG 流在中途坍缩为一个点。
+  其中 $\operatorname{spread}(\mathbf g_k)=\sqrt{\operatorname{mean}(\sigma_{\dim}(\mathbf g_k)^2)}$。gate 与 target signal 均 detach，不反向传播梯度。衰减 $0.5^{k-1}$ 反映物理直觉：更深层携带更少可分辨信息，防止 RG 流在中途坍缩为一个点。
 
 - **$\mathcal L_{\mathrm{comm}}$（对易子，$\lambda_c=5$）**：要求交换图 $\mathcal D_k\to\mathbf g_k\to R(\mathbf g_k)$ 与 $\mathcal D_k\to\mathcal D_{k+1}\to\mathbf g_{k+1}$闭合：
   $$
@@ -286,7 +286,7 @@ Ising 的单点伪似然为
 
 $$
 -\log p_\phi(s_i\mid X_{\setminus i},\mathbf g)
-=\mathrm{softplus}\!\left[
+=\operatorname{softplus}\!\left[
 A_\phi(X,\mathbf g)-A_\phi(X^{(i)},\mathbf g)
 \right].
 $$
