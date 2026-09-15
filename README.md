@@ -165,9 +165,9 @@ $$
 
   $$
   \mathcal L_Q = 10\cdot\underbrace{\|\mathbf g_0^A-\mathbf g_0^B\|^2}_{\text{子集一致性}}
-  +\underbrace{\bigl\Vert\mathrm{ReLU}(1-\sigma(\mathbf g_0))\bigr\Vert^2}_{\text{非坍缩}}
-  +\underbrace{\bigl\Vert\mathrm{offdiag}(\mathrm{Cov}(\mathbf g_0))\bigr\Vert_F^2}_{\text{去相关}}
-  +\underbrace{\Bigl(1-\mathrm{corr}(d(\mathbf g_0),\,d(\mathbf p_0))\Bigr)}_{\text{局域几何}}
+  +\underbrace{\Vert\mathrm{ReLU}(1-\sigma(\mathbf g_0))\Vert^2}_{\text{非坍缩}}
+  +\underbrace{\Vert\mathrm{offdiag}(\mathrm{Cov}(\mathbf g_0))\Vert_F^2}_{\text{去相关}}
+  +\underbrace{(1-\mathrm{corr}(d(\mathbf g_0),\,d(\mathbf p_0)))}_{\text{局域几何}}
   $$
 
   其中 $\sigma(\mathbf g_0)$ 是 $\mathbf g_0$ 沿 system 维的标准差向量（2D 版改用 $\|\sigma(\mathbf g_0)-1\|^2$）， $\mathbf p_0$ 是 $\mathcal D_0$ 的局域 spin pattern经验分布（1D: 3-spin pattern, 2D: $2\times2$ plaquette）， $d(\cdot)$ 为上三角成对欧氏距离， $\mathrm{corr}$ 为 Pearson 相关系数（等价于 $1-\rho$，其中 $\rho$为 Spearman 秩相关在连续极限下的替代）。
@@ -176,7 +176,7 @@ $$
 
   $$
   \mathcal L_{\mathrm{split}}=\frac{1}{(K-1)d}\sum_{k=1}^{K-1}
-  \bigl\VertQ(\mathcal D_k^A)-Q(\mathcal D_k^B)\bigr\Vert^2
+  \VertQ(\mathcal D_k^A)-Q(\mathcal D_k^B)\Vert^2
   $$
 
   其中 $K$ 为总层数， $d$ 为理论坐标维度。本质上是 $\mathcal L_Q$ 中子集一致性的多层级推广。
@@ -186,9 +186,9 @@ $$
   $$
   \begin{aligned}
   \sigma_{\text{pairwise},k} &= \mathrm{mean}(\|\mathbf g_k^{(i)}-\mathbf g_k^{(j)}\|^2)_{i<j} \\[2pt]
-  \sigma_{\text{split},k} &= \tfrac12\bigl(\|\mathbf g_k^A-\mathbf g_k^B\|^2\bigr) \\[2pt]
+  \sigma_{\text{split},k} &= \tfrac12(\|\mathbf g_k^A-\mathbf g_k^B\|^2) \\[2pt]
   \mathrm{SNR}_k &= \frac{\mathrm{spread}(\mathbf g_k)}{\sqrt{\sigma_{\text{split},k}}} \\[2pt]
-  s_k &= \mathrm{ReLU}\!\bigl(\sigma_{\text{pairwise},k}-2\cdot\sigma_{\text{split},k}\bigr)
+  s_k &= \mathrm{ReLU}\!(\sigma_{\text{pairwise},k}-2\cdot\sigma_{\text{split},k})
   \end{aligned}
   $$
 
@@ -197,7 +197,7 @@ $$
   $$
   \mathcal L_{\mathrm{separation}}=\sum_{k=1}^{K-1}
   0.5^{\,k-1}\cdot\mathrm{gate}(\mathrm{SNR}_{k-1})\cdot
-  \mathrm{ReLU}\!\bigl(0.05\cdot s_{k-1}-s_k\bigr)
+  \mathrm{ReLU}\!(0.05\cdot s_{k-1}-s_k)
   $$
 
   其中 $\mathrm{spread}(\mathbf g_k)=\sqrt{\mathrm{mean}(\sigma_{\dim}(\mathbf g_k)^2)}$。gate 与 target signal 均 detach，不反向传播梯度。衰减 $0.5^{k-1}$ 反映物理直觉：更深层携带更少可分辨信息，防止 RG 流在中途坍缩为一个点。
@@ -206,7 +206,7 @@ $$
 
   $$
   \mathcal L_{\mathrm{comm}}=\frac{1}{(K-1)d}\sum_{k=0}^{K-2}
-  \bigl\VertR(\mathbf g_k)-\mathbf g_{k+1}\bigr\Vert^2
+  \VertR(\mathbf g_k)-\mathbf g_{k+1}\Vert^2
   $$
 
   这保证粗粒化 $C$ 在构型空间中的信息压缩，与 $R$ 在理论空间中的流是对易的——「先编码再推演」等于「先粗粒化再编码」。
