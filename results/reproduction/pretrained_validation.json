@@ -1,0 +1,51 @@
+{
+  "seed": 20260911,
+  "device": "cpu",
+  "reason_for_cpu": "upstream CUDA kernels and unsupported complex compiled operators on MPS",
+  "checkpoint": "third_party/lge-cnn/fpaction/finetuned_model_v01.ckpt",
+  "architecture": {
+    "lattice_dims": [
+      4,
+      4,
+      4,
+      4
+    ],
+    "conv_kernel_size": [
+      2,
+      2,
+      1
+    ],
+    "conv_channels": [
+      12,
+      24,
+      24
+    ],
+    "layer_implementation": "wilsonline (pure PyTorch equivalent of checkpoint CUDA path)",
+    "parameters": 204865,
+    "checkpoint_epoch": 99,
+    "checkpoint_global_step": 32000
+  },
+  "checks": {
+    "vacuum_action": 0.0,
+    "gauge_action_before": 709.8458251953125,
+    "gauge_action_after": 709.8428955078125,
+    "gauge_absolute_error": 0.0029296875,
+    "gauge_relative_error": 4.1272166377732845e-06,
+    "finite_difference_derivative": -0.7741292317708334,
+    "network_force_contraction": -0.7742273211479187,
+    "force_relative_error": 0.00012670930519049096,
+    "flow_initial_action": 1068.8782958984375,
+    "flow_final_action": 115.75220489501953,
+    "flow_action_increase_count": 0,
+    "flow_unitarity_max_error": 7.3909759521484375e-06,
+    "flow_determinant_max_error": 7.39098231861135e-06,
+    "flow_runtime_seconds": 10.539395167026669
+  },
+  "pass": {
+    "vacuum": true,
+    "gauge_invariance": true,
+    "force": true,
+    "gradient_flow": true,
+    "su3_manifold": true
+  }
+}

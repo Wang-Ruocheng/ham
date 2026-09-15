@@ -1,0 +1,11 @@
+{
+  "fixed_point_g": -0.862127081640748,
+  "fixed_point_derivative": 1.1561419044232961,
+  "fixed_point_stability": "unstable",
+  "implied_Jc_from_g0_interpolation": 0.43030825909567905,
+  "exact_Jc": 0.44068679350977147,
+  "absolute_J_error": 0.010378534414092422,
+  "relative_J_error": 0.023550817875512976,
+  "phase_side_accuracy_on_heldout_systems": 1.0,
+  "interpretation": "Fixed majority blocking greatly improves the critical location and phase separation, but the learned local eigenvalue remains much too small."
+}

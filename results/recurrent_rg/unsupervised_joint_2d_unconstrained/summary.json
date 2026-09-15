@@ -1,0 +1,611 @@
+{
+  "config": {
+    "size": 16,
+    "levels": 3,
+    "ensemble_size": 192,
+    "replicas": 1,
+    "epochs": 1000,
+    "system_batch": 8,
+    "sample_batch": 32,
+    "learning_rate": 0.001,
+    "buffer": 1,
+    "seed": 41,
+    "threads": 1,
+    "output_dir": "results/recurrent_rg/unsupervised_joint_2d"
+  },
+  "training_contract": {
+    "configuration_only": true,
+    "couplings_used_in_training_loss": false,
+    "couplings_used_posthoc_for_evaluation": true,
+    "all_modules_updated_by_one_joint_objective": true
+  },
+  "data": {
+    "train_shape": [
+      17,
+      192,
+      16,
+      16,
+      1
+    ],
+    "test_shape": [
+      8,
+      192,
+      16,
+      16,
+      1
+    ],
+    "train_energy_per_site": 1.3424144071691178,
+    "test_energy_per_site": 1.3111368815104167
+  },
+  "initial_kernel_weights_3x3": [
+    [
+      0.6637267261947971,
+      -0.5381336523503836,
+      0.13939689354009452
+    ],
+    [
+      0.13035482324094547,
+      -1.2266019552314427,
+      0.5240278139252019
+    ],
+    [
+      0.4191967533962042,
+      0.06907475845414414,
+      1.1286276554354528
+    ]
+  ],
+  "metrics": {
+    "kernel": {
+      "weights_3x3": [
+        [
+          0.8878114149330225,
+          -0.08758752537915565,
+          0.4962511519561288
+        ],
+        [
+          0.4720014226773808,
+          -0.7003190374792306,
+          0.7349902909448495
+        ],
+        [
+          0.7146225550654047,
+          0.39392216263720026,
+          1.0190933321444695
+        ]
+      ],
+      "learned_rsmi_bits": 0.2928376989797408,
+      "majority_rsmi_bits": 0.301712725987068,
+      "best_decimation_rsmi_bits": 0.23959809467925625,
+      "relative_rsmi_efficiency": 0.8467960574950643
+    },
+    "flow": {
+      "epsilon_flow_at_1": 0.023519838168719005,
+      "epsilon_flow_at_2": 0.0494779107891407
+    },
+    "action": {
+      "learned_pseudolikelihood_by_level": [
+        0.2926107563459794,
+        0.22880268219219477,
+        0.24182239342854697
+      ],
+      "exact_microscopic_pseudolikelihood": 0.28873817113037914,
+      "microscopic_excess_pseudolikelihood": 0.003872585215600244
+    },
+    "posthoc": {
+      "latent_j_pearson": -0.42556177011616264,
+      "latent_j_spearman": -0.07142857142857144
+    }
+  },
+  "history": [
+    {
+      "epoch": 1,
+      "total": 1.2366029435130215,
+      "rsmi_bits": 0.110640204473718,
+      "ensemble_mse": 1.9234631102190996e-06,
+      "gauge_loss": 1.0128864168166118,
+      "rollout_mse": 0.04545437783959189,
+      "commutator_mse": 0.0197350942031943,
+      "action_pseudolikelihood": 0.7117261535591032
+    },
+    {
+      "epoch": 20,
+      "total": 0.44080184783209,
+      "rsmi_bits": 0.16698594112381657,
+      "ensemble_mse": 0.005068761880606867,
+      "gauge_loss": 0.62133480068287,
+      "rollout_mse": 0.0033173357845284425,
+      "commutator_mse": 0.0014254733114181743,
+      "action_pseudolikelihood": 0.6445851817917494
+    },
+    {
+      "epoch": 40,
+      "total": -0.058981333743033826,
+      "rsmi_bits": 0.21563488093242125,
+      "ensemble_mse": 0.04485367499060857,
+      "gauge_loss": 0.3665239883003701,
+      "rollout_mse": 0.0018883450189088723,
+      "commutator_mse": 0.0013871581055281707,
+      "action_pseudolikelihood": 0.6045399045036567
+    },
+    {
+      "epoch": 60,
+      "total": -0.5627009444784976,
+      "rsmi_bits": 0.2693135459245645,
+      "ensemble_mse": 0.21471996535770613,
+      "gauge_loss": 0.021086671687468507,
+      "rollout_mse": 0.005962077056462927,
+      "commutator_mse": 0.005049027023851178,
+      "action_pseudolikelihood": 0.5370490440188362
+    },
+    {
+      "epoch": 80,
+      "total": -0.2318187389859786,
+      "rsmi_bits": 0.18692739930847552,
+      "ensemble_mse": 0.031074474025658227,
+      "gauge_loss": 0.1167552713121951,
+      "rollout_mse": 0.002705550257311191,
+      "commutator_mse": 0.0021094129308270072,
+      "action_pseudolikelihood": 0.5501735490304074
+    },
+    {
+      "epoch": 100,
+      "total": -1.0207535313661087,
+      "rsmi_bits": 0.35245628813614927,
+      "ensemble_mse": 0.09486587340748386,
+      "gauge_loss": 0.16215336290136526,
+      "rollout_mse": 0.00137164598270117,
+      "commutator_mse": 0.0008552391300396347,
+      "action_pseudolikelihood": 0.48228178789304793
+    },
+    {
+      "epoch": 120,
+      "total": -0.6932666629649602,
+      "rsmi_bits": 0.2823593086472925,
+      "ensemble_mse": 0.10832010460256151,
+      "gauge_loss": 0.11993618773932162,
+      "rollout_mse": 0.004270292816765194,
+      "commutator_mse": 0.003621289827687497,
+      "action_pseudolikelihood": 0.4823820052851662
+    },
+    {
+      "epoch": 140,
+      "total": -0.7211738771446257,
+      "rsmi_bits": 0.32524954262565886,
+      "ensemble_mse": 0.17952926530963279,
+      "gauge_loss": 0.25132570023702194,
+      "rollout_mse": 0.0010552204238997941,
+      "commutator_mse": 0.0011298917060543312,
+      "action_pseudolikelihood": 0.47203375830705996
+    },
+    {
+      "epoch": 160,
+      "total": -1.1235770079662866,
+      "rsmi_bits": 0.3877046675992654,
+      "ensemble_mse": 0.30038782352693794,
+      "gauge_loss": 0.13105328153001244,
+      "rollout_mse": 0.001904197718842808,
+      "commutator_mse": 0.0020083385980276857,
+      "action_pseudolikelihood": 0.3795926886562197
+    },
+    {
+      "epoch": 180,
+      "total": -0.6620401378646787,
+      "rsmi_bits": 0.2556473830653833,
+      "ensemble_mse": 0.05315306958983149,
+      "gauge_loss": 0.11521504080192081,
+      "rollout_mse": 0.002009925147843264,
+      "commutator_mse": 0.0022608484111748496,
+      "action_pseudolikelihood": 0.4435578935114675
+    },
+    {
+      "epoch": 200,
+      "total": 0.03185162170639194,
+      "rsmi_bits": 0.20690030864488318,
+      "ensemble_mse": 0.06986637114575771,
+      "gauge_loss": 0.47502567363965775,
+      "rollout_mse": 0.004113793410063536,
+      "commutator_mse": 0.0026670647790107004,
+      "action_pseudolikelihood": 0.5146802619563181
+    },
+    {
+      "epoch": 220,
+      "total": -1.0018921094021986,
+      "rsmi_bits": 0.3731422938976301,
+      "ensemble_mse": 0.43728717914657683,
+      "gauge_loss": 0.15909184198641516,
+      "rollout_mse": 0.0025598563691495648,
+      "commutator_mse": 0.0012637155500680637,
+      "action_pseudolikelihood": 0.26361676703374215
+    },
+    {
+      "epoch": 240,
+      "total": -1.1997711432627995,
+      "rsmi_bits": 0.36244751236332284,
+      "ensemble_mse": 0.12853899651170234,
+      "gauge_loss": 0.2470374176803296,
+      "rollout_mse": 0.0010101022961602662,
+      "commutator_mse": 0.0007961858139340086,
+      "action_pseudolikelihood": 0.23508371625168867
+    },
+    {
+      "epoch": 260,
+      "total": -1.5732964960760254,
+      "rsmi_bits": 0.4120900643258427,
+      "ensemble_mse": 0.15435668933820848,
+      "gauge_loss": 0.11359781880444107,
+      "rollout_mse": 0.0015328254288187039,
+      "commutator_mse": 0.0008400701137554794,
+      "action_pseudolikelihood": 0.21682642186796422
+    },
+    {
+      "epoch": 280,
+      "total": -1.545860358249187,
+      "rsmi_bits": 0.40853998467563984,
+      "ensemble_mse": 0.04234469074429557,
+      "gauge_loss": 0.19177128795438758,
+      "rollout_mse": 0.0016641358588263522,
+      "commutator_mse": 0.0011642465269539421,
+      "action_pseudolikelihood": 0.25989520404454874
+    },
+    {
+      "epoch": 300,
+      "total": -1.207595529391123,
+      "rsmi_bits": 0.3288288320607842,
+      "ensemble_mse": 0.16697355680449913,
+      "gauge_loss": 0.016346449827358195,
+      "rollout_mse": 0.0017860802448169447,
+      "commutator_mse": 0.0013364692766345862,
+      "action_pseudolikelihood": 0.2501060747594892
+    },
+    {
+      "epoch": 320,
+      "total": -0.05841811301447297,
+      "rsmi_bits": 0.20547878738717593,
+      "ensemble_mse": 0.06902409076006695,
+      "gauge_loss": 0.456368263205328,
+      "rollout_mse": 0.0012820926423620575,
+      "commutator_mse": 0.0014303996349081458,
+      "action_pseudolikelihood": 0.44087097767874145
+    },
+    {
+      "epoch": 340,
+      "total": -1.7453779096299893,
+      "rsmi_bits": 0.5128811194379432,
+      "ensemble_mse": 0.18084455517147546,
+      "gauge_loss": 0.3705520837012175,
+      "rollout_mse": 0.0020314957818326554,
+      "commutator_mse": 0.0012538061950954499,
+      "action_pseudolikelihood": 0.26434574671010597
+    },
+    {
+      "epoch": 360,
+      "total": -0.29153681403499804,
+      "rsmi_bits": 0.25091704925437475,
+      "ensemble_mse": 0.10420003781620067,
+      "gauge_loss": 0.4056158077892864,
+      "rollout_mse": 0.0024287206461367644,
+      "commutator_mse": 0.0034013334006509103,
+      "action_pseudolikelihood": 0.4474025325846008
+    },
+    {
+      "epoch": 380,
+      "total": -0.597549029177639,
+      "rsmi_bits": 0.2396692139526031,
+      "ensemble_mse": 0.040108286103401065,
+      "gauge_loss": 0.2182284298995274,
+      "rollout_mse": 0.001910663127751815,
+      "commutator_mse": 0.001783383799644788,
+      "action_pseudolikelihood": 0.3387662776550515
+    },
+    {
+      "epoch": 400,
+      "total": -1.2467495034889085,
+      "rsmi_bits": 0.31705911992872315,
+      "ensemble_mse": 0.13477996613032436,
+      "gauge_loss": 0.005593217596346674,
+      "rollout_mse": 0.0016045677652899337,
+      "commutator_mse": 0.0007030478443929249,
+      "action_pseudolikelihood": 0.1958652968183535
+    },
+    {
+      "epoch": 420,
+      "total": -1.206428960949064,
+      "rsmi_bits": 0.31969269282904555,
+      "ensemble_mse": 0.10871453972334194,
+      "gauge_loss": 0.0226408607350638,
+      "rollout_mse": 0.0009372342602964004,
+      "commutator_mse": 0.000503839858070729,
+      "action_pseudolikelihood": 0.25923802861939077
+    },
+    {
+      "epoch": 440,
+      "total": -1.1993146926575873,
+      "rsmi_bits": 0.33224949348196403,
+      "ensemble_mse": 0.13492253982485733,
+      "gauge_loss": 0.06957398340703339,
+      "rollout_mse": 0.0010456637624554187,
+      "commutator_mse": 0.0009761185056586827,
+      "action_pseudolikelihood": 0.25541446925222805
+    },
+    {
+      "epoch": 460,
+      "total": -1.4776306206976695,
+      "rsmi_bits": 0.41838330049526906,
+      "ensemble_mse": 0.14287203300837195,
+      "gauge_loss": 0.18588932004488537,
+      "rollout_mse": 0.00273084711339152,
+      "commutator_mse": 0.00129160934853088,
+      "action_pseudolikelihood": 0.281502072263496
+    },
+    {
+      "epoch": 480,
+      "total": -0.8893787219980558,
+      "rsmi_bits": 0.3378142257346515,
+      "ensemble_mse": 0.05496823840941312,
+      "gauge_loss": 0.3846471495835186,
+      "rollout_mse": 0.002317797236608381,
+      "commutator_mse": 0.00117564406606578,
+      "action_pseudolikelihood": 0.35658357737959584
+    },
+    {
+      "epoch": 500,
+      "total": -0.6460336178654049,
+      "rsmi_bits": 0.27331794358965067,
+      "ensemble_mse": 0.18176826915368047,
+      "gauge_loss": 0.19320286868695113,
+      "rollout_mse": 0.003620478371862579,
+      "commutator_mse": 0.0023486994796614235,
+      "action_pseudolikelihood": 0.339615784390693
+    },
+    {
+      "epoch": 520,
+      "total": -1.0468175405247377,
+      "rsmi_bits": 0.32749602804514677,
+      "ensemble_mse": 0.10359243164742012,
+      "gauge_loss": 0.1765561216045906,
+      "rollout_mse": 0.0032973900565557834,
+      "commutator_mse": 0.0016133303047245458,
+      "action_pseudolikelihood": 0.305603326087705
+    },
+    {
+      "epoch": 540,
+      "total": -0.2856761395056747,
+      "rsmi_bits": 0.25753587834664354,
+      "ensemble_mse": 0.047549384445654076,
+      "gauge_loss": 0.5054798397766687,
+      "rollout_mse": 0.006518792571329423,
+      "commutator_mse": 0.0039479446270928725,
+      "action_pseudolikelihood": 0.43850729080679796
+    },
+    {
+      "epoch": 560,
+      "total": -0.7023124351582364,
+      "rsmi_bits": 0.24290304179090513,
+      "ensemble_mse": 0.07258996765231734,
+      "gauge_loss": 0.12197820846247275,
+      "rollout_mse": 0.0033925876826423978,
+      "commutator_mse": 0.0018839271737375058,
+      "action_pseudolikelihood": 0.3123580828251193
+    },
+    {
+      "epoch": 580,
+      "total": -1.436054229742946,
+      "rsmi_bits": 0.38255311063530395,
+      "ensemble_mse": 0.033785584890557906,
+      "gauge_loss": 0.16684017733811,
+      "rollout_mse": 0.002959851070768485,
+      "commutator_mse": 0.0018448875307441426,
+      "action_pseudolikelihood": 0.27128082260339315
+    },
+    {
+      "epoch": 600,
+      "total": -2.318084208895072,
+      "rsmi_bits": 0.5354665126634226,
+      "ensemble_mse": 0.12303267165013217,
+      "gauge_loss": 0.12779229592805097,
+      "rollout_mse": 0.00143278253838135,
+      "commutator_mse": 0.000694395925267219,
+      "action_pseudolikelihood": 0.10629620838020865
+    },
+    {
+      "epoch": 620,
+      "total": -0.8976603543502201,
+      "rsmi_bits": 0.25528040637500726,
+      "ensemble_mse": 0.032025273152782245,
+      "gauge_loss": 0.07296681891074369,
+      "rollout_mse": 0.005146080483797406,
+      "commutator_mse": 0.0032949243872597866,
+      "action_pseudolikelihood": 0.2653085805902332
+    },
+    {
+      "epoch": 640,
+      "total": -1.3533531970390562,
+      "rsmi_bits": 0.43272476140713995,
+      "ensemble_mse": 0.03839595041829808,
+      "gauge_loss": 0.48844597153503566,
+      "rollout_mse": 0.0009755165613020526,
+      "commutator_mse": 0.0005272012686647507,
+      "action_pseudolikelihood": 0.2819259702133429
+    },
+    {
+      "epoch": 660,
+      "total": -0.8769990203348095,
+      "rsmi_bits": 0.286414480138113,
+      "ensemble_mse": 0.23245561820641478,
+      "gauge_loss": 0.04751629032212117,
+      "rollout_mse": 0.0018963876251979533,
+      "commutator_mse": 0.001693130654625173,
+      "action_pseudolikelihood": 0.2715119535473965
+    },
+    {
+      "epoch": 680,
+      "total": -0.6697239678399058,
+      "rsmi_bits": 0.19803330954308423,
+      "ensemble_mse": 0.03502331930896858,
+      "gauge_loss": 0.007000269531648884,
+      "rollout_mse": 0.0028862647958766297,
+      "commutator_mse": 0.001969376337200233,
+      "action_pseudolikelihood": 0.2735633499018209
+    },
+    {
+      "epoch": 700,
+      "total": -1.6663402115163812,
+      "rsmi_bits": 0.47440255725970515,
+      "ensemble_mse": 0.2861077054806662,
+      "gauge_loss": 0.21823750345412501,
+      "rollout_mse": 0.0035611581167914385,
+      "commutator_mse": 0.001622388222979036,
+      "action_pseudolikelihood": 0.19614381950758272
+    },
+    {
+      "epoch": 720,
+      "total": -0.2951749113321287,
+      "rsmi_bits": 0.23276680937480912,
+      "ensemble_mse": 0.30578664160954133,
+      "gauge_loss": 0.17039334321751454,
+      "rollout_mse": 0.0044810225593352,
+      "commutator_mse": 0.002808666582460113,
+      "action_pseudolikelihood": 0.38518946157306555
+    },
+    {
+      "epoch": 740,
+      "total": -1.1889276132734239,
+      "rsmi_bits": 0.31246410341088277,
+      "ensemble_mse": 0.0790928412854094,
+      "gauge_loss": 0.014954408713734584,
+      "rollout_mse": 0.002619407897749697,
+      "commutator_mse": 0.0017967374591077007,
+      "action_pseudolikelihood": 0.27492950842498853
+    },
+    {
+      "epoch": 760,
+      "total": -1.4388966988488552,
+      "rsmi_bits": 0.3894458393916846,
+      "ensemble_mse": 0.21776251675971237,
+      "gauge_loss": 0.07052038545089848,
+      "rollout_mse": 0.002347142958057588,
+      "commutator_mse": 0.0011307416171128053,
+      "action_pseudolikelihood": 0.21657171132378653
+    },
+    {
+      "epoch": 780,
+      "total": -0.7219722809018307,
+      "rsmi_bits": 0.26160969148997715,
+      "ensemble_mse": 0.15972396146500809,
+      "gauge_loss": 0.12575664842341583,
+      "rollout_mse": 0.004251083586027642,
+      "commutator_mse": 0.002186517390325364,
+      "action_pseudolikelihood": 0.29415796568327823
+    },
+    {
+      "epoch": 800,
+      "total": -1.9172866263492632,
+      "rsmi_bits": 0.47456916111295794,
+      "ensemble_mse": 0.27108119384990376,
+      "gauge_loss": 0.032929887933953225,
+      "rollout_mse": 0.0017784747602925565,
+      "commutator_mse": 0.0009658137344091925,
+      "action_pseudolikelihood": 0.14880380893696796
+    },
+    {
+      "epoch": 820,
+      "total": -0.39459167991121213,
+      "rsmi_bits": 0.24877505006327832,
+      "ensemble_mse": 0.04044345566315131,
+      "gauge_loss": 0.4950162717127236,
+      "rollout_mse": 0.0037177350776729312,
+      "commutator_mse": 0.0017582209572750604,
+      "action_pseudolikelihood": 0.3083478869943568
+    },
+    {
+      "epoch": 840,
+      "total": -1.2864817623147409,
+      "rsmi_bits": 0.3443257610575293,
+      "ensemble_mse": 0.11965287284385014,
+      "gauge_loss": 0.06633870203071943,
+      "rollout_mse": 0.0013191979894076607,
+      "commutator_mse": 0.0007750668609791273,
+      "action_pseudolikelihood": 0.24706120324794947
+    },
+    {
+      "epoch": 860,
+      "total": -1.7213729647186056,
+      "rsmi_bits": 0.4645482791494157,
+      "ensemble_mse": 0.1187541437159217,
+      "gauge_loss": 0.23832759930827924,
+      "rollout_mse": 0.001215656331159048,
+      "commutator_mse": 0.0011082692750239904,
+      "action_pseudolikelihood": 0.24196276239808887
+    },
+    {
+      "epoch": 880,
+      "total": -1.4053619940766413,
+      "rsmi_bits": 0.3780403368516839,
+      "ensemble_mse": 0.2351984070642583,
+      "gauge_loss": 0.03226640068974326,
+      "rollout_mse": 0.002435607664877046,
+      "commutator_mse": 0.001712744971430271,
+      "action_pseudolikelihood": 0.21322652979146936
+    },
+    {
+      "epoch": 900,
+      "total": -1.867902420517206,
+      "rsmi_bits": 0.46412606175204696,
+      "ensemble_mse": 0.1757825751134313,
+      "gauge_loss": 0.12288626725387555,
+      "rollout_mse": 0.0026644102387082657,
+      "commutator_mse": 0.0012609535447878877,
+      "action_pseudolikelihood": 0.15013368209222566
+    },
+    {
+      "epoch": 920,
+      "total": -1.305651642705146,
+      "rsmi_bits": 0.31940251492282473,
+      "ensemble_mse": 0.05176860247213538,
+      "gauge_loss": 0.015904013098150694,
+      "rollout_mse": 0.002433193218782754,
+      "commutator_mse": 0.001856645145809756,
+      "action_pseudolikelihood": 0.21939847797409917
+    },
+    {
+      "epoch": 940,
+      "total": -1.2996389018523944,
+      "rsmi_bits": 0.3717294914443842,
+      "ensemble_mse": 0.04522968305656511,
+      "gauge_loss": 0.25549248717982403,
+      "rollout_mse": 0.0029263854492975845,
+      "commutator_mse": 0.002044964863925797,
+      "action_pseudolikelihood": 0.2533150348199142
+    },
+    {
+      "epoch": 960,
+      "total": -1.2714350468783777,
+      "rsmi_bits": 0.433518575937909,
+      "ensemble_mse": 0.1292358659962062,
+      "gauge_loss": 0.4672259521485168,
+      "rollout_mse": 0.0035907652570054873,
+      "commutator_mse": 0.002708192883572512,
+      "action_pseudolikelihood": 0.2933970565258662
+    },
+    {
+      "epoch": 980,
+      "total": -0.47374766690821385,
+      "rsmi_bits": 0.3493952352172455,
+      "ensemble_mse": 0.06943545220654077,
+      "gauge_loss": 0.84107571524218,
+      "rollout_mse": 0.004732786703795148,
+      "commutator_mse": 0.002805704355882119,
+      "action_pseudolikelihood": 0.3551788506696157
+    },
+    {
+      "epoch": 1000,
+      "total": -0.9648803252009985,
+      "rsmi_bits": 0.28698662183636997,
+      "ensemble_mse": 0.16929359404364028,
+      "gauge_loss": 0.03664121850278172,
+      "rollout_mse": 0.001851575780344825,
+      "commutator_mse": 0.0015718099469301606,
+      "action_pseudolikelihood": 0.26069458570715426
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+torch==2.5.1
+lightning>=2.4,<2.6
+numpy>=2.0
+scipy>=1.14
+matplotlib>=3.9
+h5py>=3.10
+pandas>=2.2
+numba>=0.61
+

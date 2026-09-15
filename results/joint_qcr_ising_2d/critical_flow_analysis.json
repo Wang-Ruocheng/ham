@@ -1,0 +1,11 @@
+{
+  "fixed_point_g": 2.5568670187476537,
+  "fixed_point_derivative": 1.1841713724420855,
+  "fixed_point_stability": "unstable",
+  "implied_Jc_from_g0_interpolation": 0.4891766379033503,
+  "exact_Jc": 0.44068679350977147,
+  "absolute_J_error": 0.04848984439357884,
+  "relative_J_error": 0.11003244278638376,
+  "phase_side_accuracy_on_heldout_systems": 0.9166666666666666,
+  "interpretation": "The scalar map recovers the qualitative unstable thermal fixed point, but its quantitative critical location and slope are not yet accurate."
+}

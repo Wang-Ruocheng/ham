@@ -3,18 +3,14 @@ __pycache__/
 *.pyc
 *.pyo
 
-# Output images
-*.png
-*.gif
-
-# Results
-results_*/
-
-# Data files
-*.pt
-
-# PDFs
-*.pdf
+# Generated data, outputs, and logs
+data/*
+!data/README.md
+outputs/*
+!outputs/README.md
+logs/*
+!logs/README.md
+.mplconfig/
 
 # IDE
 .vscode/
@@ -34,5 +30,11 @@ dist/
 build/
 *.egg-info/
 
-# Logs
+# Loose logs should still stay out of source folders
 *.log
+
+# Local research assets and generated model weights
+/references/*.pdf
+/results/**/*.pt
+/archive/**/*.pt
+/third_party/lge-cnn/

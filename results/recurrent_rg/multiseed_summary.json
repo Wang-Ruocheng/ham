@@ -1,0 +1,100 @@
+{
+  "action_relative_rmse_definition": "sqrt(sum((A_pred-centered - A_exact-centered)^2) / sum((A_exact-centered)^2)); centering is per physical ensemble",
+  "loss_curve_subset": "8 evenly spaced systems x first 16 samples",
+  "models": {
+    "1D Ising": {
+      "seeds": [
+        {
+          "seed": 31,
+          "initial_train_loss": 1.6117053802340653,
+          "final_train_loss": 1.1109864258003666,
+          "final_test_loss": 0.8323257185166502,
+          "minimum_test_loss": 0.692705331516331,
+          "train_action_relative_rmse": 0.22285803854552455,
+          "test_action_relative_rmse": 0.2135210174058198
+        },
+        {
+          "seed": 32,
+          "initial_train_loss": 2.207447954729129,
+          "final_train_loss": 0.8759203624686487,
+          "final_test_loss": 1.153397685479312,
+          "minimum_test_loss": 1.0111423705676756,
+          "train_action_relative_rmse": 0.49442545827491063,
+          "test_action_relative_rmse": 0.4901762921671952
+        },
+        {
+          "seed": 33,
+          "initial_train_loss": 1.7995520591812708,
+          "final_train_loss": 0.8039076058312702,
+          "final_test_loss": 1.3526243889300404,
+          "minimum_test_loss": 0.6720365100583089,
+          "train_action_relative_rmse": 0.14025346733313535,
+          "test_action_relative_rmse": 0.1309479766214463
+        }
+      ],
+      "final_train_loss": {
+        "mean": 0.9302714647000951,
+        "sample_std": 0.16059228547390758
+      },
+      "final_test_loss": {
+        "mean": 1.112782597642001,
+        "sample_std": 0.26251641020802835
+      },
+      "train_action_relative_rmse": {
+        "mean": 0.28584565471785683,
+        "sample_std": 0.1852971387669546
+      },
+      "test_action_relative_rmse": {
+        "mean": 0.27821509539815376,
+        "sample_std": 0.18814951094254184
+      }
+    },
+    "2D Ising": {
+      "seeds": [
+        {
+          "seed": 41,
+          "initial_train_loss": 1.7040742544291771,
+          "final_train_loss": 0.25376949651040226,
+          "final_test_loss": 0.8556308441584433,
+          "minimum_test_loss": 0.4051536031902174,
+          "train_action_relative_rmse": 0.5125535418359185,
+          "test_action_relative_rmse": 0.4415944332185727
+        },
+        {
+          "seed": 42,
+          "initial_train_loss": 1.7178569711383898,
+          "final_train_loss": -0.04875505460405574,
+          "final_test_loss": 0.4919831257377387,
+          "minimum_test_loss": 0.20932155925991675,
+          "train_action_relative_rmse": 0.8011508633647263,
+          "test_action_relative_rmse": 0.8455411608809015
+        },
+        {
+          "seed": 43,
+          "initial_train_loss": 1.7118647728651857,
+          "final_train_loss": 1.1153629378376704,
+          "final_test_loss": 0.5458409850086154,
+          "minimum_test_loss": 0.529051210356937,
+          "train_action_relative_rmse": 0.3068196521568037,
+          "test_action_relative_rmse": 0.305631811755621
+        }
+      ],
+      "final_train_loss": {
+        "mean": 0.4401257932480056,
+        "sample_std": 0.6040191860213994
+      },
+      "final_test_loss": {
+        "mean": 0.6311516516349325,
+        "sample_std": 0.19626091857095734
+      },
+      "train_action_relative_rmse": {
+        "mean": 0.5401746857858162,
+        "sample_std": 0.24832042261642248
+      },
+      "test_action_relative_rmse": {
+        "mean": 0.530922468618365,
+        "sample_std": 0.2808204938203601
+      }
+    }
+  }
+}

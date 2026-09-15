@@ -1,0 +1,367 @@
+{
+  "config": {
+    "size": 8,
+    "levels": 2,
+    "theory_dim": 2,
+    "replicas": 1,
+    "ensemble_size": 64,
+    "q_epochs": 2,
+    "qcr_epochs": 2,
+    "system_batch": 8,
+    "sample_batch": 4,
+    "eval_samples": 8,
+    "eval_systems": 4,
+    "learning_rate": 0.001,
+    "seed": 42,
+    "threads": 4,
+    "kernel": "learned",
+    "output_dir": "output/test_2d_theory"
+  },
+  "training_contract": {
+    "optimized_modules": [
+      "Q",
+      "C",
+      "R"
+    ],
+    "kernel": "learned",
+    "rsmi_used": false,
+    "action_used": false,
+    "couplings_used_in_loss": false,
+    "couplings_used_for_evaluation_only": true,
+    "critical_coupling_used_for_plot_only": 0.44068679350977147,
+    "Q_anchor": "split consistency + noncollapse + 2x2 distribution geometry",
+    "adaptive_multilevel_separation": true,
+    "exact_global_spin_flip_pairing": true,
+    "coarse_ensemble_field_balance": true
+  },
+  "data": {
+    "train_shape": [
+      25,
+      64,
+      8,
+      8,
+      1
+    ],
+    "test_shape": [
+      12,
+      64,
+      8,
+      8,
+      1
+    ]
+  },
+  "q_final_train": {
+    "total": 0.9926146083484174,
+    "consistency": 2.7212261155580273e-06,
+    "variance": 0.9916158234085144,
+    "covariance": 1.553945189593353e-10,
+    "geometry": 0.0009715725233530037
+  },
+  "q_final_test": {
+    "total": 0.9926838351065952,
+    "consistency": 2.834844332557103e-07,
+    "variance": 0.9904845165886065,
+    "covariance": 2.5843131152274655e-10,
+    "geometry": 0.002196483415224826
+  },
+  "qcr_final_train": {
+    "total": 3.4609672320970852,
+    "anchor": 0.9932228157355467,
+    "coarse_consistency": 7.775956726390203e-06,
+    "separation": 0.0,
+    "commutator": 0.11832794065284695,
+    "field_balance": 0.882843017578125,
+    "snr_level_0": 2.5221296658995245,
+    "pairwise_level_0": 8.35216042217651e-05,
+    "snr_level_1": 2.5042792574573367,
+    "pairwise_level_1": 0.0002600866588674674,
+    "separation_gate_level_1": 0.5221296658995245
+  },
+  "qcr_final_test": {
+    "total": 3.4567420457474065,
+    "anchor": 0.9939643035394481,
+    "coarse_consistency": 3.1653231020489643e-07,
+    "separation": 0.0,
+    "commutator": 0.11853043760764186,
+    "field_balance": 0.87615966796875,
+    "snr_level_0": 9.221559192509407,
+    "pairwise_level_0": 0.00010726173556609359,
+    "snr_level_1": 13.197206309033128,
+    "pairwise_level_1": 0.00029402264988433153,
+    "separation_gate_level_1": 1.0
+  },
+  "train_metrics": {
+    "theory_dim": 2,
+    "frobenius_spread_by_level": [
+      0.005483178030032094,
+      0.009914346155520604
+    ],
+    "frobenius_split_noise_by_level": [
+      0.0019265705850219778,
+      0.005385556330375787
+    ],
+    "frobenius_snr_by_level": [
+      2.8460820863044285,
+      1.8409140202659087
+    ],
+    "frobenius_rollout_direct_rmse_by_level": [
+      0.48708103813775666
+    ],
+    "absolute_spearman_g_j_by_dim_and_level": [
+      [
+        0.9792307692307692,
+        0.8607692307692307
+      ],
+      [
+        0.9792307692307692,
+        0.8569230769230769
+      ]
+    ],
+    "mean_absolute_spearman_g_j_by_level": [
+      0.9792307692307692,
+      0.8588461538461538
+    ]
+  },
+  "test_metrics": {
+    "theory_dim": 2,
+    "frobenius_spread_by_level": [
+      0.005648463436193821,
+      0.009154650598240785
+    ],
+    "frobenius_split_noise_by_level": [
+      0.001262867967013945,
+      0.003612364048593005
+    ],
+    "frobenius_snr_by_level": [
+      4.472726827927728,
+      2.5342547083000864
+    ],
+    "frobenius_rollout_direct_rmse_by_level": [
+      0.4866937747182377
+    ],
+    "absolute_spearman_g_j_by_dim_and_level": [
+      [
+        0.9930069930069931,
+        0.9440559440559443
+      ],
+      [
+        0.9930069930069931,
+        0.9440559440559443
+      ]
+    ],
+    "mean_absolute_spearman_g_j_by_level": [
+      0.9930069930069931,
+      0.9440559440559443
+    ]
+  },
+  "kernel": {
+    "z2_equivariance_fraction": 0.0963134765625,
+    "majority_agreement_up_to_sign": 0.408203125,
+    "center_decimation_agreement_up_to_sign": 0.4515380859375,
+    "positive_output_fraction": 0.076416015625
+  },
+  "learned_R": {
+    "trained_support": [
+      [
+        -0.10540326693706463,
+        -0.012439640679323634
+      ],
+      [
+        -0.04140370997764062,
+        0.11336114607938497
+      ]
+    ],
+    "fixed_points_in_support": [
+      {
+        "g": [
+          1.8619107908758854,
+          -0.7438473775359107
+        ],
+        "max_eigenvalue_magnitude": 0.9518728251280866,
+        "stability": "stable"
+      }
+    ]
+  },
+  "test_physical_observables": {
+    "nearest_neighbor_correlation_by_level": [
+      [
+        0.25390625,
+        0.6953125
+      ],
+      [
+        0.29296875,
+        0.78125
+      ],
+      [
+        0.34375,
+        0.7890625
+      ],
+      [
+        0.390625,
+        0.84375
+      ],
+      [
+        0.58203125,
+        0.7890625
+      ],
+      [
+        0.6640625,
+        0.828125
+      ],
+      [
+        0.79296875,
+        0.96875
+      ],
+      [
+        0.86328125,
+        0.96875
+      ],
+      [
+        0.90625,
+        0.984375
+      ],
+      [
+        0.96484375,
+        0.984375
+      ],
+      [
+        0.95703125,
+        0.984375
+      ],
+      [
+        1.0,
+        1.0
+      ]
+    ],
+    "absolute_magnetization_by_level": [
+      [
+        0.20703125,
+        0.828125
+      ],
+      [
+        0.25,
+        0.875
+      ],
+      [
+        0.2265625,
+        0.875
+      ],
+      [
+        0.35546875,
+        0.921875
+      ],
+      [
+        0.63671875,
+        0.8828125
+      ],
+      [
+        0.65234375,
+        0.90625
+      ],
+      [
+        0.8515625,
+        0.984375
+      ],
+      [
+        0.9140625,
+        0.984375
+      ],
+      [
+        0.9375,
+        0.9921875
+      ],
+      [
+        0.98046875,
+        0.9921875
+      ],
+      [
+        0.9765625,
+        0.9921875
+      ],
+      [
+        1.0,
+        1.0
+      ]
+    ]
+  },
+  "q_history": [
+    {
+      "epoch": 1,
+      "train_total": 0.9944642845122953,
+      "train_consistency": 1.7578320807750447e-06,
+      "train_variance": 0.9932499608173047,
+      "train_covariance": 6.519155112273283e-11,
+      "train_geometry": 0.001196745308991387,
+      "test_total": 0.9950722233538678,
+      "test_consistency": 1.7423811248551556e-07,
+      "test_variance": 0.9923135625671851,
+      "test_covariance": 1.097921220489943e-10,
+      "test_geometry": 0.0027569182957657423
+    },
+    {
+      "epoch": 2,
+      "train_total": 0.9926146083484174,
+      "train_consistency": 2.7212261155580273e-06,
+      "train_variance": 0.9916158234085144,
+      "train_covariance": 1.553945189593353e-10,
+      "train_geometry": 0.0009715725233530037,
+      "test_total": 0.9926838351065952,
+      "test_consistency": 2.834844332557103e-07,
+      "test_variance": 0.9904845165886065,
+      "test_covariance": 2.5843131152274655e-10,
+      "test_geometry": 0.002196483415224826
+    }
+  ],
+  "qcr_history": [
+    {
+      "epoch": 1,
+      "train_total": 3.589150810884308,
+      "train_anchor": 0.9929122267172108,
+      "train_coarse_consistency": 1.7932235905590954e-05,
+      "train_separation": 0.0,
+      "train_commutator": 0.13851232948844674,
+      "train_field_balance": 0.910675048828125,
+      "train_snr_level_0": 2.534374081990425,
+      "train_pairwise_level_0": 8.90317513279251e-05,
+      "train_snr_level_1": 1.4413498245270007,
+      "train_pairwise_level_1": 0.0001986881520947419,
+      "train_separation_gate_level_1": 0.5343740819904248,
+      "test_total": 3.5850506170645327,
+      "test_anchor": 0.9932999170282532,
+      "test_coarse_consistency": 7.163197074426691e-06,
+      "test_separation": 0.0,
+      "test_commutator": 0.13874427270140585,
+      "test_field_balance": 0.904693603515625,
+      "test_snr_level_0": 9.090338398419563,
+      "test_pairwise_level_0": 0.00011451263690766793,
+      "test_snr_level_1": 2.8797403498260565,
+      "test_pairwise_level_1": 0.0003168197820103701,
+      "test_separation_gate_level_1": 1.0
+    },
+    {
+      "epoch": 2,
+      "train_total": 3.4609672320970852,
+      "train_anchor": 0.9932228157355467,
+      "train_coarse_consistency": 7.775956726390203e-06,
+      "train_separation": 0.0,
+      "train_commutator": 0.11832794065284695,
+      "train_field_balance": 0.882843017578125,
+      "train_snr_level_0": 2.5221296658995245,
+      "train_pairwise_level_0": 8.35216042217651e-05,
+      "train_snr_level_1": 2.5042792574573367,
+      "train_pairwise_level_1": 0.0002600866588674674,
+      "train_separation_gate_level_1": 0.5221296658995245,
+      "test_total": 3.4567420457474065,
+      "test_anchor": 0.9939643035394481,
+      "test_coarse_consistency": 3.1653231020489643e-07,
+      "test_separation": 0.0,
+      "test_commutator": 0.11853043760764186,
+      "test_field_balance": 0.87615966796875,
+      "test_snr_level_0": 9.221559192509407,
+      "test_pairwise_level_0": 0.00010726173556609359,
+      "test_snr_level_1": 13.197206309033128,
+      "test_pairwise_level_1": 0.00029402264988433153,
+      "test_separation_gate_level_1": 1.0
+    }
+  ]
+}

@@ -1,0 +1,336 @@
+{
+  "config": {
+    "size": 8,
+    "levels": 2,
+    "theory_dim": 1,
+    "replicas": 1,
+    "ensemble_size": 64,
+    "q_epochs": 2,
+    "qcr_epochs": 2,
+    "system_batch": 8,
+    "sample_batch": 4,
+    "eval_samples": 8,
+    "eval_systems": 4,
+    "learning_rate": 0.001,
+    "seed": 42,
+    "threads": 4,
+    "kernel": "learned",
+    "output_dir": "output/test_1d_theory"
+  },
+  "training_contract": {
+    "optimized_modules": [
+      "Q",
+      "C",
+      "R"
+    ],
+    "kernel": "learned",
+    "rsmi_used": false,
+    "action_used": false,
+    "couplings_used_in_loss": false,
+    "couplings_used_for_evaluation_only": true,
+    "critical_coupling_used_for_plot_only": 0.44068679350977147,
+    "Q_anchor": "split consistency + noncollapse + 2x2 distribution geometry",
+    "adaptive_multilevel_separation": true,
+    "exact_global_spin_flip_pairing": true,
+    "coarse_ensemble_field_balance": true
+  },
+  "data": {
+    "train_shape": [
+      25,
+      64,
+      8,
+      8,
+      1
+    ],
+    "test_shape": [
+      12,
+      64,
+      8,
+      8,
+      1
+    ]
+  },
+  "q_final_train": {
+    "total": 0.9914030568827883,
+    "consistency": 2.9624259887715187e-06,
+    "variance": 0.9912303200262159,
+    "covariance": 0.0,
+    "geometry": 0.00014311259668464693
+  },
+  "q_final_test": {
+    "total": 0.9916514843498467,
+    "consistency": 3.2513400490074984e-07,
+    "variance": 0.9901525348592293,
+    "covariance": 0.0,
+    "geometry": 0.0014956981505684919
+  },
+  "qcr_final_train": {
+    "total": 2.939177743190797,
+    "anchor": 0.9923081058420278,
+    "coarse_consistency": 2.060002454449685e-06,
+    "separation": 0.0,
+    "commutator": 0.014341642783268832,
+    "field_balance": 0.882843017578125,
+    "snr_level_0": 2.5268023147354866,
+    "pairwise_level_0": 4.088613462567897e-05,
+    "snr_level_1": 2.2583744734918927,
+    "pairwise_level_1": 2.801743562429519e-05,
+    "separation_gate_level_1": 0.5268023147354866
+  },
+  "qcr_final_test": {
+    "total": 2.9349372329932355,
+    "anchor": 0.993235913633528,
+    "coarse_consistency": 6.158266835256192e-08,
+    "separation": 0.0,
+    "commutator": 0.014461085968817558,
+    "field_balance": 0.87615966796875,
+    "snr_level_0": 8.87238565344028,
+    "pairwise_level_0": 5.1323509732796184e-05,
+    "snr_level_1": 13.842349061887202,
+    "pairwise_level_1": 3.14663832781532e-05,
+    "separation_gate_level_1": 1.0
+  },
+  "train_metrics": {
+    "theory_dim": 1,
+    "absolute_spearman_g_j_by_level": [
+      0.9792307692307692,
+      0.8546153846153846
+    ],
+    "between_system_std_by_level": [
+      0.0037892791470277042,
+      0.0032875725166074342
+    ],
+    "split_half_rmse_by_level": [
+      0.0013200832703366607,
+      0.00176051706956789
+    ],
+    "separation_snr_by_level": [
+      2.8704849399851304,
+      1.8673903101742446
+    ],
+    "rollout_direct_rmse_by_level": [
+      0.0,
+      0.11988971704264768
+    ],
+    "normalized_rollout_direct_rmse": 36.467550582387226
+  },
+  "test_metrics": {
+    "theory_dim": 1,
+    "absolute_spearman_g_j_by_level": [
+      0.9930069930069931,
+      0.9580419580419581
+    ],
+    "between_system_std_by_level": [
+      0.003932271979787115,
+      0.0030225888397170954
+    ],
+    "split_half_rmse_by_level": [
+      0.0008772427008824179,
+      0.001205196226553271
+    ],
+    "separation_snr_by_level": [
+      4.482535991273162,
+      2.507964075162572
+    ],
+    "rollout_direct_rmse_by_level": [
+      0.0,
+      0.11997311270392062
+    ],
+    "normalized_rollout_direct_rmse": 39.692170872684656
+  },
+  "kernel": {
+    "z2_equivariance_fraction": 0.10791015625,
+    "majority_agreement_up_to_sign": 0.4075927734375,
+    "center_decimation_agreement_up_to_sign": 0.4111328125,
+    "positive_output_fraction": 0.076416015625
+  },
+  "learned_R": {
+    "trained_support": [
+      0.06443267411529863,
+      0.11251089633595693
+    ],
+    "fixed_points_in_support": []
+  },
+  "test_physical_observables": {
+    "nearest_neighbor_correlation_by_level": [
+      [
+        0.25390625,
+        0.6953125
+      ],
+      [
+        0.29296875,
+        0.78125
+      ],
+      [
+        0.34375,
+        0.7890625
+      ],
+      [
+        0.390625,
+        0.84375
+      ],
+      [
+        0.58203125,
+        0.7890625
+      ],
+      [
+        0.6640625,
+        0.828125
+      ],
+      [
+        0.79296875,
+        0.96875
+      ],
+      [
+        0.86328125,
+        0.96875
+      ],
+      [
+        0.90625,
+        0.984375
+      ],
+      [
+        0.96484375,
+        0.984375
+      ],
+      [
+        0.95703125,
+        0.984375
+      ],
+      [
+        1.0,
+        1.0
+      ]
+    ],
+    "absolute_magnetization_by_level": [
+      [
+        0.20703125,
+        0.828125
+      ],
+      [
+        0.25,
+        0.875
+      ],
+      [
+        0.2265625,
+        0.875
+      ],
+      [
+        0.35546875,
+        0.921875
+      ],
+      [
+        0.63671875,
+        0.8828125
+      ],
+      [
+        0.65234375,
+        0.90625
+      ],
+      [
+        0.8515625,
+        0.984375
+      ],
+      [
+        0.9140625,
+        0.984375
+      ],
+      [
+        0.9375,
+        0.9921875
+      ],
+      [
+        0.98046875,
+        0.9921875
+      ],
+      [
+        0.9765625,
+        0.9921875
+      ],
+      [
+        1.0,
+        1.0
+      ]
+    ]
+  },
+  "q_history": [
+    {
+      "epoch": 1,
+      "train_total": 0.9930874777310953,
+      "train_consistency": 1.879480256459133e-06,
+      "train_variance": 0.9930005161850988,
+      "train_covariance": 0.0,
+      "train_geometry": 6.816674343190776e-05,
+      "test_total": 0.9938619389639122,
+      "test_consistency": 2.025495731394626e-07,
+      "test_variance": 0.9921449689827805,
+      "test_covariance": 0.0,
+      "test_geometry": 0.001714944485400327
+    },
+    {
+      "epoch": 2,
+      "train_total": 0.9914030568827883,
+      "train_consistency": 2.9624259887715187e-06,
+      "train_variance": 0.9912303200262159,
+      "train_covariance": 0.0,
+      "train_geometry": 0.00014311259668464693,
+      "test_total": 0.9916514843498467,
+      "test_consistency": 3.2513400490074984e-07,
+      "test_variance": 0.9901525348592293,
+      "test_covariance": 0.0,
+      "test_geometry": 0.0014956981505684919
+    }
+  ],
+  "qcr_history": [
+    {
+      "epoch": 1,
+      "train_total": 3.010101353455568,
+      "train_anchor": 0.9918815259857056,
+      "train_coarse_consistency": 5.628875437083232e-06,
+      "train_separation": 0.0,
+      "train_commutator": 0.023127021655769322,
+      "train_field_balance": 0.910675048828125,
+      "train_snr_level_0": 2.5404719261349373,
+      "train_pairwise_level_0": 4.573933386474343e-05,
+      "train_snr_level_1": 1.4053283551368734,
+      "train_pairwise_level_1": 2.9644626881972577e-05,
+      "train_separation_gate_level_1": 0.5404719261349373,
+      "test_total": 3.0059559942018215,
+      "test_anchor": 0.9924589245686914,
+      "test_coarse_consistency": 2.3187022702807697e-06,
+      "test_separation": 0.0,
+      "test_commutator": 0.023266589607492467,
+      "test_field_balance": 0.904693603515625,
+      "test_snr_level_0": 8.772239451100393,
+      "test_pairwise_level_0": 5.7560909536201527e-05,
+      "test_snr_level_1": 2.7777991764083847,
+      "test_pairwise_level_1": 4.771065832709462e-05,
+      "test_separation_gate_level_1": 1.0
+    },
+    {
+      "epoch": 2,
+      "train_total": 2.939177743190797,
+      "train_anchor": 0.9923081058420278,
+      "train_coarse_consistency": 2.060002454449685e-06,
+      "train_separation": 0.0,
+      "train_commutator": 0.014341642783268832,
+      "train_field_balance": 0.882843017578125,
+      "train_snr_level_0": 2.5268023147354866,
+      "train_pairwise_level_0": 4.088613462567897e-05,
+      "train_snr_level_1": 2.2583744734918927,
+      "train_pairwise_level_1": 2.801743562429519e-05,
+      "train_separation_gate_level_1": 0.5268023147354866,
+      "test_total": 2.9349372329932355,
+      "test_anchor": 0.993235913633528,
+      "test_coarse_consistency": 6.158266835256192e-08,
+      "test_separation": 0.0,
+      "test_commutator": 0.014461085968817558,
+      "test_field_balance": 0.87615966796875,
+      "test_snr_level_0": 8.87238565344028,
+      "test_pairwise_level_0": 5.1323509732796184e-05,
+      "test_snr_level_1": 13.842349061887202,
+      "test_pairwise_level_1": 3.14663832781532e-05,
+      "test_separation_gate_level_1": 1.0
+    }
+  ]
+}

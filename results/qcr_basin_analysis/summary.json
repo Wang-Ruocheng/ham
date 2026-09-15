@@ -1,0 +1,22 @@
+{
+  "checkpoint": "results/joint_qcr_ising_1d_adaptive_sep/qcr_model.pt",
+  "training_supported_R_input_interval": [
+    0.3375306977208111,
+    2.177746449057399
+  ],
+  "displayed_exploration_interval": [
+    -1.0426311157816297,
+    3.5579082625598395
+  ],
+  "fixed_points": [
+    {
+      "g": 0.449278435287806,
+      "derivative": 0.5323948950641817,
+      "stable": true,
+      "inside_training_support": true
+    }
+  ],
+  "supported_grid_convergence_fraction": 1.0,
+  "supported_grid_median_convergence_steps": 11.0,
+  "interpretation_warning": "Only fixed points and trajectories inside the learned R-input interval are data-supported; behavior outside it is neural-network extrapolation."
+}

@@ -1,0 +1,192 @@
+{
+  "setup": {
+    "chain_length": 12,
+    "coupling": 0.8,
+    "buffer_per_side": 1,
+    "visible_block": [
+      0,
+      1
+    ],
+    "hidden_states": 2,
+    "environment_sites": 8,
+    "objective": "exact I(H:E) in bits"
+  },
+  "candidate_mutual_information_bits": {
+    "decimate_left": 0.20450434411269008,
+    "decimate_right": 0.20450434411269008,
+    "majority": 0.19595406259479828,
+    "difference": 0.008550281518486599
+  },
+  "runs": [
+    {
+      "seed": 0,
+      "weights": [
+        4.705584691138907,
+        0.8079733885086983
+      ],
+      "mutual_information_bits": 0.20447621435051047,
+      "selected_visible": 1,
+      "dominance_ratio": 5.823935241015984
+    },
+    {
+      "seed": 1,
+      "weights": [
+        4.721695202087446,
+        0.8099897996058847
+      ],
+      "mutual_information_bits": 0.2044771051450819,
+      "selected_visible": 1,
+      "dominance_ratio": 5.829326745083547
+    },
+    {
+      "seed": 2,
+      "weights": [
+        4.7124376749702295,
+        0.8094445502213379
+      ],
+      "mutual_information_bits": 0.2044765965884324,
+      "selected_visible": 1,
+      "dominance_ratio": 5.821816545286074
+    },
+    {
+      "seed": 3,
+      "weights": [
+        4.718061626463169,
+        0.8093616167905698
+      ],
+      "mutual_information_bits": 0.20447690684296096,
+      "selected_visible": 1,
+      "dominance_ratio": 5.829361719884986
+    },
+    {
+      "seed": 4,
+      "weights": [
+        -4.706991519722022,
+        -0.8079606560660353
+      ],
+      "mutual_information_bits": 0.2044762933557072,
+      "selected_visible": 1,
+      "dominance_ratio": 5.825768228171392
+    },
+    {
+      "seed": 5,
+      "weights": [
+        -0.811462300301679,
+        -4.727641427447984
+      ],
+      "mutual_information_bits": 0.20447742621007545,
+      "selected_visible": 2,
+      "dominance_ratio": 5.826076486474331
+    },
+    {
+      "seed": 6,
+      "weights": [
+        -4.767818515353934,
+        -0.8084499226539887
+      ],
+      "mutual_information_bits": 0.20447950506690815,
+      "selected_visible": 1,
+      "dominance_ratio": 5.897481565341838
+    },
+    {
+      "seed": 7,
+      "weights": [
+        0.8088493460789351,
+        4.71152173818741
+      ],
+      "mutual_information_bits": 0.20447654597056078,
+      "selected_visible": 2,
+      "dominance_ratio": 5.824968223102966
+    },
+    {
+      "seed": 8,
+      "weights": [
+        -0.8081814250311545,
+        -4.706102510129351
+      ],
+      "mutual_information_bits": 0.20447624339644976,
+      "selected_visible": 2,
+      "dominance_ratio": 5.823076804750785
+    },
+    {
+      "seed": 9,
+      "weights": [
+        0.8078655100399158,
+        4.718292618841047
+      ],
+      "mutual_information_bits": 0.2044769200102521,
+      "selected_visible": 2,
+      "dominance_ratio": 5.840443192837779
+    },
+    {
+      "seed": 10,
+      "weights": [
+        -0.8098298559997701,
+        -4.72892655933216
+      ],
+      "mutual_information_bits": 0.20447749616957128,
+      "selected_visible": 2,
+      "dominance_ratio": 5.839407530232501
+    },
+    {
+      "seed": 11,
+      "weights": [
+        0.8081458561211547,
+        4.753279280699028
+      ],
+      "mutual_information_bits": 0.204478772559319,
+      "selected_visible": 2,
+      "dominance_ratio": 5.881709650177839
+    },
+    {
+      "seed": 12,
+      "weights": [
+        -0.8084671210287456,
+        -4.7171644286103325
+      ],
+      "mutual_information_bits": 0.20447685791572354,
+      "selected_visible": 2,
+      "dominance_ratio": 5.8347016296815
+    },
+    {
+      "seed": 13,
+      "weights": [
+        -0.8086631312746835,
+        -4.714266439957878
+      ],
+      "mutual_information_bits": 0.20447669814768218,
+      "selected_visible": 2,
+      "dominance_ratio": 5.829703689503998
+    },
+    {
+      "seed": 14,
+      "weights": [
+        -4.721566356590781,
+        -0.8092831841981005
+      ],
+      "mutual_information_bits": 0.20447709844144152,
+      "selected_visible": 1,
+      "dominance_ratio": 5.834257338819253
+    },
+    {
+      "seed": 15,
+      "weights": [
+        -4.724135452616153,
+        -0.8072686775037425
+      ],
+      "mutual_information_bits": 0.20447723860956907,
+      "selected_visible": 1,
+      "dominance_ratio": 5.851998949376123
+    }
+  ],
+  "representative_aligned_truth_table": {
+    "(-1,-1)": 1.4338659387601011e-05,
+    "(+1,-1)": 0.9996362708209146,
+    "(-1,+1)": 0.00036372917908543997,
+    "(+1,+1)": 0.9999856613406123
+  },
+  "counts": {
+    "selected_v1": 8,
+    "selected_v2": 8
+  }
+}

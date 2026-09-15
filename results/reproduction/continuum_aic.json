@@ -1,0 +1,66 @@
+{
+  "method": "weighted polynomial fits of degree 0-2 with AIC = chi2 + 2k + 2(n_total-n)",
+  "note": "deterministic Gaussian-mixture analogue of the paper's 2000-bootstrap analysis",
+  "observables": {
+    "t03_w03": {
+      "reproduced_median": 0.9558968285777008,
+      "reproduced_minus": 0.004236862489520932,
+      "reproduced_plus": 0.004171930380402755,
+      "paper_table_iv": 0.9553,
+      "absolute_difference": 0.0005968285777007143,
+      "highest_aic_weight": 0.3964255250300554,
+      "highest_weight_degree": 2,
+      "highest_weight_n_points": 14
+    },
+    "t04_w04": {
+      "reproduced_median": 1.0308514449355823,
+      "reproduced_minus": 0.0014352472707115371,
+      "reproduced_plus": 0.0008143366148944953,
+      "paper_table_iv": 1.0305,
+      "absolute_difference": 0.0003514449355823679,
+      "highest_aic_weight": 0.30263505426044784,
+      "highest_weight_degree": 1,
+      "highest_weight_n_points": 14
+    },
+    "t05_w05": {
+      "reproduced_median": 1.0727318868756703,
+      "reproduced_minus": 0.001303936321373822,
+      "reproduced_plus": 0.002198068632664363,
+      "paper_table_iv": 1.0726,
+      "absolute_difference": 0.00013188687567033952,
+      "highest_aic_weight": 0.26585634419298326,
+      "highest_weight_degree": 1,
+      "highest_weight_n_points": 14
+    },
+    "t04_t03": {
+      "reproduced_median": 1.3355782759830361,
+      "reproduced_minus": 0.0011726653303592016,
+      "reproduced_plus": 0.001699387258224716,
+      "paper_table_iv": 1.3356,
+      "absolute_difference": 2.172401696376447e-05,
+      "highest_aic_weight": 0.25144546452569994,
+      "highest_weight_degree": 2,
+      "highest_weight_n_points": 14
+    },
+    "t05_t03": {
+      "reproduced_median": 1.6443149353610633,
+      "reproduced_minus": 0.0004156625907465461,
+      "reproduced_plus": 0.00042395760825653106,
+      "paper_table_iv": 1.6443,
+      "absolute_difference": 1.493536106322857e-05,
+      "highest_aic_weight": 0.35243289662630356,
+      "highest_weight_degree": 0,
+      "highest_weight_n_points": 14
+    },
+    "beta_fn": {
+      "reproduced_median": 14.863192647695483,
+      "reproduced_minus": 0.08663473243203867,
+      "reproduced_plus": 0.12160803744156645,
+      "paper_table_iv": 14.853,
+      "absolute_difference": 0.010192647695483004,
+      "highest_aic_weight": 0.38120565278773283,
+      "highest_weight_degree": 2,
+      "highest_weight_n_points": 14
+    }
+  }
+}
