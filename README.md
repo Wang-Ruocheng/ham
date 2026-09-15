@@ -192,7 +192,7 @@ s_k &= \mathrm{ReLU}\!(\sigma_{\text{pairwise},k}-2\cdot\sigma_{\text{split},k})
 \end{aligned}
 $$
 
-对 $k\ge1$，当前一层 $\mathrm{SNR}_{k-1}>2$ 时才激活惩罚（gate 从 0 线性升到 1，在 $\mathrm{SNR}_{k-1}=3$ 时饱和），并要求当前层保留上一层的至少 5% 可分辨信号：
+对 $k\ge1$，当前一层 \(\mathrm{SNR}_{k-1}>2\) 时才激活惩罚（gate 从 0 线性升到 1，在 \(\mathrm{SNR}_{k-1}=3\) 时饱和），并要求当前层保留上一层的至少 5% 可分辨信号：
 
 $$
 \mathcal L_{\mathrm{separation}}=\sum_{k=1}^{K-1}
