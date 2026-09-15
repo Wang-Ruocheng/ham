@@ -104,10 +104,10 @@ $$
 ## 三层如何闭合
 
 构型空间的 RG 与理论空间的 RG 应给出一致的下一尺度：
-$$
-D:d组系综分布，B系综，N个格点，[d,B,N]\\
-g:m个物理量，[d,m]
-$$
+$$\begin{aligned}
+&D\text{: 系综分布，}B\text{ 系综，}N\text{ 个格点，形状 }[d,B,N]\\
+&\mathbf g\text{: }m\text{ 个物理量，形状 }[d,m]
+\end{aligned}$$
 
 $$
 \begin{array}{ccc}
