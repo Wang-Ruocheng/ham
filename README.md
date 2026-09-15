@@ -105,8 +105,8 @@ $$
 
 构型空间的 RG 与理论空间的 RG 应给出一致的下一尺度：
 $$
-D\text{: 系综分布，}B\text{ 系综，}N\text{ 个格点，形状 }[d,B,N]\\
-\mathbf g\text{: }m\text{ 个物理量，形状 }[d,m]
+D:d组系综分布，B系综，N个格点，[d,B,N]\\
+g:m个物理量，[d,m]
 $$
 
 $$
@@ -192,7 +192,8 @@ $$
   $$
   其中 $\operatorname{spread}(\mathbf g_k)=\sqrt{\operatorname{mean}(\sigma_{\dim}(\mathbf g_k)^2)}$。gate 与 target signal 均 detach，不反向传播梯度。衰减 $0.5^{k-1}$ 反映物理直觉：更深层携带更少可分辨信息，防止 RG 流在中途坍缩为一个点。
 
-- **$\mathcal L_{\mathrm{comm}}$（对易子，$\lambda_c=5$）**：要求交换图 $\mathcal D_k\to\mathbf g_k\to R(\mathbf g_k)$ 与 $\mathcal D_k\to\mathcal D_{k+1}\to\mathbf g_{k+1}$闭合：
+- **$\mathcal L_{\mathrm{comm}}$（对易子，$\lambda_c=5$）**：要求交换图 $\mathcal D_k\to
+  \mathbf g_k\to R(\mathbf g_k)$ 与 $\mathcal D_k\to \mathcal D_{k+1}\to\mathbf g_{k+1}$闭合：
   $$
   \mathcal L_{\mathrm{comm}}=\frac{1}{(K-1)d}\sum_{k=0}^{K-2}
   \bigl\|R(\mathbf g_k)-\mathbf g_{k+1}\bigr\|^2
@@ -209,12 +210,27 @@ $$
 |---|---|---|
 | `LatticeGeometry` | 1D chain、2D square、3D cubic | 局域邻域、周期边界和 blocking |
 | `FieldHead` | binary、categorical、continuous | 定义 coarse variable 的场空间 |
+| `FixedMajorityCoarseGrainer2D` | 无参数 2×2 majority | 校准 Q--R 的已知合理 RG 对照 |
 | `RSMICritic` | InfoNCE | 处理离散、连续或多通道环境 |
 | `LocalConditional` | binary PL、categorical PL、continuous score matching | 无配分函数地训练局域 action |
 
 通用核心位于 `recurrent_rg/model_nd.py`。1D 和 2D Ising 分别通过
 `model1d.py` 与 `model2d.py` 组装相同核心。理论坐标允许为
 $\mathbf g\in\mathbb R^m$，不再写死为标量。
+
+二维模型通过一个参数选择 C：
+
+```python
+RecurrentRGNetwork2D(kernel="learned")   # 联合优化 Q、C、R
+RecurrentRGNetwork2D(kernel="majority")  # 固定 C，只优化 Q、R
+```
+
+固定 majority 将每个 $2\times2$ block 映射到多数自旋；2--2 平票时继承左上角
+自旋。因此它没有可训练参数，并严格满足
+
+$$
+C(-X)=-C(X).
+$$
 
 ### 对称性的当前处理
 
@@ -224,6 +240,9 @@ $\mathbf g\in\mathbb R^m$，不再写死为标量。
 - 不计算 $[f(X)+f(-X)]/2$；
 - Wolff 和随机整体自旋翻转只用于 Ising 数据采样/增强；
 - 换到其他物理系统时可以替换 sampler 和 augmentation，而不修改通用核心。
+
+`kernel="majority"` 是二维 Ising 专用的物理控制组，显式满足 $Z_2$ 等变性；它
+不是通用核心的默认假设，也不是最终必须采用的 kernel。
 
 Binary 与 categorical kernel 使用 straight-through estimator。RSMI critic 的前向输入
 是实际传播的 hard coarse field，而不是 relaxed logit，防止网络把信息藏在 RG 迭代
@@ -310,12 +329,42 @@ python experiments/unsupervised_recurrent_rg_ising_1d.py
 python experiments/unsupervised_recurrent_rg_ising_2d.py
 ```
 
-当前 QCR-only 二维实验：
+当前 QCR-only 二维实验及固定-kernel 对照：
 
 ```bash
+# learned C：联合训练 Q、C、R
 python experiments/joint_qcr_ising_2d.py \
+  --kernel learned \
   --output-dir results/joint_qcr_ising_2d
+
+# fixed 2x2 majority C：只训练 Q、R
+python experiments/joint_qcr_ising_2d.py \
+  --kernel majority \
+  --output-dir results/fixed_majority_qr_ising_2d
 ```
+
+## 当前二维 QCR 对照结果
+
+两组实验使用相同的修复后 ensembles、$32\to16\to8\to4$ 尺度、标量 $g$、
+250 epochs Q 预训练和 500 epochs 联合训练。
+
+| C | test loss | 交换误差 | $J_c$ 事后标定 | $J_c$ 相对误差 | $R'(g^*)$ |
+|---|---:|---:|---:|---:|---:|
+| learned local MLP | 0.1217 | 0.1440 | 0.4892 | 11.0% | 1.184 |
+| fixed 2×2 majority | 0.1445 | 0.1506 | 0.4303 | 2.36% | 1.156 |
+
+精确二维 Ising 值为 $J_c=0.440686\ldots$；对 blocking factor $b=2$，热方向
+普适本征值应为
+
+$$
+\lambda_t=b^{1/\nu}=2.
+$$
+
+固定 majority 显著改善了临界位置和相变两侧分类，但没有改善本征值。这说明
+learned C 会影响物理标定，而当前本征值偏差更可能来自标量理论坐标不闭合、
+$32\to4$ 的有限尺寸效应、临界附近数据密度，以及只使用一步交换约束。另一个
+重要观察是 learned C 的自洽 loss 更低、临界位置却更差：较低的 QCR loss 本身
+不能证明学到了更正确的物理 RG。
 
 当前三 seed 实验使用 64-pair InfoNCE。并行运行时建议限制 BLAS 线程，避免多个
 PyTorch 进程过度订阅 CPU：
