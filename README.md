@@ -192,8 +192,7 @@ $$
   $$
   其中 $\mathrm{spread}(\mathbf g_k)=\sqrt{\mathrm{mean}(\sigma_{\dim}(\mathbf g_k)^2)}$。gate 与 target signal 均 detach，不反向传播梯度。衰减 $0.5^{k-1}$ 反映物理直觉：更深层携带更少可分辨信息，防止 RG 流在中途坍缩为一个点。
 
-- **$\mathcal L_{\mathrm{comm}}$（对易子，$\lambda_c=5$）**：要求交换图 $\mathcal D_k\to
-  \mathbf g_k\to R(\mathbf g_k)$ 与 $\mathcal D_k\to \mathcal D_{k+1}\to\mathbf g_{k+1}$闭合：
+- **$\mathcal L_{\mathrm{comm}}$（对易子，$\lambda_c=5$）**：要求交换图 $\mathcal D_k\to\mathbf g_k\to R(\mathbf g_k)$ 与 $\mathcal D_k\to\mathcal D_{k+1}\to\mathbf g_{k+1}$闭合：
   $$
   \mathcal L_{\mathrm{comm}}=\frac{1}{(K-1)d}\sum_{k=0}^{K-2}
   \bigl\|R(\mathbf g_k)-\mathbf g_{k+1}\bigr\|^2
