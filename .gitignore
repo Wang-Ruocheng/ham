@@ -36,5 +36,6 @@ build/
 # Local research assets and generated model weights
 /references/*.pdf
 /results/**/*.pt
+/data_cache/
 /archive/**/*.pt
 /third_party/lge-cnn/

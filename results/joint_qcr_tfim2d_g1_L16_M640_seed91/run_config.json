@@ -1,0 +1,52 @@
+{
+  "config": {
+    "dimension": 2,
+    "sites": 16,
+    "levels": 3,
+    "theory_dim": 1,
+    "hidden": 60,
+    "replicas": 3,
+    "ensemble_size": 128,
+    "time_slices": 640,
+    "beta_over_slices": 0.025,
+    "equilibration_sweeps": 256,
+    "decorrelation_sweeps": 8,
+    "epochs": 2000,
+    "system_batch": 32,
+    "sample_batch": 128,
+    "eval_samples": 48,
+    "eval_systems": 24,
+    "learning_rate": 0.001,
+    "seed": 91,
+    "threads": 2,
+    "objective_mode": "data_geometry",
+    "geometry_scale": 4.0,
+    "noise_multiplier": 2.0,
+    "rollout_weight": 5.0,
+    "kernel_layout": "nonoverlapping",
+    "reference_critical_coupling": 3.04438,
+    "physical_model": "2D TFIM",
+    "output_dir": "results/joint_qcr_tfim2d_g1_L16_M640_seed91",
+    "fixed_kernel": false
+  },
+  "training_contract": {
+    "optimized_modules": [
+      "Q",
+      "C",
+      "R"
+    ],
+    "couplings_used_in_loss": false,
+    "action_used": false,
+    "rsmi_used": false,
+    "inverse_temperature": 16.0,
+    "sampler": "2+1D anisotropic Swendsen-Wang Trotter Ising",
+    "snapshot": "one random equal-time slice per saved sweep interval",
+    "ground_state_convergence_claimed": false,
+    "continuum_convergence_claimed": false,
+    "spin_flip_augmentation": true,
+    "rollout_horizons": [
+      1,
+      2
+    ]
+  }
+}

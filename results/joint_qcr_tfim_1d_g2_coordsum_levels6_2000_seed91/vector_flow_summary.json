@@ -1,0 +1,273 @@
+{
+  "config": {
+    "sites": 128,
+    "levels": 6,
+    "theory_dim": 2,
+    "fixed_kernel": false,
+    "replicas": 3,
+    "ensemble_size": 128,
+    "epochs": 2000,
+    "system_batch": 32,
+    "sample_batch": 128,
+    "eval_samples": 48,
+    "eval_systems": 24,
+    "learning_rate": 0.001,
+    "seed": 91,
+    "threads": 4,
+    "objective_mode": "data_geometry",
+    "geometry_scale": 4.0,
+    "coordinate_reduction": "sum",
+    "noise_multiplier": 2.0,
+    "rollout_weight": 5.0,
+    "binary_lookup": true,
+    "hidden": 60,
+    "time_slices": 32,
+    "beta_over_slices": 0.5,
+    "equilibration_sweeps": 2048,
+    "decorrelation_sweeps": 16,
+    "output_dir": "results/joint_qcr_tfim_1d_g2_coordsum_levels6_2000_seed91",
+    "kernel_layout": "nonoverlapping"
+  },
+  "parameter_count": 10314,
+  "optimized_parameter_count": 9893,
+  "evaluation": "All 128 saved samples plus global flips per replica, Q once per entire ensemble; all train/test systems",
+  "metrics": {
+    "train": {
+      "rollout_rmse_per_coordinate": [
+        0.0,
+        0.034189973562178566,
+        0.03147208355924109,
+        0.032824383321353866,
+        0.045279822049356364,
+        0.07248189290639488
+      ],
+      "rollout_normalized_rmse": [
+        0.0,
+        0.07741157492649654,
+        0.05865645783434263,
+        0.05632089570567637,
+        0.07577218802542503,
+        0.12022217501579646
+      ],
+      "one_step_rmse_per_coordinate": [
+        0.034189973562178566,
+        0.027091077594676796,
+        0.041125616194049426,
+        0.04201455536098164,
+        0.0518335511522667
+      ],
+      "coordinate_covariance_eigenvalues": [
+        [
+          3.104575858245823e-07,
+          0.19565240504223744
+        ],
+        [
+          5.977877671888341e-07,
+          0.3901351258004231
+        ],
+        [
+          1.1640098784080268e-06,
+          0.5757692179673213
+        ],
+        [
+          1.5069904819972265e-06,
+          0.6793335719312885
+        ],
+        [
+          3.301196995802184e-06,
+          0.7141965607432985
+        ],
+        [
+          6.43884757182109e-06,
+          0.7269692495823203
+        ]
+      ]
+    },
+    "test": {
+      "rollout_rmse_per_coordinate": [
+        0.0,
+        0.03428822943620194,
+        0.028882618074236626,
+        0.0345658876515036,
+        0.05050151512085193,
+        0.08506293346467998
+      ],
+      "rollout_normalized_rmse": [
+        0.0,
+        0.0779223880132874,
+        0.05398784022156484,
+        0.0592806873769222,
+        0.08453415257362329,
+        0.14090412387325477
+      ],
+      "one_step_rmse_per_coordinate": [
+        0.03428822943620194,
+        0.029557000694492755,
+        0.04005152761014892,
+        0.04549333774283842,
+        0.06277890496743255
+      ],
+      "coordinate_covariance_eigenvalues": [
+        [
+          3.068175617116581e-07,
+          0.19319103990351205
+        ],
+        [
+          5.428837779677876e-07,
+          0.38725318590406554
+        ],
+        [
+          9.055137813674903e-07,
+          0.5724143540272759
+        ],
+        [
+          1.7136026816525731e-06,
+          0.6799827064850923
+        ],
+        [
+          2.2904835886735992e-06,
+          0.7137941937617273
+        ],
+        [
+          3.895884831817586e-06,
+          0.7288882980043156
+        ]
+      ]
+    }
+  },
+  "fixed_points_in_plot_box": [
+    {
+      "g": [
+        0.3480786885667183,
+        -0.1347233979081199
+      ],
+      "R_jacobian_eigenvalues": [
+        {
+          "real": 0.7112052972228448,
+          "imag": 0.0
+        },
+        {
+          "real": 0.5095971086471666,
+          "imag": 0.0
+        }
+      ],
+      "stability": "stable",
+      "residual_norm": 2.5560107031983513e-16,
+      "distance_to_sampled_R_input": 0.02576121690564942,
+      "near_sampled_input": true
+    }
+  ],
+  "pooled_coordinate_diagnostic": {
+    "covariance_eigenvalues": [
+      6.7525725600948956e-06,
+      0.5758082614449126
+    ],
+    "g2_vs_g1_slope": -1.1512522594794077,
+    "g2_vs_g1_intercept": 0.21304116778327858,
+    "line_residual_rmse": 0.003962644718840691,
+    "caution": "Nearly collinear samples do not constrain transverse derivatives, even at roots close to sampled states"
+  },
+  "fixed_point_search": "81 initial guesses, residual tolerance 1e-8; not exhaustive; discrete R Jacobian used",
+  "plot_box": [
+    [
+      -1.1629726604434625,
+      -0.5748073571122063
+    ],
+    [
+      0.6914414993555533,
+      1.5509636039507144
+    ]
+  ],
+  "near_sample_radius": 0.08817279681963112,
+  "near_sample_definition": "Euclidean distance to observed k=0,...,4 inputs; heuristic, not a confidence region",
+  "kernel_truth_table": [
+    {
+      "input": [
+        -1.0,
+        -1.0
+      ],
+      "output": 1.0
+    },
+    {
+      "input": [
+        -1.0,
+        1.0
+      ],
+      "output": -1.0
+    },
+    {
+      "input": [
+        1.0,
+        -1.0
+      ],
+      "output": 1.0
+    },
+    {
+      "input": [
+        1.0,
+        1.0
+      ],
+      "output": -1.0
+    }
+  ],
+  "trajectory_fields": [
+    0.5153968253968254,
+    0.7996825396825397,
+    0.9892063492063492,
+    1.2103174603174602,
+    1.7157142857142857
+  ],
+  "critical_coupling": 1.0,
+  "g_at_critical_coupling_by_level": [
+    [
+      -0.5432107211267317,
+      0.8356065876173028
+    ],
+    [
+      -0.4109228440000039,
+      0.6849103574000522
+    ],
+    [
+      -0.29997226447666353,
+      0.5581670348964693
+    ],
+    [
+      -0.19637326168183333,
+      0.4390290744960263
+    ],
+    [
+      -0.09249193667062294,
+      0.3193043381377732
+    ],
+    [
+      -0.009678520560131729,
+      0.22565974776529055
+    ]
+  ],
+  "g_at_h_over_J_1_interpolated_by_level": [
+    [
+      -0.5432107211267317,
+      0.8356065876173028
+    ],
+    [
+      -0.4109228440000039,
+      0.6849103574000522
+    ],
+    [
+      -0.29997226447666353,
+      0.5581670348964693
+    ],
+    [
+      -0.19637326168183333,
+      0.4390290744960263
+    ],
+    [
+      -0.09249193667062294,
+      0.3193043381377732
+    ],
+    [
+      -0.009678520560131729,
+      0.22565974776529055
+    ]
+  ]
+}

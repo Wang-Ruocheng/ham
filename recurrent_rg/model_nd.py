@@ -25,6 +25,7 @@ class LocalCoarseGrainer(nn.Module):
         input_channels: int,
         hidden: int,
         field_head: FieldHead,
+        kernel_layout: str = "nonoverlapping",
     ) -> None:
         super().__init__()
         if field_head.output_channels != input_channels:
@@ -33,8 +34,12 @@ class LocalCoarseGrainer(nn.Module):
             )
         self.geometry = geometry
         self.input_channels = input_channels
+        if kernel_layout not in ("nonoverlapping", "overlapping"):
+            raise ValueError("kernel_layout must be nonoverlapping or overlapping")
+        self.kernel_layout = kernel_layout
+        volume = geometry.block_volume if kernel_layout == "nonoverlapping" else geometry.patch_volume
         self.local_encoder = nn.Sequential(
-            nn.Linear(geometry.patch_volume * input_channels, hidden),
+            nn.Linear(volume * input_channels, hidden),
             nn.Tanh(),
             nn.Linear(hidden, hidden),
             nn.Tanh(),
@@ -42,17 +47,46 @@ class LocalCoarseGrainer(nn.Module):
         self.field_head = field_head
 
     def local_features(self, configurations: torch.Tensor) -> torch.Tensor:
-        return self.local_encoder(self.geometry.extract_patches(configurations))
+        extract = (self.geometry.extract_blocks if self.kernel_layout == "nonoverlapping"
+                   else self.geometry.extract_patches)
+        return self.local_encoder(extract(configurations))
 
     def information_field(self, configurations: torch.Tensor) -> torch.Tensor:
-        # The relaxed (continuous) field representation that is propagated by the RG.
-        # Straight-through heads stay discrete in the forward pass while keeping
-        # the relaxed derivative for kernel learning.
+        # One hard field per block by default; the legacy layout produces one
+        # field per microscopic site before downsampling. Both retain STE gradients.
+        if getattr(self, "binary_lookup", False):
+            from .binary_pooling import BinaryLocal
+            extract = (self.geometry.extract_blocks if self.kernel_layout == "nonoverlapping"
+                       else self.geometry.extract_patches)
+            return BinaryLocal.apply(extract(configurations),
+                                     lambda p: self.field_head(self.local_encoder(p)),
+                                     *self.parameters())
         return self.field_head(self.local_features(configurations))
 
     def forward(self, configurations: torch.Tensor) -> torch.Tensor:
-        coarse_at_each_site = self.field_head(self.local_features(configurations))
-        return self.geometry.downsample(coarse_at_each_site)
+        fields = self.information_field(configurations)
+        if self.kernel_layout == "nonoverlapping":
+            return fields
+        return self.geometry.downsample(fields)
+
+
+class FixedDecimationCoarseGrainer(nn.Module):
+    """Non-learned coarse grainer: plain decimation (take every block_factor-th site).
+
+    This is the standard Migdal-Kadanoff-style decimation for 1D spin chains.
+    It has no trainable parameters and is fully differentiable (identity on the
+    kept sites).
+    """
+
+    def __init__(self, geometry: LatticeGeometry) -> None:
+        super().__init__()
+        self.geometry = geometry
+
+    def information_field(self, configurations: torch.Tensor) -> torch.Tensor:
+        return configurations
+
+    def forward(self, configurations: torch.Tensor) -> torch.Tensor:
+        return self.geometry.downsample(configurations)
 
 
 class EnsembleTheoryEncoder(nn.Module):
@@ -71,6 +105,8 @@ class EnsembleTheoryEncoder(nn.Module):
             nn.Tanh(),
             nn.Linear(hidden, features),
             nn.Tanh(),
+            nn.Linear(features, features),
+            nn.Tanh(),
         )
         self.head = nn.Sequential(
             nn.Linear(features, hidden), nn.Tanh(), nn.Linear(hidden, theory_dim)
@@ -80,6 +116,18 @@ class EnsembleTheoryEncoder(nn.Module):
         patches = self.geometry.extract_patches(configurations)
         spatial_dims = tuple(range(1, patches.ndim - 1))
         # Keep the system axis and average over samples and lattice translations.
+        if getattr(self, "binary_lookup", False):
+            from .binary_pooling import binary_mean
+            return self.head(binary_mean(patches, self.local_mlp))
+        if getattr(self, "checkpoint_chunks", 0) and torch.is_grad_enabled():
+            from torch.utils.checkpoint import checkpoint
+            def pooled(chunk):
+                return self.local_mlp(chunk).mean(dim=spatial_dims)
+            features = torch.cat([
+                checkpoint(pooled, chunk, use_reentrant=False)
+                for chunk in patches.split(self.checkpoint_chunks)
+            ])
+            return self.head(features)
         return self.head(self.local_mlp(patches).mean(dim=spatial_dims))
 
 
@@ -122,6 +170,8 @@ class RecurrentRGNetwork(nn.Module):
         theory_dim: int = 1,
         hidden: int = 24,
         local_features: int = 12,
+        learnable_kernel: bool = True,
+        kernel_layout: str = "nonoverlapping",
     ) -> None:
         super().__init__()
         if levels < 2 or theory_dim < 1:
@@ -129,14 +179,21 @@ class RecurrentRGNetwork(nn.Module):
         self.geometry = geometry
         self.levels = levels
         self.theory_dim = theory_dim
-        self.rg_kernel = LocalCoarseGrainer(
-            geometry, input_channels, hidden, field_head
-        )
+        if learnable_kernel:
+            self.rg_kernel = LocalCoarseGrainer(
+                geometry, input_channels, hidden, field_head, kernel_layout
+            )
+        else:
+            self.rg_kernel = FixedDecimationCoarseGrainer(geometry)
         self.theory_encoder = EnsembleTheoryEncoder(
             geometry, input_channels, theory_dim, hidden, local_features
         )
         self.theory_rg = nn.Sequential(
-            nn.Linear(theory_dim, hidden), nn.Tanh(), nn.Linear(hidden, theory_dim)
+            nn.Linear(theory_dim, hidden),
+            nn.Tanh(),
+            nn.Linear(hidden, hidden),
+            nn.Tanh(),
+            nn.Linear(hidden, theory_dim),
         )
         self.action_network = LocalNeuralAction(
             geometry, input_channels, theory_dim, hidden
@@ -176,9 +233,11 @@ class RecurrentRGNetwork1D(RecurrentRGNetwork):
         self,
         levels: int = 3,
         width: int = 3,
-        hidden: int = 24,
+        hidden: int = 48,
         theory_dim: int = 1,
         block_factor: int = 2,
+        learnable_kernel: bool = True,
+        kernel_layout: str = "nonoverlapping",
     ) -> None:
         geometry = chain_geometry(width, block_factor)
         super().__init__(
@@ -188,6 +247,8 @@ class RecurrentRGNetwork1D(RecurrentRGNetwork):
             levels=levels,
             theory_dim=theory_dim,
             hidden=hidden,
+            learnable_kernel=learnable_kernel,
+            kernel_layout=kernel_layout,
         )
 
 
@@ -201,6 +262,8 @@ class RecurrentRGNetwork2D(RecurrentRGNetwork):
         hidden: int = 24,
         theory_dim: int = 1,
         block_factor: int = 2,
+        kernel_layout: str = "nonoverlapping",
+        learnable_kernel: bool = True,
     ) -> None:
         geometry = square_geometry(width, block_factor)
         super().__init__(
@@ -210,4 +273,6 @@ class RecurrentRGNetwork2D(RecurrentRGNetwork):
             levels=levels,
             theory_dim=theory_dim,
             hidden=hidden,
+            kernel_layout=kernel_layout,
+            learnable_kernel=learnable_kernel,
         )

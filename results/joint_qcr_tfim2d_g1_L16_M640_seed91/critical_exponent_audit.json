@@ -1,0 +1,72 @@
+{
+  "length_scale_factor": 2,
+  "interpretation": "nu_eff assumes a regular thermal coordinate and physically faithful RG; not validated by closure alone.",
+  "checkpoints": {
+    "1000": {
+      "roots": [
+        {
+          "g": -1.9464136261863023,
+          "derivative": 1.446488701651612,
+          "stability": "unstable",
+          "inside_observed_support": true,
+          "fixed_point_residual": 6.8833827526759706e-15,
+          "finite_difference_slope": 1.4464887016664143,
+          "y": 0.5325550545949591,
+          "nu_eff_if_thermal": 1.8777401347933154,
+          "microscopic_coupling_intersections_not_physical_fixed_points": [
+            3.1912475868185286
+          ]
+        },
+        {
+          "g": 0.3178413717937374,
+          "derivative": 0.30988873874037615,
+          "stability": "stable",
+          "inside_observed_support": false,
+          "fixed_point_residual": 3.1069591344135006e-13,
+          "finite_difference_slope": 0.30988873876602796,
+          "y": -1.690177766096204,
+          "nu_eff_if_thermal": null,
+          "microscopic_coupling_intersections_not_physical_fixed_points": []
+        }
+      ],
+      "g_at_Kc": [
+        -1.8295002935553717,
+        -1.8235835745662985,
+        -1.7234057880771894
+      ]
+    },
+    "2000": {
+      "roots": [
+        {
+          "g": -1.8864251946196668,
+          "derivative": 1.4333079857242397,
+          "stability": "unstable",
+          "inside_observed_support": true,
+          "fixed_point_residual": 0.0,
+          "finite_difference_slope": 1.4333079857476996,
+          "y": 0.5193486457029116,
+          "nu_eff_if_thermal": 1.925488798852169,
+          "microscopic_coupling_intersections_not_physical_fixed_points": [
+            3.128862004669406
+          ]
+        },
+        {
+          "g": 0.3589322095179386,
+          "derivative": 0.25353961019309157,
+          "stability": "stable",
+          "inside_observed_support": false,
+          "fixed_point_residual": 1.8091084186266926e-13,
+          "finite_difference_slope": 0.2535396102194546,
+          "y": -1.9797169395126795,
+          "nu_eff_if_thermal": null,
+          "microscopic_coupling_intersections_not_physical_fixed_points": []
+        }
+      ],
+      "g_at_Kc": [
+        -1.8003129465338057,
+        -1.793616994321797,
+        -1.6939364173803604
+      ]
+    }
+  }
+}

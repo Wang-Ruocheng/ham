@@ -1,0 +1,41 @@
+{
+  "definition": "Q(C^k D); spin flips added only at microscopic level; no R rollout",
+  "run": "results/joint_qcr_tfim_1d_g1_levels6_rollout5_2000_seed91/step1000",
+  "cache": "data_cache/tfim1d_wolff_v2_sites128_M32_dtau0p5_eq2048_skip16_replicas3_ensemble128_seed91_nJ64.pt",
+  "checkpoint": "results/joint_qcr_tfim_1d_g1_levels6_rollout5_2000_seed91/training_step_1000.pt",
+  "training_step": 1000,
+  "g_at_h_over_J_1_linear_interpolation": [
+    -0.22649802794599141,
+    -0.032902756585538026,
+    -0.0212100612153472,
+    0.12642678524365714,
+    0.12042764667302902,
+    0.22513729747155464
+  ],
+  "g_at_smallest_h_over_J": [
+    -0.8349307950823187,
+    -0.8349307950823186,
+    -0.8349307950823187,
+    -0.8349307950823187,
+    -0.8349307950823187,
+    -0.8349307950823187
+  ],
+  "g_at_largest_h_over_J": [
+    0.342201903918356,
+    0.6722678256509819,
+    0.9573351514158347,
+    0.963343128461319,
+    1.1051467636252434,
+    0.863013326870008
+  ],
+  "R_roots_search_interval": [
+    -1.2,
+    5.0
+  ],
+  "R_roots": [
+    -0.8769914254692277,
+    -0.28897594236035773,
+    1.0102840884265982
+  ],
+  "figure": "/Users/ruochengwang/ham/results/joint_qcr_tfim_1d_g1_levels6_rollout5_2000_seed91/step1000/g_by_scale_vs_h_over_J.png"
+}

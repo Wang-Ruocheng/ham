@@ -95,6 +95,29 @@ class LatticeGeometry:
         ) + (slice(None),)
         return fields[selection]
 
+    @property
+    def block_volume(self) -> int:
+        return prod(self.factors)
+
+    def extract_blocks(self, configurations: torch.Tensor) -> torch.Tensor:
+        """Tile the lattice from index zero, with no overlap or dropped sites.
+
+        Returns [systems, samples, *coarse_shape, block_volume * channels].
+        Sites within a block are ordered lexicographically, channels last.
+        This is independent of the centered patch width used by Q and A.
+        """
+        self.validate(configurations)
+        spatial_shape = configurations.shape[2 : 2 + self.dimensions]
+        if any(length % factor for length, factor in zip(spatial_shape, self.factors)):
+            raise ValueError("every spatial size must be divisible by its block factor")
+        blocks = []
+        for offsets in product(*(range(factor) for factor in self.factors)):
+            selection = (slice(None), slice(None)) + tuple(
+                slice(offset, None, factor) for offset, factor in zip(offsets, self.factors)
+            ) + (slice(None),)
+            blocks.append(configurations[selection])
+        return torch.stack(blocks, dim=-2).flatten(start_dim=-2)
+
     def environment_offsets(self, buffer: int = 1) -> tuple[tuple[int, ...], ...]:
         """Probe the corners/faces of a shell outside the visible patch."""
         if buffer < 0:

@@ -1,0 +1,1077 @@
+{
+  "mean": {
+    "train": {
+      "mean": {
+        "total": 0.09086112283837752,
+        "anchor": 0.0038865488697751465,
+        "coarse_consistency": 0.010018323538215796,
+        "kernel_noncollapse": 0.0,
+        "separation": 0.00038384569813268405,
+        "commutator": 0.002761480204539217,
+        "data_geometry_level_0": 0.0006048048871221688,
+        "resolved_fraction_level_0": 0.9384057971014492,
+        "target_distance_level_0": 0.48604034571256044,
+        "noise_allowance_level_0": 0.034680431888738955,
+        "latent_distance_level_0": 0.5201411881642493,
+        "pairwise_level_0": 0.41708881577294415,
+        "data_geometry_level_1": 3.3506518299550184e-05,
+        "resolved_fraction_level_1": 0.9239130434782609,
+        "target_distance_level_1": 0.7291100543478262,
+        "noise_allowance_level_1": 0.05549065841157645,
+        "latent_distance_level_1": 0.735326937440121,
+        "pairwise_level_1": 0.849588446623605,
+        "data_geometry_level_2": 1.695803925158244e-05,
+        "resolved_fraction_level_2": 0.8695652173913043,
+        "target_distance_level_2": 0.895871074879227,
+        "noise_allowance_level_2": 0.0852441451291642,
+        "latent_distance_level_2": 0.8744437031503812,
+        "pairwise_level_2": 1.2396766965752133,
+        "data_geometry_level_3": 8.354876863492801e-05,
+        "resolved_fraction_level_3": 0.7391304347826086,
+        "target_distance_level_3": 0.9769021739130435,
+        "noise_allowance_level_3": 0.1739629535438878,
+        "latent_distance_level_3": 0.9384394031484498,
+        "pairwise_level_3": 1.4725398058733097,
+        "data_geometry_level_4": 0.0007972618290703319,
+        "resolved_fraction_level_4": 0.7246376811594203,
+        "target_distance_level_4": 1.0409873188405796,
+        "noise_allowance_level_4": 0.25925079129565065,
+        "latent_distance_level_4": 0.9837028143515545,
+        "pairwise_level_4": 1.599707466418211,
+        "data_geometry_level_5": 0.0007669941464175425,
+        "resolved_fraction_level_5": 0.6739130434782609,
+        "target_distance_level_5": 1.048762077294686,
+        "noise_allowance_level_5": 0.2852209250798673,
+        "latent_distance_level_5": 0.9997508309061335,
+        "pairwise_level_5": 1.6401052162271952,
+        "rollout": 0.003070109880745066,
+        "rollout_level_1": 0.0015924302296251643,
+        "rollout_level_2": 0.0012720284033125577,
+        "rollout_level_3": 0.0014451702539428918,
+        "rollout_level_4": 0.0038768948246872942,
+        "rollout_level_5": 0.007164025692157419
+      },
+      "sum": {
+        "total": 0.1778837886954282,
+        "anchor": 0.007773097739550293,
+        "coarse_consistency": 0.02003664707643159,
+        "kernel_noncollapse": 0.0,
+        "separation": 0.00038384569813268405,
+        "commutator": 0.005522960409078433,
+        "data_geometry_level_0": 0.0006048048871221688,
+        "resolved_fraction_level_0": 0.9384057971014492,
+        "target_distance_level_0": 0.48604034571256044,
+        "noise_allowance_level_0": 0.034680431888738955,
+        "latent_distance_level_0": 0.5201411881642493,
+        "pairwise_level_0": 0.41708881577294415,
+        "data_geometry_level_1": 3.3506518299550184e-05,
+        "resolved_fraction_level_1": 0.9239130434782609,
+        "target_distance_level_1": 0.7291100543478262,
+        "noise_allowance_level_1": 0.05549065841157645,
+        "latent_distance_level_1": 0.735326937440121,
+        "pairwise_level_1": 0.849588446623605,
+        "data_geometry_level_2": 1.695803925158244e-05,
+        "resolved_fraction_level_2": 0.8695652173913043,
+        "target_distance_level_2": 0.895871074879227,
+        "noise_allowance_level_2": 0.0852441451291642,
+        "latent_distance_level_2": 0.8744437031503812,
+        "pairwise_level_2": 1.2396766965752133,
+        "data_geometry_level_3": 8.354876863492801e-05,
+        "resolved_fraction_level_3": 0.7391304347826086,
+        "target_distance_level_3": 0.9769021739130435,
+        "noise_allowance_level_3": 0.1739629535438878,
+        "latent_distance_level_3": 0.9384394031484498,
+        "pairwise_level_3": 1.4725398058733097,
+        "data_geometry_level_4": 0.0007972618290703319,
+        "resolved_fraction_level_4": 0.7246376811594203,
+        "target_distance_level_4": 1.0409873188405796,
+        "noise_allowance_level_4": 0.25925079129565065,
+        "latent_distance_level_4": 0.9837028143515545,
+        "pairwise_level_4": 1.599707466418211,
+        "data_geometry_level_5": 0.0007669941464175425,
+        "resolved_fraction_level_5": 0.6739130434782609,
+        "target_distance_level_5": 1.048762077294686,
+        "noise_allowance_level_5": 0.2852209250798673,
+        "latent_distance_level_5": 0.9997508309061335,
+        "pairwise_level_5": 1.6401052162271952,
+        "rollout": 0.006140219761490132,
+        "rollout_level_1": 0.003184860459250328,
+        "rollout_level_2": 0.0025440568066251155,
+        "rollout_level_3": 0.0028903405078857837,
+        "rollout_level_4": 0.0077537896493745885,
+        "rollout_level_5": 0.014328051384314838
+      }
+    },
+    "test": {
+      "mean": {
+        "total": 0.08617900073322354,
+        "anchor": 0.01334364845329436,
+        "coarse_consistency": 0.007141476511817673,
+        "kernel_noncollapse": 0.0,
+        "separation": 0.0002383544874871759,
+        "commutator": 0.002006210536150117,
+        "data_geometry_level_0": 0.0004987798268196554,
+        "resolved_fraction_level_0": 0.9057971014492754,
+        "target_distance_level_0": 0.4712598128019324,
+        "noise_allowance_level_0": 0.05432004315630865,
+        "latent_distance_level_0": 0.5043159285572549,
+        "pairwise_level_0": 0.3921728648975354,
+        "data_geometry_level_1": 1.96886054571681e-05,
+        "resolved_fraction_level_1": 0.9057971014492754,
+        "target_distance_level_1": 0.6975203804347825,
+        "noise_allowance_level_1": 0.08195234137250709,
+        "latent_distance_level_1": 0.7123876767616476,
+        "pairwise_level_1": 0.7960706250859204,
+        "data_geometry_level_2": 7.541970429935375e-05,
+        "resolved_fraction_level_2": 0.8731884057971014,
+        "target_distance_level_2": 0.8908703200483092,
+        "noise_allowance_level_2": 0.10689565760904028,
+        "latent_distance_level_2": 0.8731070282953555,
+        "pairwise_level_2": 1.213985138764344,
+        "data_geometry_level_3": 0.0001375184362065596,
+        "resolved_fraction_level_3": 0.8188405797101449,
+        "target_distance_level_3": 0.9946029589371983,
+        "noise_allowance_level_3": 0.137339919560808,
+        "latent_distance_level_3": 0.9485968045341817,
+        "pairwise_level_3": 1.467249651832723,
+        "data_geometry_level_4": 0.00010100020612766912,
+        "resolved_fraction_level_4": 0.717391304347826,
+        "target_distance_level_4": 1.0083786231884058,
+        "noise_allowance_level_4": 0.20435384752557725,
+        "latent_distance_level_4": 0.9575500969278884,
+        "pairwise_level_4": 1.5144743589266703,
+        "data_geometry_level_5": 0.0005977201460126492,
+        "resolved_fraction_level_5": 0.7101449275362319,
+        "target_distance_level_5": 1.0356280193236715,
+        "noise_allowance_level_5": 0.2537701129080982,
+        "latent_distance_level_5": 0.9869687144491005,
+        "pairwise_level_5": 1.5754397299855523,
+        "rollout": 0.0022739447423848216,
+        "rollout_level_1": 0.001280037273356117,
+        "rollout_level_2": 0.0012777745904476543,
+        "rollout_level_3": 0.001827142718938168,
+        "rollout_level_4": 0.0015073070315355268,
+        "rollout_level_5": 0.005477462097646642
+      },
+      "sum": {
+        "total": 0.16997445659157528,
+        "anchor": 0.026687296906588723,
+        "coarse_consistency": 0.014282953023635343,
+        "kernel_noncollapse": 0.0,
+        "separation": 0.0002383544874871759,
+        "commutator": 0.004012421072300234,
+        "data_geometry_level_0": 0.0004987798268196554,
+        "resolved_fraction_level_0": 0.9057971014492754,
+        "target_distance_level_0": 0.4712598128019324,
+        "noise_allowance_level_0": 0.05432004315630865,
+        "latent_distance_level_0": 0.5043159285572549,
+        "pairwise_level_0": 0.3921728648975354,
+        "data_geometry_level_1": 1.96886054571681e-05,
+        "resolved_fraction_level_1": 0.9057971014492754,
+        "target_distance_level_1": 0.6975203804347825,
+        "noise_allowance_level_1": 0.08195234137250709,
+        "latent_distance_level_1": 0.7123876767616476,
+        "pairwise_level_1": 0.7960706250859204,
+        "data_geometry_level_2": 7.541970429935375e-05,
+        "resolved_fraction_level_2": 0.8731884057971014,
+        "target_distance_level_2": 0.8908703200483092,
+        "noise_allowance_level_2": 0.10689565760904028,
+        "latent_distance_level_2": 0.8731070282953555,
+        "pairwise_level_2": 1.213985138764344,
+        "data_geometry_level_3": 0.0001375184362065596,
+        "resolved_fraction_level_3": 0.8188405797101449,
+        "target_distance_level_3": 0.9946029589371983,
+        "noise_allowance_level_3": 0.137339919560808,
+        "latent_distance_level_3": 0.9485968045341817,
+        "pairwise_level_3": 1.467249651832723,
+        "data_geometry_level_4": 0.00010100020612766912,
+        "resolved_fraction_level_4": 0.717391304347826,
+        "target_distance_level_4": 1.0083786231884058,
+        "noise_allowance_level_4": 0.20435384752557725,
+        "latent_distance_level_4": 0.9575500969278884,
+        "pairwise_level_4": 1.5144743589266703,
+        "data_geometry_level_5": 0.0005977201460126492,
+        "resolved_fraction_level_5": 0.7101449275362319,
+        "target_distance_level_5": 1.0356280193236715,
+        "noise_allowance_level_5": 0.2537701129080982,
+        "latent_distance_level_5": 0.9869687144491005,
+        "pairwise_level_5": 1.5754397299855523,
+        "rollout": 0.004547889484769644,
+        "rollout_level_1": 0.002560074546712234,
+        "rollout_level_2": 0.0025555491808953086,
+        "rollout_level_3": 0.0036542854378763365,
+        "rollout_level_4": 0.003014614063071053,
+        "rollout_level_5": 0.010954924195293286
+      }
+    },
+    "low_field_probe": {
+      "h_over_J": 0.01,
+      "direct_means": [
+        [
+          -1.0249469163903486,
+          1.3243657183059503
+        ],
+        [
+          -1.0249469163903486,
+          1.3243657183059503
+        ],
+        [
+          -1.0249469163903486,
+          1.3243657183059503
+        ],
+        [
+          -1.0249469163903486,
+          1.3243657183059503
+        ],
+        [
+          -1.0249469163903486,
+          1.3243657183059503
+        ],
+        [
+          -1.0249469163903486,
+          1.3243657183059503
+        ]
+      ],
+      "rollout_steps": [
+        0,
+        1,
+        5,
+        20,
+        50
+      ],
+      "rollout": [
+        [
+          -1.0249469163903486,
+          1.3243657183059503
+        ],
+        [
+          -1.0139774215243031,
+          1.3217288773726283
+        ],
+        [
+          -0.9845024037456803,
+          1.303169642997255
+        ],
+        [
+          -0.9098117092718695,
+          1.2169811690471493
+        ],
+        [
+          0.2816625629802437,
+          -0.06764952486168593
+        ]
+      ],
+      "caveat": "Steps beyond5 are untrained extrapolation."
+    },
+    "vector_summary": {
+      "config": {
+        "sites": 128,
+        "levels": 6,
+        "theory_dim": 2,
+        "fixed_kernel": false,
+        "replicas": 3,
+        "ensemble_size": 128,
+        "epochs": 2000,
+        "system_batch": 32,
+        "sample_batch": 128,
+        "eval_samples": 48,
+        "eval_systems": 24,
+        "learning_rate": 0.001,
+        "seed": 91,
+        "threads": 4,
+        "objective_mode": "data_geometry",
+        "geometry_scale": 4.0,
+        "noise_multiplier": 2.0,
+        "rollout_weight": 5.0,
+        "binary_lookup": true,
+        "hidden": 60,
+        "time_slices": 32,
+        "beta_over_slices": 0.5,
+        "equilibration_sweeps": 2048,
+        "decorrelation_sweeps": 16,
+        "output_dir": "results/joint_qcr_tfim_1d_g2_levels6_rollout5_2000_seed91",
+        "kernel_layout": "nonoverlapping"
+      },
+      "parameter_count": 10314,
+      "optimized_parameter_count": 9893,
+      "evaluation": "All 128 saved samples plus global flips per replica, Q once per entire ensemble; all train/test systems",
+      "metrics": {
+        "train": {
+          "rollout_rmse_per_coordinate": [
+            0.0,
+            0.03738221431857079,
+            0.03250748810774788,
+            0.03267569238168653,
+            0.04730933593791621,
+            0.0758379078692207
+          ],
+          "rollout_normalized_rmse": [
+            0.0,
+            0.08487728920669792,
+            0.060248897234659184,
+            0.05551925412068566,
+            0.07826552573808039,
+            0.12439553943276176
+          ],
+          "one_step_rmse_per_coordinate": [
+            0.03738221431857079,
+            0.026845426101737384,
+            0.042407993399790435,
+            0.04448173765769589,
+            0.053316988645981056
+          ],
+          "coordinate_covariance_eigenvalues": [
+            [
+              6.811136896926547e-08,
+              0.19028754667758604
+            ],
+            [
+              1.5858979975572034e-07,
+              0.3879509885089395
+            ],
+            [
+              2.1107575091093216e-07,
+              0.5822352007831612
+            ],
+            [
+              2.173231950075358e-07,
+              0.6927750067936638
+            ],
+            [
+              2.0638440823675934e-07,
+              0.7307731183476114
+            ],
+            [
+              2.522458370855979e-07,
+              0.743349271538494
+            ]
+          ]
+        },
+        "test": {
+          "rollout_rmse_per_coordinate": [
+            0.0,
+            0.03762707229152877,
+            0.029910882610494634,
+            0.033871184226259156,
+            0.05166164883269013,
+            0.08680448260077792
+          ],
+          "rollout_normalized_rmse": [
+            0.0,
+            0.08576482056541578,
+            0.05561700083682477,
+            0.05755522492860225,
+            0.08553203723867162,
+            0.14230418995570412
+          ],
+          "one_step_rmse_per_coordinate": [
+            0.03762707229152877,
+            0.029228723882277787,
+            0.04123714204753538,
+            0.047757479788031784,
+            0.06401742691790112
+          ],
+          "coordinate_covariance_eigenvalues": [
+            [
+              6.725344667298445e-08,
+              0.1878563953382884
+            ],
+            [
+              1.5469060261461346e-07,
+              0.38495707880579666
+            ],
+            [
+              2.1387131766737073e-07,
+              0.5784597698589494
+            ],
+            [
+              2.2719673348670135e-07,
+              0.6926615879670586
+            ],
+            [
+              2.190745962141788e-07,
+              0.7296402080929422
+            ],
+            [
+              2.5464511508991174e-07,
+              0.7441813427485859
+            ]
+          ]
+        }
+      },
+      "fixed_points_in_plot_box": [
+        {
+          "g": [
+            0.28625441059845486,
+            -0.06584365809075582
+          ],
+          "R_jacobian_eigenvalues": [
+            {
+              "real": 0.7295252889896717,
+              "imag": 0.0
+            },
+            {
+              "real": 0.42245134056294464,
+              "imag": 0.0
+            }
+          ],
+          "stability": "stable",
+          "residual_norm": 1.5347041336377363e-14,
+          "distance_to_sampled_R_input": 0.021618835410958586,
+          "near_sampled_input": true
+        }
+      ],
+      "pooled_coordinate_diagnostic": {
+        "covariance_eigenvalues": [
+          2.393300946895219e-07,
+          0.5854262529369241
+        ],
+        "g2_vs_g1_slope": -1.0851722628988512,
+        "g2_vs_g1_intercept": 0.21301402131831243,
+        "line_residual_rmse": 0.0007219177152358928,
+        "caution": "Nearly collinear samples do not constrain transverse derivatives, even at roots close to sampled states"
+      },
+      "fixed_point_search": "81 initial guesses, residual tolerance 1e-8; not exhaustive; discrete R Jacobian used",
+      "plot_box": [
+        [
+          -1.2817429609520912,
+          -0.5025848696200133
+        ],
+        [
+          0.6584938201810756,
+          1.603053096125165
+        ]
+      ],
+      "near_sample_radius": 0.08881242922145297,
+      "near_sample_definition": "Euclidean distance to observed k=0,...,4 inputs; heuristic, not a confidence region",
+      "kernel_truth_table": [
+        {
+          "input": [
+            -1.0,
+            -1.0
+          ],
+          "output": 1.0
+        },
+        {
+          "input": [
+            -1.0,
+            1.0
+          ],
+          "output": -1.0
+        },
+        {
+          "input": [
+            1.0,
+            -1.0
+          ],
+          "output": 1.0
+        },
+        {
+          "input": [
+            1.0,
+            1.0
+          ],
+          "output": -1.0
+        }
+      ],
+      "trajectory_fields": [
+        0.5153968253968254,
+        0.7996825396825397,
+        0.9892063492063492,
+        1.2103174603174602,
+        1.7157142857142857
+      ],
+      "critical_coupling": 1.0,
+      "g_at_critical_coupling_by_level": [
+        [
+          -0.6403736014117292,
+          0.9090138175359936
+        ],
+        [
+          -0.5022418001501984,
+          0.759465251917171
+        ],
+        [
+          -0.38622888286214113,
+          0.6336347686698413
+        ],
+        [
+          -0.2780419888108723,
+          0.5160834361752882
+        ],
+        [
+          -0.16943711941699252,
+          0.3979452037613117
+        ],
+        [
+          -0.08161972890298627,
+          0.3024788523422392
+        ]
+      ],
+      "g_at_h_over_J_1_interpolated_by_level": [
+        [
+          -0.6403736014117292,
+          0.9090138175359936
+        ],
+        [
+          -0.5022418001501984,
+          0.759465251917171
+        ],
+        [
+          -0.38622888286214113,
+          0.6336347686698413
+        ],
+        [
+          -0.2780419888108723,
+          0.5160834361752882
+        ],
+        [
+          -0.16943711941699252,
+          0.3979452037613117
+        ],
+        [
+          -0.08161972890298627,
+          0.3024788523422392
+        ]
+      ]
+    }
+  },
+  "sum": {
+    "train": {
+      "mean": {
+        "total": 0.09088949661163986,
+        "anchor": 0.0038605783793303453,
+        "coarse_consistency": 0.009726085147922881,
+        "kernel_noncollapse": 0.0,
+        "separation": 0.0007131071981155172,
+        "commutator": 0.0025767621728262457,
+        "data_geometry_level_0": 0.0010482072340867784,
+        "resolved_fraction_level_0": 0.9384057971014492,
+        "target_distance_level_0": 0.48604034571256044,
+        "noise_allowance_level_0": 0.034680431888738955,
+        "latent_distance_level_0": 0.5268938459413445,
+        "pairwise_level_0": 0.42842836289959724,
+        "data_geometry_level_1": 7.46777542358718e-05,
+        "resolved_fraction_level_1": 0.9239130434782609,
+        "target_distance_level_1": 0.7291100543478262,
+        "noise_allowance_level_1": 0.05549065841157645,
+        "latent_distance_level_1": 0.7358868584634422,
+        "pairwise_level_1": 0.852375701834189,
+        "data_geometry_level_2": 5.3353303186382374e-05,
+        "resolved_fraction_level_2": 0.8695652173913043,
+        "target_distance_level_2": 0.895871074879227,
+        "noise_allowance_level_2": 0.0852441451291642,
+        "latent_distance_level_2": 0.8690109723162224,
+        "pairwise_level_2": 1.2265737412712925,
+        "data_geometry_level_3": 0.0001812553391134317,
+        "resolved_fraction_level_3": 0.7391304347826086,
+        "target_distance_level_3": 0.9769021739130435,
+        "noise_allowance_level_3": 0.1739629535438878,
+        "latent_distance_level_3": 0.9303788854540671,
+        "pairwise_level_3": 1.4470962210392282,
+        "data_geometry_level_4": 0.0014181105020729494,
+        "resolved_fraction_level_4": 0.7246376811594203,
+        "target_distance_level_4": 1.0409873188405796,
+        "noise_allowance_level_4": 0.25925079129565065,
+        "latent_distance_level_4": 0.9713342686740233,
+        "pairwise_level_4": 1.5623022333354115,
+        "data_geometry_level_5": 0.0015030390559976896,
+        "resolved_fraction_level_5": 0.6739130434782609,
+        "target_distance_level_5": 1.048762077294686,
+        "noise_allowance_level_5": 0.2852209250798673,
+        "latent_distance_level_5": 0.9897131624026663,
+        "pairwise_level_5": 1.6069245796309914,
+        "rollout": 0.002904606253615675,
+        "rollout_level_1": 0.0013357148151040322,
+        "rollout_level_2": 0.0011226708944175742,
+        "rollout_level_3": 0.0015459314428029741,
+        "rollout_level_4": 0.0036314289491521574,
+        "rollout_level_5": 0.006887285166601638
+      },
+      "sum": {
+        "total": 0.1746479212421246,
+        "anchor": 0.007721156758660691,
+        "coarse_consistency": 0.01945217029584577,
+        "kernel_noncollapse": 0.0,
+        "separation": 0.0007131071981155172,
+        "commutator": 0.005153524345652493,
+        "data_geometry_level_0": 0.0010482072340867784,
+        "resolved_fraction_level_0": 0.9384057971014492,
+        "target_distance_level_0": 0.48604034571256044,
+        "noise_allowance_level_0": 0.034680431888738955,
+        "latent_distance_level_0": 0.5268938459413445,
+        "pairwise_level_0": 0.42842836289959724,
+        "data_geometry_level_1": 7.46777542358718e-05,
+        "resolved_fraction_level_1": 0.9239130434782609,
+        "target_distance_level_1": 0.7291100543478262,
+        "noise_allowance_level_1": 0.05549065841157645,
+        "latent_distance_level_1": 0.7358868584634422,
+        "pairwise_level_1": 0.852375701834189,
+        "data_geometry_level_2": 5.3353303186382374e-05,
+        "resolved_fraction_level_2": 0.8695652173913043,
+        "target_distance_level_2": 0.895871074879227,
+        "noise_allowance_level_2": 0.0852441451291642,
+        "latent_distance_level_2": 0.8690109723162224,
+        "pairwise_level_2": 1.2265737412712925,
+        "data_geometry_level_3": 0.0001812553391134317,
+        "resolved_fraction_level_3": 0.7391304347826086,
+        "target_distance_level_3": 0.9769021739130435,
+        "noise_allowance_level_3": 0.1739629535438878,
+        "latent_distance_level_3": 0.9303788854540671,
+        "pairwise_level_3": 1.4470962210392282,
+        "data_geometry_level_4": 0.0014181105020729494,
+        "resolved_fraction_level_4": 0.7246376811594203,
+        "target_distance_level_4": 1.0409873188405796,
+        "noise_allowance_level_4": 0.25925079129565065,
+        "latent_distance_level_4": 0.9713342686740233,
+        "pairwise_level_4": 1.5623022333354115,
+        "data_geometry_level_5": 0.0015030390559976896,
+        "resolved_fraction_level_5": 0.6739130434782609,
+        "target_distance_level_5": 1.048762077294686,
+        "noise_allowance_level_5": 0.2852209250798673,
+        "latent_distance_level_5": 0.9897131624026663,
+        "pairwise_level_5": 1.6069245796309914,
+        "rollout": 0.00580921250723135,
+        "rollout_level_1": 0.0026714296302080645,
+        "rollout_level_2": 0.0022453417888351483,
+        "rollout_level_3": 0.0030918628856059483,
+        "rollout_level_4": 0.007262857898304315,
+        "rollout_level_5": 0.013774570333203276
+      }
+    },
+    "test": {
+      "mean": {
+        "total": 0.08644509236081287,
+        "anchor": 0.013628306861270544,
+        "coarse_consistency": 0.006791898274020857,
+        "kernel_noncollapse": 0.0,
+        "separation": 0.00045808883726553435,
+        "commutator": 0.0019215488076276693,
+        "data_geometry_level_0": 0.0008378319495914506,
+        "resolved_fraction_level_0": 0.9057971014492754,
+        "target_distance_level_0": 0.4712598128019324,
+        "noise_allowance_level_0": 0.05432004315630865,
+        "latent_distance_level_0": 0.5110188450261122,
+        "pairwise_level_0": 0.40298172096473817,
+        "data_geometry_level_1": 3.719944844207617e-05,
+        "resolved_fraction_level_1": 0.9057971014492754,
+        "target_distance_level_1": 0.6975203804347825,
+        "noise_allowance_level_1": 0.08195234137250709,
+        "latent_distance_level_1": 0.7146367176176647,
+        "pairwise_level_1": 0.8018557662898599,
+        "data_geometry_level_2": 0.00014305078101467953,
+        "resolved_fraction_level_2": 0.8731884057971014,
+        "target_distance_level_2": 0.8908703200483092,
+        "noise_allowance_level_2": 0.10689565760904028,
+        "latent_distance_level_2": 0.8684983877953861,
+        "pairwise_level_2": 1.2022811920872567,
+        "data_geometry_level_3": 0.0003454750412365571,
+        "resolved_fraction_level_3": 0.8188405797101449,
+        "target_distance_level_3": 0.9946029589371983,
+        "noise_allowance_level_3": 0.137339919560808,
+        "latent_distance_level_3": 0.9385402137675551,
+        "pairwise_level_3": 1.4395703386865306,
+        "data_geometry_level_4": 0.00023594384561927834,
+        "resolved_fraction_level_4": 0.717391304347826,
+        "target_distance_level_4": 1.0083786231884058,
+        "noise_allowance_level_4": 0.20435384752557725,
+        "latent_distance_level_4": 0.9468011431669374,
+        "pairwise_level_4": 1.4811897236215616,
+        "data_geometry_level_5": 0.0011490319576891637,
+        "resolved_fraction_level_5": 0.7101449275362319,
+        "target_distance_level_5": 1.0356280193236715,
+        "noise_allowance_level_5": 0.2537701129080982,
+        "latent_distance_level_5": 0.9769186935118727,
+        "pairwise_level_5": 1.5439525027827732,
+        "rollout": 0.002208070971474759,
+        "rollout_level_1": 0.001082265541215011,
+        "rollout_level_2": 0.0012621353029313694,
+        "rollout_level_3": 0.001790539323992392,
+        "rollout_level_4": 0.001591703306591952,
+        "rollout_level_5": 0.005313711382643072
+      },
+      "sum": {
+        "total": 0.16830929634897038,
+        "anchor": 0.02725661372254109,
+        "coarse_consistency": 0.013583796548041715,
+        "kernel_noncollapse": 0.0,
+        "separation": 0.00045808883726553435,
+        "commutator": 0.003843097615255339,
+        "data_geometry_level_0": 0.0008378319495914506,
+        "resolved_fraction_level_0": 0.9057971014492754,
+        "target_distance_level_0": 0.4712598128019324,
+        "noise_allowance_level_0": 0.05432004315630865,
+        "latent_distance_level_0": 0.5110188450261122,
+        "pairwise_level_0": 0.40298172096473817,
+        "data_geometry_level_1": 3.719944844207617e-05,
+        "resolved_fraction_level_1": 0.9057971014492754,
+        "target_distance_level_1": 0.6975203804347825,
+        "noise_allowance_level_1": 0.08195234137250709,
+        "latent_distance_level_1": 0.7146367176176647,
+        "pairwise_level_1": 0.8018557662898599,
+        "data_geometry_level_2": 0.00014305078101467953,
+        "resolved_fraction_level_2": 0.8731884057971014,
+        "target_distance_level_2": 0.8908703200483092,
+        "noise_allowance_level_2": 0.10689565760904028,
+        "latent_distance_level_2": 0.8684983877953861,
+        "pairwise_level_2": 1.2022811920872567,
+        "data_geometry_level_3": 0.0003454750412365571,
+        "resolved_fraction_level_3": 0.8188405797101449,
+        "target_distance_level_3": 0.9946029589371983,
+        "noise_allowance_level_3": 0.137339919560808,
+        "latent_distance_level_3": 0.9385402137675551,
+        "pairwise_level_3": 1.4395703386865306,
+        "data_geometry_level_4": 0.00023594384561927834,
+        "resolved_fraction_level_4": 0.717391304347826,
+        "target_distance_level_4": 1.0083786231884058,
+        "noise_allowance_level_4": 0.20435384752557725,
+        "latent_distance_level_4": 0.9468011431669374,
+        "pairwise_level_4": 1.4811897236215616,
+        "data_geometry_level_5": 0.0011490319576891637,
+        "resolved_fraction_level_5": 0.7101449275362319,
+        "target_distance_level_5": 1.0356280193236715,
+        "noise_allowance_level_5": 0.2537701129080982,
+        "latent_distance_level_5": 0.9769186935118727,
+        "pairwise_level_5": 1.5439525027827732,
+        "rollout": 0.004416141942949518,
+        "rollout_level_1": 0.002164531082430022,
+        "rollout_level_2": 0.0025242706058627392,
+        "rollout_level_3": 0.003581078647984784,
+        "rollout_level_4": 0.003183406613183904,
+        "rollout_level_5": 0.010627422765286144
+      }
+    },
+    "low_field_probe": {
+      "h_over_J": 0.01,
+      "direct_means": [
+        [
+          -0.9175354922347693,
+          1.2696115649865043
+        ],
+        [
+          -0.9175354922347693,
+          1.2696115649865043
+        ],
+        [
+          -0.9175354922347693,
+          1.2696115649865043
+        ],
+        [
+          -0.9175354922347693,
+          1.2696115649865043
+        ],
+        [
+          -0.9175354922347693,
+          1.2696115649865043
+        ],
+        [
+          -0.9175354922347693,
+          1.2696115649865043
+        ]
+      ],
+      "rollout_steps": [
+        0,
+        1,
+        5,
+        20,
+        50
+      ],
+      "rollout": [
+        [
+          -0.9175354922347693,
+          1.2696115649865043
+        ],
+        [
+          -0.9150562263176982,
+          1.2581625070237703
+        ],
+        [
+          -0.893759552415142,
+          1.2184075770918632
+        ],
+        [
+          -0.7818066793630107,
+          1.0912640974077925
+        ],
+        [
+          0.34758891571168105,
+          -0.13560784178880111
+        ]
+      ],
+      "caveat": "Steps beyond5 are untrained extrapolation."
+    },
+    "vector_summary": {
+      "config": {
+        "sites": 128,
+        "levels": 6,
+        "theory_dim": 2,
+        "fixed_kernel": false,
+        "replicas": 3,
+        "ensemble_size": 128,
+        "epochs": 2000,
+        "system_batch": 32,
+        "sample_batch": 128,
+        "eval_samples": 48,
+        "eval_systems": 24,
+        "learning_rate": 0.001,
+        "seed": 91,
+        "threads": 4,
+        "objective_mode": "data_geometry",
+        "geometry_scale": 4.0,
+        "coordinate_reduction": "sum",
+        "noise_multiplier": 2.0,
+        "rollout_weight": 5.0,
+        "binary_lookup": true,
+        "hidden": 60,
+        "time_slices": 32,
+        "beta_over_slices": 0.5,
+        "equilibration_sweeps": 2048,
+        "decorrelation_sweeps": 16,
+        "output_dir": "results/joint_qcr_tfim_1d_g2_coordsum_levels6_2000_seed91",
+        "kernel_layout": "nonoverlapping"
+      },
+      "parameter_count": 10314,
+      "optimized_parameter_count": 9893,
+      "evaluation": "All 128 saved samples plus global flips per replica, Q once per entire ensemble; all train/test systems",
+      "metrics": {
+        "train": {
+          "rollout_rmse_per_coordinate": [
+            0.0,
+            0.034189973562178566,
+            0.03147208355924109,
+            0.032824383321353866,
+            0.045279822049356364,
+            0.07248189290639488
+          ],
+          "rollout_normalized_rmse": [
+            0.0,
+            0.07741157492649654,
+            0.05865645783434263,
+            0.05632089570567637,
+            0.07577218802542503,
+            0.12022217501579646
+          ],
+          "one_step_rmse_per_coordinate": [
+            0.034189973562178566,
+            0.027091077594676796,
+            0.041125616194049426,
+            0.04201455536098164,
+            0.0518335511522667
+          ],
+          "coordinate_covariance_eigenvalues": [
+            [
+              3.104575858245823e-07,
+              0.19565240504223744
+            ],
+            [
+              5.977877671888341e-07,
+              0.3901351258004231
+            ],
+            [
+              1.1640098784080268e-06,
+              0.5757692179673213
+            ],
+            [
+              1.5069904819972265e-06,
+              0.6793335719312885
+            ],
+            [
+              3.301196995802184e-06,
+              0.7141965607432985
+            ],
+            [
+              6.43884757182109e-06,
+              0.7269692495823203
+            ]
+          ]
+        },
+        "test": {
+          "rollout_rmse_per_coordinate": [
+            0.0,
+            0.03428822943620194,
+            0.028882618074236626,
+            0.0345658876515036,
+            0.05050151512085193,
+            0.08506293346467998
+          ],
+          "rollout_normalized_rmse": [
+            0.0,
+            0.0779223880132874,
+            0.05398784022156484,
+            0.0592806873769222,
+            0.08453415257362329,
+            0.14090412387325477
+          ],
+          "one_step_rmse_per_coordinate": [
+            0.03428822943620194,
+            0.029557000694492755,
+            0.04005152761014892,
+            0.04549333774283842,
+            0.06277890496743255
+          ],
+          "coordinate_covariance_eigenvalues": [
+            [
+              3.068175617116581e-07,
+              0.19319103990351205
+            ],
+            [
+              5.428837779677876e-07,
+              0.38725318590406554
+            ],
+            [
+              9.055137813674903e-07,
+              0.5724143540272759
+            ],
+            [
+              1.7136026816525731e-06,
+              0.6799827064850923
+            ],
+            [
+              2.2904835886735992e-06,
+              0.7137941937617273
+            ],
+            [
+              3.895884831817586e-06,
+              0.7288882980043156
+            ]
+          ]
+        }
+      },
+      "fixed_points_in_plot_box": [
+        {
+          "g": [
+            0.3480786885667183,
+            -0.1347233979081199
+          ],
+          "R_jacobian_eigenvalues": [
+            {
+              "real": 0.7112052972228448,
+              "imag": 0.0
+            },
+            {
+              "real": 0.5095971086471666,
+              "imag": 0.0
+            }
+          ],
+          "stability": "stable",
+          "residual_norm": 2.5560107031983513e-16,
+          "distance_to_sampled_R_input": 0.02576121690564942,
+          "near_sampled_input": true
+        }
+      ],
+      "pooled_coordinate_diagnostic": {
+        "covariance_eigenvalues": [
+          6.7525725600948956e-06,
+          0.5758082614449126
+        ],
+        "g2_vs_g1_slope": -1.1512522594794077,
+        "g2_vs_g1_intercept": 0.21304116778327858,
+        "line_residual_rmse": 0.003962644718840691,
+        "caution": "Nearly collinear samples do not constrain transverse derivatives, even at roots close to sampled states"
+      },
+      "fixed_point_search": "81 initial guesses, residual tolerance 1e-8; not exhaustive; discrete R Jacobian used",
+      "plot_box": [
+        [
+          -1.1629726604434625,
+          -0.5748073571122063
+        ],
+        [
+          0.6914414993555533,
+          1.5509636039507144
+        ]
+      ],
+      "near_sample_radius": 0.08817279681963112,
+      "near_sample_definition": "Euclidean distance to observed k=0,...,4 inputs; heuristic, not a confidence region",
+      "kernel_truth_table": [
+        {
+          "input": [
+            -1.0,
+            -1.0
+          ],
+          "output": 1.0
+        },
+        {
+          "input": [
+            -1.0,
+            1.0
+          ],
+          "output": -1.0
+        },
+        {
+          "input": [
+            1.0,
+            -1.0
+          ],
+          "output": 1.0
+        },
+        {
+          "input": [
+            1.0,
+            1.0
+          ],
+          "output": -1.0
+        }
+      ],
+      "trajectory_fields": [
+        0.5153968253968254,
+        0.7996825396825397,
+        0.9892063492063492,
+        1.2103174603174602,
+        1.7157142857142857
+      ],
+      "critical_coupling": 1.0,
+      "g_at_critical_coupling_by_level": [
+        [
+          -0.5432107211267317,
+          0.8356065876173028
+        ],
+        [
+          -0.4109228440000039,
+          0.6849103574000522
+        ],
+        [
+          -0.29997226447666353,
+          0.5581670348964693
+        ],
+        [
+          -0.19637326168183333,
+          0.4390290744960263
+        ],
+        [
+          -0.09249193667062294,
+          0.3193043381377732
+        ],
+        [
+          -0.009678520560131729,
+          0.22565974776529055
+        ]
+      ],
+      "g_at_h_over_J_1_interpolated_by_level": [
+        [
+          -0.5432107211267317,
+          0.8356065876173028
+        ],
+        [
+          -0.4109228440000039,
+          0.6849103574000522
+        ],
+        [
+          -0.29997226447666353,
+          0.5581670348964693
+        ],
+        [
+          -0.19637326168183333,
+          0.4390290744960263
+        ],
+        [
+          -0.09249193667062294,
+          0.3193043381377732
+        ],
+        [
+          -0.009678520560131729,
+          0.22565974776529055
+        ]
+      ]
+    }
+  }
+}

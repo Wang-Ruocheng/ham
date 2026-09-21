@@ -16,6 +16,7 @@ class QCRWeights:
     """
     anchor: float = 1.0
     coarse_consistency: float = 5.0
+    kernel_noncollapse: float = 2.0
     separation: float = 2.0
     commutator: float = 5.0
 

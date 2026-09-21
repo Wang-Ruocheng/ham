@@ -1,0 +1,39 @@
+{
+  "definition": "Q(C^k D); spin flips added only at microscopic level; no R rollout",
+  "run": "results/joint_qcr_tfim_1d_g1_levels6_rollout5_2000_seed91",
+  "cache": "data_cache/tfim1d_wolff_v2_sites128_M32_dtau0p5_eq2048_skip16_replicas3_ensemble128_seed91_nJ64.pt",
+  "g_at_h_over_J_1_linear_interpolation": [
+    -0.1831087475578824,
+    0.005885766565154334,
+    0.02061628902310436,
+    0.15642848879371665,
+    0.16098647705543073,
+    0.26729850190622384
+  ],
+  "g_at_smallest_h_over_J": [
+    -0.7759895207771187,
+    -0.7759895207771185,
+    -0.7759895207771185,
+    -0.7759895207771185,
+    -0.7759895207771185,
+    -0.7759895207771187
+  ],
+  "g_at_largest_h_over_J": [
+    0.37059306683966375,
+    0.7524009675089497,
+    0.9881244436298132,
+    1.087822903673948,
+    1.126134047852511,
+    1.0120237486960033
+  ],
+  "R_roots_search_interval": [
+    -1.2,
+    5.0
+  ],
+  "R_roots": [
+    -0.7889191897584634,
+    -0.3466261905755158,
+    1.0321088334521027
+  ],
+  "figure": "/Users/ruochengwang/ham/results/joint_qcr_tfim_1d_g1_levels6_rollout5_2000_seed91/g_by_scale_vs_h_over_J.png"
+}

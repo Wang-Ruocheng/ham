@@ -1,5 +1,19 @@
 # Generated results
 
+## Current key result
+
+The main README now highlights configuration-only joint QCR on **1D TFIM**:
+
+- dim g=1: `joint_qcr_tfim_1d_g1_levels6_rollout5_2000_seed91`, checkpoint 1000.
+- dim g=2: `joint_qcr_tfim_1d_g2_coordsum_continue6000_seed91`, checkpoint 6000.
+
+These are illustrative unequal-budget single-seed checkpoints, not a controlled
+dimension benchmark. Neither figure uses an R-only refit. See the main README
+for the current all-scale geometry plus single/multistep closure objective.
+All other results below are retained historical experiments, not current defaults.
+
+## Historical index
+
 `recurrent_rg/` contains the principal supervised and pseudo-likelihood runs.
 JSON summaries and figures are lightweight records; PyTorch checkpoints are
 local generated artifacts and are ignored by Git.
@@ -10,13 +24,13 @@ architecture.  It is retained as a legacy comparison and its checkpoint is not
 compatible with the current general local-MLP kernel.  The earlier diagnostic
 run is kept in `recurrent_rg/unsupervised_joint_2d_unconstrained/`.
 
-The current symmetry-unconstrained, hard-field InfoNCE runs are stored under
+The historical symmetry-unconstrained, hard-field InfoNCE runs are stored under
 `recurrent_rg/multiseed_1d/` (seeds 31--33) and
 `recurrent_rg/multiseed_2d/` (seeds 41--43).  Aggregate statistics and figures
 are in `recurrent_rg/multiseed_summary.json`,
 `recurrent_rg/multiseed_loss_curves.png`, and
-`recurrent_rg/multiseed_action_relative_error.png`.  Only these six current
-runs retain model checkpoints; legacy checkpoints were removed before training.
+`recurrent_rg/multiseed_action_relative_error.png`. This older cleanup predates
+the QCR-only checkpoints; it does not describe all checkpoints now retained.
 
 `ensemble_encoder_ising_1d/` is the configuration-only smoke test that trains
 only the unchanged ensemble encoder `g = Q(D)`. Its summary separates the
@@ -45,3 +59,9 @@ locked into one magnetization sector, so Q learned the sign shortcut.
 sector locking and every Q training view is exactly spin-flip paired. The
 learned scalar R has one data-supported unstable fixed point; its posthoc
 critical-coupling calibration is recorded in `critical_flow_analysis.json`.
+
+TFIM result directories created before the `wolff_v2` sampler correction are
+historical only: their training data used an incorrect sigmoid bond-activation
+probability and their numerical conclusions must not be used. New runs should
+be generated with `experiments/joint_qcr_tfim_1d.py`; its cache key records the
+sampler version and all Suzuki--Trotter sampling parameters.
