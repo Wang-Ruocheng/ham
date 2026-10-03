@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "data": {
+    "cache": "../../data_cache/tfim1d_wolff_v2_sites128_M32_dtau0p5_eq2048_skip16_replicas3_ensemble128_seed91_nJ64.pt",
+    "physical_model": "1D TFIM; beta=16, M=32, dtau=0.5; historical Wolff cache",
+    "coupling_names": ["h/J"], "spin_flip_symmetric": true, "spin_flip_augment": true
+  },
+  "model": {"dimension": 1, "theory_dim": 2, "hidden": 60, "fixed_kernel": false, "binary_lookup": true},
+  "loss": {"isotropy_weight": 0, "geometry_mode": "relative_local", "geometry_relative_floor": 0.05, "geometry_max_inverse_weight": 100, "geometry_neighbors": 4, "geometry_local_fraction": 0.5, "rollout_weight": 5, "coordinate_reduction": "sum", "kernel_noncollapse_mode": "balance"},
+  "training": {"max_rg_steps": 5, "epochs": 6000, "sample_batch": 128, "system_batch": 32, "seed": 91, "threads": 2, "checkpoint_every": 1000, "log_every": 200},
+  "evaluation": {"max_rg_steps": 5, "samples": 128, "systems": 24}
+}

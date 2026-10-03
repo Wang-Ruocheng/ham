@@ -46,6 +46,29 @@ class LocalCoarseGrainer(nn.Module):
         )
         self.field_head = field_head
 
+    @torch.no_grad()
+    def initialize_positive_decimation(self) -> None:
+        """Initialize the binary map to the first block spin, without freezing C.
+
+        A unit-weight path carries s0 through the two tanh layers and output
+        head. The remaining hidden rows keep their random initialization;
+        their output weights start at zero but remain trainable. No RNG draws
+        or architectural changes, so paired Q/R initialization is preserved.
+        """
+        if self.kernel_layout != 'nonoverlapping' or self.input_channels != 1 or not isinstance(self.field_head, BinaryFieldHead):
+            raise ValueError('Requires a nonoverlapping single-channel binary kernel')
+        first, second = self.local_encoder[0], self.local_encoder[2]
+        first.weight[0].zero_()
+        first.weight[0, 0] = 1.
+        first.bias[0] = 0.
+        second.weight[0].zero_()
+        second.weight[0, 0] = 1.
+        second.bias[0] = 0.
+        head = self.field_head.projection
+        head.weight.zero_()
+        head.weight[0, 0] = 1.
+        head.bias.zero_()
+
     def local_features(self, configurations: torch.Tensor) -> torch.Tensor:
         extract = (self.geometry.extract_blocks if self.kernel_layout == "nonoverlapping"
                    else self.geometry.extract_patches)
@@ -54,10 +77,20 @@ class LocalCoarseGrainer(nn.Module):
     def information_field(self, configurations: torch.Tensor) -> torch.Tensor:
         # One hard field per block by default; the legacy layout produces one
         # field per microscopic site before downsampling. Both retain STE gradients.
+        if getattr(self, 'categorical_states', 0):
+            from .categorical_pooling import CategoricalLocal
+            extract = self.geometry.extract_blocks if self.kernel_layout == 'nonoverlapping' else self.geometry.extract_patches
+            logits = CategoricalLocal.apply(extract(configurations), self.categorical_states,
+                lambda p: self.field_head.logits(self.local_encoder(p)), *self.parameters())
+            return self.field_head.sample_logits(logits)
         if getattr(self, "binary_lookup", False):
             from .binary_pooling import BinaryLocal
             extract = (self.geometry.extract_blocks if self.kernel_layout == "nonoverlapping"
                        else self.geometry.extract_patches)
+            if getattr(self.field_head, 'sampling_mode', 'deterministic') == 'bernoulli':
+                logits = BinaryLocal.apply(extract(configurations),
+                    lambda p: self.field_head.logits(self.local_encoder(p)), *self.parameters())
+                return self.field_head.sample_logits(logits)
             return BinaryLocal.apply(extract(configurations),
                                      lambda p: self.field_head(self.local_encoder(p)),
                                      *self.parameters())
@@ -73,9 +106,9 @@ class LocalCoarseGrainer(nn.Module):
 class FixedDecimationCoarseGrainer(nn.Module):
     """Non-learned coarse grainer: plain decimation (take every block_factor-th site).
 
-    This is the standard Migdal-Kadanoff-style decimation for 1D spin chains.
-    It has no trainable parameters and is fully differentiable (identity on the
-    kept sites).
+    This retains sites without bond moving or a Hamiltonian truncation; it is
+    not a Migdal--Kadanoff coupling recursion. All input channels are retained.
+    It has no trainable parameters and is differentiable on the kept sites.
     """
 
     def __init__(self, geometry: LatticeGeometry) -> None:
@@ -116,6 +149,9 @@ class EnsembleTheoryEncoder(nn.Module):
         patches = self.geometry.extract_patches(configurations)
         spatial_dims = tuple(range(1, patches.ndim - 1))
         # Keep the system axis and average over samples and lattice translations.
+        if getattr(self, 'categorical_states', 0):
+            from .categorical_pooling import CategoricalMean
+            return self.head(CategoricalMean.apply(patches, self.categorical_states, self.local_mlp, *self.local_mlp.parameters()))
         if getattr(self, "binary_lookup", False):
             from .binary_pooling import binary_mean
             return self.head(binary_mean(patches, self.local_mlp))
@@ -202,9 +238,13 @@ class RecurrentRGNetwork(nn.Module):
     def advance_theory(self, theory: torch.Tensor) -> torch.Tensor:
         return theory + self.theory_rg(theory)
 
-    def coarse_grain(self, microscopic: torch.Tensor) -> list[torch.Tensor]:
+    def coarse_grain(self, microscopic: torch.Tensor, *, max_rg_steps: int | None = None) -> list[torch.Tensor]:
+        """Optional evaluation depth does not mutate the training depth."""
+        steps = self.levels - 1 if max_rg_steps is None else max_rg_steps
+        if not isinstance(steps, int) or steps < 0:
+            raise ValueError('max_rg_steps must be a nonnegative integer')
         configurations = [microscopic]
-        for _ in range(self.levels - 1):
+        for _ in range(steps):
             configurations.append(self.rg_kernel(configurations[-1]))
         return configurations
 

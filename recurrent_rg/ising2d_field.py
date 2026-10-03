@@ -56,6 +56,61 @@ def sample_field_chain(k, b, size, draws, equil, gap, seed, initial=0):
     return result
 
 
+@njit
+def sample_signed_field_chain(k, b, size, draws, equil, gap, seed, initial=0):
+    """Signed K on an even periodic square lattice, with uniform physical B.
+
+    For K<0 set s_i=eta_i*t_i, eta=(-1)^(row+col). The t variables
+    have ferromagnetic |K| bonds and staggered fields B*eta_i. A cluster
+    is recolored + with sigmoid(2*B*sum_cluster eta). initial +/-1 names
+    the two ordered states of t (checkerboards in physical spins).
+    Positive K delegates to the unchanged historical sampler.
+    """
+    if initial not in (-1, 0, 1):
+        raise ValueError('initial must be -1, 0 or 1')
+    if k >= 0:
+        return sample_field_chain(k, b, size, draws, equil, gap, seed, initial)
+    if size < 2 or size % 2 or draws < 1 or equil < 0 or gap < 1:
+        raise ValueError('Antiferromagnetic gauge sampler needs an even periodic lattice')
+    np.random.seed(seed)
+    n = size*size
+    eta = np.empty(n, dtype=np.int8)
+    spins = np.empty(n, dtype=np.int8)
+    for i in range(n):
+        eta[i] = 1 if (i//size+i%size)%2 == 0 else -1
+        spins[i] = initial if initial != 0 else (1 if np.random.random()<.5 else -1)
+    result = np.empty((draws, size, size), dtype=np.int8)
+    parent, counts = np.empty(n, dtype=np.int64), np.empty(n, dtype=np.int64)
+    charges = np.empty(n, dtype=np.int64)
+    colors = np.empty(n, dtype=np.int8)
+    probability = 1-np.exp(2*k)
+    for step in range(equil+draws*gap):
+        for i in range(n):
+            parent[i] = i
+            counts[i] = 1
+            charges[i] = 0
+        for i in range(n):
+            row, col = i//size, i%size
+            for j in (row*size+(col+1)%size, ((row+1)%size)*size+col):
+                if spins[i] == spins[j] and np.random.random()<probability:
+                    a, c = _root(parent, i), _root(parent, j)
+                    if a != c:
+                        if counts[a]<counts[c]: a, c = c, a
+                        parent[c] = a
+                        counts[a] += counts[c]
+        for i in range(n):
+            charges[_root(parent, i)] += eta[i]
+        for i in range(n):
+            if parent[i] == i:
+                z = 2*b*charges[i]
+                plus = 1/(1+np.exp(-z)) if z>=0 else np.exp(z)/(1+np.exp(z))
+                colors[i] = 1 if np.random.random()<plus else -1
+        for i in range(n): spins[i] = colors[_root(parent, i)]
+        if step>=equil and (step-equil+1)%gap == 0:
+            result[(step-equil)//gap] = (spins*eta).reshape(size, size)
+    return result
+
+
 def field_observables(x):
     m = x.mean(axis=(-2, -1))
     bond = (x*np.roll(x, 1, -1)+x*np.roll(x, 1, -2)).mean(axis=(-2, -1))

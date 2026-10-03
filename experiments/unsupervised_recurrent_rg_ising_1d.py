@@ -21,7 +21,7 @@ from recurrent_rg.metrics import centered_action_relative_rmse, rank_correlation
 from recurrent_rg.model_nd import RecurrentRGNetwork1D
 from recurrent_rg.unsupervised1d import pseudolikelihood_1d, unsupervised_objective_1d
 from recurrent_rg.unsupervised_nd import UnsupervisedLossWeights
-from experiments._utils import fixed_eval_subset
+from recurrent_rg.data.views import fixed_eval_subset
 
 
 def train(

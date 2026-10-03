@@ -8,8 +8,9 @@ import torch
 import matplotlib.pyplot as plt
 from scipy.optimize import brentq
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from experiments._utils import balanced_views
+from recurrent_rg.data.views import balanced_views
 from recurrent_rg.model_nd import RecurrentRGNetwork1D, RecurrentRGNetwork2D
+from recurrent_rg.checkpoints import load_run
 
 
 def scalar_report(run,cache,dimension=1,checkpoint_steps=None):
@@ -27,13 +28,8 @@ def scalar_report(run,cache,dimension=1,checkpoint_steps=None):
     results={}
     for step in steps:
         checkpoint=run/f'training_step_{step}.pt'
-        state=torch.load(checkpoint if checkpoint.exists() else run/'qcr_model.pt',weights_only=True)
-        constructor=RecurrentRGNetwork1D if dimension==1 else RecurrentRGNetwork2D
-        model=constructor(levels=cfg['levels'],theory_dim=1,hidden=cfg['hidden'],
-                          kernel_layout=cfg.get('kernel_layout','nonoverlapping'),
-                          **({'learnable_kernel':not cfg.get('fixed_kernel',False)} if dimension==1 else {})).double().eval()
-        inc=model.load_state_dict(state.get('model',state),strict=False)
-        assert not inc.unexpected_keys and all(k.startswith('action_network.') for k in inc.missing_keys)
+        model=load_run(checkpoint if checkpoint.exists() else run/'qcr_model.pt',
+                       overrides={'dimension':dimension}).model
         model.theory_encoder.binary_lookup=True
         model.rg_kernel.binary_lookup=True
         dest=run/f'step{step}'; dest.mkdir(exist_ok=True)

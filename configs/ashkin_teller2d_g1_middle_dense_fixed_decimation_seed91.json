@@ -1,0 +1,8 @@
+{
+  "schema_version": 4,
+  "data": {"cache": "../data_cache/ashkin_teller2d_ratio2_middle_dense_L16_n128_seed91/ensembles.pt", "physical_model": "2D Ashkin-Teller U/J=2, K=.08..65 with 16/48 couplings in .19..22", "coupling_names": ["K"], "spin_flip_augment": false},
+  "model": {"dimension": 2, "theory_dim": 1, "hidden": 60, "categorical_states": 4, "fixed_kernel": true, "kernel_sampling": "deterministic", "kernel_initialization": "random", "binary_lookup": true},
+  "loss": {"geometry_mode": "relative_local", "kernel_noncollapse_mode": "variance_floor_ensemble", "kernel_variance_ratio": 1.0, "kernel_sign_weight": 0, "weights": {"anchor": 2, "coarse_consistency": 5, "separation": 10, "commutator": 5, "kernel_noncollapse": 0}, "rollout_weight": 5},
+  "training": {"epochs": 1200, "max_rg_steps": 2, "system_batch": 32, "sample_batch": 64, "learning_rate": 0.001, "seed": 91, "threads": 2, "checkpoint_every": 200, "log_every": 100, "gradient_mode": "qc_r_separate", "train_modules": ["Q", "R"]},
+  "evaluation": {"max_rg_steps": 2, "samples": 64, "systems": 32}
+}

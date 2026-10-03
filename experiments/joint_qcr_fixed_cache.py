@@ -12,8 +12,9 @@ import torch.nn.functional as F
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from experiments import joint_qcr_ising2d_field as entry
-from experiments.joint_qcr_ising import data_geometry_statistics_objective, qcr_objective, plaquette_distribution
-from experiments._utils import QCRWeights
+from recurrent_rg.losses import data_geometry_statistics_objective, qcr_objective
+from recurrent_rg.data.statistics import plaquette_distribution
+from recurrent_rg.config import QCRWeights
 from experiments.supervised_q_ising2d_multiscale import patterns_for
 
 

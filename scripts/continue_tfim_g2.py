@@ -6,7 +6,8 @@ import torch
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from recurrent_rg.model_nd import RecurrentRGNetwork1D
-from experiments.joint_qcr_ising import train, two_spin_distribution, evaluate
+from recurrent_rg.training import train, evaluate
+from recurrent_rg.data.statistics import two_spin_distribution
 
 
 def main():

@@ -36,7 +36,7 @@ def main():
     parser.add_argument('--run', type=Path, required=True)
     args = parser.parse_args()
     summary = json.loads((args.run/'summary.json').read_text())
-    steps = sorted({1000, summary['config']['epochs']})
+    steps = summary['config'].get('report_steps', sorted({1000, summary['config']['epochs']}))
     reports = [analyze(args.run/f'step{step}') for step in steps if (args.run/f'step{step}').exists()]
     history = summary['history']
     grid = np.load(args.run/f"step{reports[-1]['step']}"/'field_flow_data.npz')

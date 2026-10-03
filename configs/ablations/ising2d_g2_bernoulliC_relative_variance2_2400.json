@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "data": {
+    "cache": "../../data_cache/ising2d_Kfocused_Buniform0p01_L16_n64_seed91/ensembles.pt",
+    "physical_model": "2D classical Ising, K=.20:.03:.68 and uniform B=-.01:.001:.01",
+    "coupling_names": ["K", "B"], "spin_flip_symmetric": false, "spin_flip_augment": false
+  },
+  "model": {"dimension": 2, "theory_dim": 2, "hidden": 60, "fixed_kernel": false, "binary_lookup": true, "kernel_initialization": "random", "kernel_sampling": "bernoulli", "kernel_temperature": 1.0},
+  "loss": {
+    "isotropy_weight": 0, "geometry_mode": "relative_local", "geometry_relative_floor": 0.05,
+    "geometry_max_inverse_weight": 100, "geometry_neighbors": 4, "geometry_local_fraction": 0.5,
+    "rollout_weight": 5, "kernel_noncollapse_mode": "variance_floor", "kernel_variance_ratio": 0.25,
+    "weights": {"kernel_noncollapse": 2}, "closure_metric": "euclidean", "tangent_weight": 0
+  },
+  "training": {"max_rg_steps": 2, "epochs": 2400, "system_batch": 64, "sample_batch": 64, "learning_rate": 0.001, "seed": 91, "threads": 2, "checkpoint_every": 400, "log_every": 100, "train_modules": ["Q", "C", "R"]},
+  "evaluation": {"max_rg_steps": 2, "samples": 64, "systems": 64}
+}

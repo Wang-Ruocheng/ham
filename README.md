@@ -1,249 +1,270 @@
-# Recurrent RG Network：无耦合标签的 QCR
+# Recurrent RG Network：从构型系综学习 QCR
 
-从构型系综联合学习局域粗粒化 \(C\)、低维理论坐标 \(Q\) 和共享的 RG 映射 \(R\)：
+更新：2026-10-03。输入为无耦合标签的构型系综，学习局域粗粒化 C、系综坐标 Q 和共享尺度映射 R：
 
 $$
-\mathcal D_k=C^k(\mathcal D_0),\qquad
-g_k=Q(\mathcal D_k),\qquad
-R(g)=g+F(g).
+\mathcal D_k=C^k\mathcal D_0,\qquad g_k=Q(\mathcal D_k),\qquad R(g)=g+F(g).
 $$
 
-当前主线是 **Q/C/R 同步训练**，不使用 RSMI、作用量 A、耦合标签、相标签或已知临界点训练。
-模型只知道哪些构型属于同一系综；真实耦合仅用于数据生成和事后绘图。
-这是学习有限尺度统计及其潜空间动力学的研究原型，不预设潜坐标就是完整物理耦合。
+当前精选实验使用**随机初始化的可训练概率 C、经验 RSMI 和逐系综方差下限，Q/C/R 同步更新但独立传递梯度**。不穷举选择核，不预训练 C，不使用耦合或相标签监督。真实耦合用于采样和事后物理诊断；采样区间的选择仍包含实验设计知识。
 
-## 关键实验：一维 TFIM，dim g=1 与 dim g=2
+这是有限尺度统计与潜空间动力学的研究原型，不能自动视为精确、闭合的物理 RG。
 
-同一物理问题、同一份缓存数据：周期一维横场 Ising
-\(H=-J\sum_i Z_iZ_{i+1}-h\sum_i X_i\)，无纵向场。
-Q/C 只读取等时自旋构型，参数 \(h/J\) 不进入 loss。
+- [当前模型与训练](#模型与训练)
+- [Loss 组成和目的](#loss-组成和目的)
+- [精选实验及复现](#精选实验)
+- [开发指南](docs/development.md)、[完整实验索引](experiments/README.md)
+- [旧版 README 与历史 TFIM / Ising 记录](README.history.md)
 
-| 设置 | dim g=1 | dim g=2 |
+## 模型与训练
+
+| 模块 | 输入 → 输出 | 结构及职责 |
 |---|---|---|
-| 原始链长与尺度 | 128→64→32→16→8→4 | 相同 |
-| 隐藏层宽度 / seed | 60 / 91 | 60 / 91 |
-| 优化的 Q/C/R 参数量 | 9,711 | 9,893 |
-| 展示检查点 | 联合训练第 1,000 步 | 联合训练第 6,000 步 |
-| R-only 后处理拟合 | 无 | 无 |
+| C | 局域自旋块 → 一个粗粒化自旋 | 不重叠一维 2 格 / 二维 2×2 块；局域 MLP 输出 Bernoulli 或 categorical 概率 |
+| Q | 同一系综的多份构型 → dim_g 维坐标 | 周期局域特征网络，跨样本与位置平均，再接输出网络；无显式总磁化输入 |
+| R | g → 下一尺度 g | 残差 MLP，所有尺度共享参数，不显式输入 k |
 
-数据包含64个均匀的 \(h/J\in[0.01,2]\) 取值，每个3条采样链、每系综128构型。
-按耦合划分129个训练系综、63个测试系综（同一耦合的所有 replica 在同一侧），
-共24,576个原始构型。训练每步抽32个系综，每系综128个样本并作全局翻转增强。
-Suzuki–Trotter 数据取 \(M=32,\Delta\tau=0.5,\beta=16\)；有限温度和离散误差仍需独立控制。
+C 在构型路径上随机采样，使用直通梯度估计；MI 与均匀块保色项直接使用输出概率。没有硬编码 Z2 或颜色置换等变性。当前不学习作用量 A。
 
-**这是两个已完成联合训练检查点的定性展示，不是等训练预算、多 seed 的维度优劣比较。**
-标量采用此前两侧保持分离的第1,000步：它的第2,000步曾出现临界两侧长期汇合。
-向量采用原 coordinate-sum 模型续训至6,000步；并未替换成固定 Q/C 的 R-only 对照。
+下列精选实验均为 seed=91、hidden=60、Adam 学习率 0.001、每批 32 个系综 × 64 个构型、2400 次更新。这里的“步/epoch”指训练循环更新次数，不表示完整遍历缓存一次。
 
-### dim g=1：R(g) 与恒等线
+当前配方入口是 `python -m experiments.rsmi_separate_qcr`。`--independent-c` 模式下：
 
-![一维 TFIM，dim g=1，联合训练1000步](docs/figures/tfim_g1_joint_R.png)
+- Q 只优化表示目标；其粗粒化输入不向 C 反传 Q loss。
+- C 只优化 MI、防塌缩及可选保色目标。
+- R 只优化一步和多步闭环；目标和初始 Q 坐标均停止梯度，但 R 的递推保留梯度。
 
-数值不动点为 \(g=-0.87699,-0.28898,1.01028\)，对应导数
-\(0.78063,1.39458,0.32543\)：两侧稳定、中间不稳定。
+因此它既不是 Q→C→R 逐个训练，也不是所有 loss 对三个模块全反传。下面描述的是**经验证的实验配方**，不代表所有历史脚本或通用 CLI 的默认值；例如保色必须显式传入 `--color-weight 1`。
 
-### dim g=2：二维潜空间流
+## Loss 组成和目的
 
-![一维 TFIM，dim g=2，联合训练6000步](results/joint_qcr_tfim_1d_g2_coordsum_continue6000_seed91/step6000/R_vector_field.png)
+令两个独立子集的编码为 \(g^a_{ik},g^b_{ik}\)，\(\bar g_{ik}=(g^a_{ik}+g^b_{ik})/2\)。坐标误差使用平方范数，即对潜维度**求和**，然后对系综与尺度平均。
 
-箭头为离散位移 **\(R(g)-g\)**，不是位置向量 \(R(g)\)；箭头长度归一化，颜色表示原始位移。
-灰色箭头位于离观测输入较远的区域。绘图区内有一个稳定点
-\((0.36714,-0.27303)\) 和一个鞍点 \((-0.44587,0.80690)\)；
-鞍点特征值约 \(-0.06941,1.33246\)。
-
-将鞍点投影到微观平均 \(g_0(h/J)\) 折线，最近点对应 \(h/J\approx0.9796\)，
-但仍有约0.0389的潜空间残差：不是精确坐标对应，也不是独立验证的物理临界点。
-Q 编码主要落在近一维曲线上；离曲线方向的导数约束较弱。
-
-延长训练改变了定性流形态，但向量版6,000步的总测试 loss 比2,000步高，
-且 C 的离散规则发生变化。不能仅凭好看的流图宣布完全收敛或正确临界指数。
-
-- [标量完整历史报告](results/joint_qcr_tfim_1d_g1_levels6_rollout5_2000_seed91/REPORT.md)
-- [向量续训报告、误差与检查点](results/joint_qcr_tfim_1d_g2_coordsum_continue6000_seed91/REPORT.md)
-- [标量各尺度 g(h/J)](results/joint_qcr_tfim_1d_g1_levels6_rollout5_2000_seed91/step1000/g_by_scale_vs_h_over_J.png)
-- [向量各尺度 g(h/J)](results/joint_qcr_tfim_1d_g2_coordsum_continue6000_seed91/coupling_mapping_step6000.png)
-
-## 当前模型
-
-输入张量为 [systems, samples, *spatial_shape, channels]，各尺度共享同一组 Q/C/R 参数。
-
-- **C**：带 bias 的局域 MLP，二值 hard forward + straight-through 梯度。
-  非重叠二倍分块：1D输入相邻2格，2D输入2×2格，每块直接输出一个粗变量。
-- **Q**：重叠周期窗口（1D宽3、2D为3×3）→共享局域 MLP→样本与空间平均→理论坐标头。
-  是系综的点估计，不是显式概率后验；没有加入额外总体磁化、BatchNorm 或强制满秩表示。
-- **R**：残差 MLP，\(g+F(g)\)，两层隐藏层、Tanh，各尺度共享，无显式 k 输入。
-
-不对可学习 Q/C/R 施加硬 Z2 等变约束。零场 Ising/TFIM 的翻转配对属于数据增强，
-不适用于非零纵场。二值 lookup 保留原输入梯度，是经测试的计算加速，不是另一种 loss。
-固定正 decimation 仍作为显式物理对照保留；它不是当前两张主图的 C。
-
-## 当前 loss：全尺度数据几何 + 单步/多步闭环
-
-实现：\(\texttt{experiments/joint\_qcr\_ising.py}\) 中的
-\(\texttt{data\_geometry\_statistics\_objective}\)。
-下文 \(K=\texttt{levels}-1\)，尺度为 \(k=0,\ldots,K\)，\(i\) 表示系综。
-每个系综分成两个子集 a、b，定义
+当前三个独立优化目标为：
 
 $$
-g^a_{i,k}=Q(C^kD_i^a),\quad
-g^b_{i,k}=Q(C^kD_i^b),\quad
-\bar g_{i,k}=\tfrac12(g^a_{i,k}+g^b_{i,k}).
+\begin{aligned}
+\mathcal L_Q&=20\mathcal L_{\rm split,0}+5\mathcal L_{\rm split,coarse}+10\mathcal L_{\rm geometry},\\
+\mathcal L_C&=-2\widehat I(H;E)+2\mathcal L_{\rm variance}+\lambda_{\rm color}\mathcal L_{\rm color},\\
+\mathcal L_R&=5\mathcal L_{\rm step}+5\mathcal L_{\rm rollout}.
+\end{aligned}
 $$
 
-当前默认目标为
+**权重口径：**配置中的 `anchor=2` 乘的是代码内部已放大 10 倍的微观一致性项，所以相对原始平方误差的有效系数为 **20**，不是 2。日志中分项不应再重复乘这个内部因子。三个 Ising 保色实验取 λ_color=1；下面的三态 Potts 成功实验取 0。
 
-$$
-\boxed{
-\mathcal L_{\rm QCR}
-=20\mathcal L_{\rm split,0}
-+5\mathcal L_{\rm split,coarse}
-+2\mathcal L_C
-+10\mathcal L_{\rm data}
-+5\mathcal L_{\rm step}
-+5\mathcal L_{\rm rollout}
-}
-$$
+| 项 | 目的 | 更新模块 |
+|---|---|---|
+| 子集一致性 | 同一系综的不同抽样给出稳定坐标，避免编码抽样噪声 | Q |
+| 分布几何 | 可区分的构型分布对应可区分的 g，不把系综编号当分离标签 | Q |
+| 经验 RSMI | 粗变量保留隔着 buffer 的环境信息 | C |
+| 逐系综方差下限 | 防止 C 把仍有变化的输入压为偏置或常数输出 | C |
+| 可选均匀块保色 | 固定颜色约定，抑制全同块的翻转 / 循环重标号 | C |
+| 一步闭环 | 拟合每个已观测尺度的 Q(CD) | R |
+| 全尺度 rollout | 从微观编码递推，匹配所有可用的 Q(C^kD) | R |
 
 ### 1. 同系综子集一致性
 
 $$
-\mathcal L_{\rm split,0}
-=\langle\|g^a_{i,0}-g^b_{i,0}\|_2^2\rangle_i,\qquad
-\mathcal L_{\rm split,coarse}
-=\frac1K\sum_{k=1}^K\langle\|g^a_{i,k}-g^b_{i,k}\|_2^2\rangle_i.
+\mathcal L_{\rm split,0}=\mathbb E_i\|g^a_{i0}-g^b_{i0}\|^2,\qquad
+\mathcal L_{\rm split,coarse}=\mathbb E_{i,k\ge1}\|g^a_{ik}-g^b_{ik}\|^2.
 $$
 
-要求同一系综的不同样本子集给出相近坐标，减少采样噪声。
-坐标维度**求和**、系综和尺度取平均，不因增加 dim g 自动减小约束。
-标量求和与求平均等价；旧向量结果可显式指定 coordinate-reduction=mean 复现。
+它提高 Q 的抽样稳定性，但单独使用允许所有系综塌缩到同一点，必须配合分布几何。
 
-### 2. C 的防塌缩
+### 2. 分布几何：`relative_local`
 
-零场主实验使用每层 coarse field 的 batch 均值 \(m_k\)：
+在每个尺度统计局域模式频率 p（一维自旋对 / 二维 plaquette）。两个子集给出：
 
 $$
-\mathcal L_C=\frac1K\sum_{k=1}^K m_k^2.
+\bar p_i=(p_i^a+p_i^b)/2,\quad \eta_i=\tfrac14\|p_i^a-p_i^b\|^2,\quad
+d_{ij}=\|\bar p_i-\bar p_j\|,\quad a_{ij}=2\sqrt{\eta_i+\eta_j}.
 $$
 
-这里平均覆盖当前 batch 的所有系综、样本和空间位置，不是要求每个系综磁化为零。
-常数输出±1的惩罚为1；梯度通过 STE 回传。这是二值平衡的软约束，
-不保证信息保留，也不是 RSMI。
-
-非零纵场的独立入口保留允许偏置的 variance-floor 版本，避免错误要求零磁化；
-它不用于上述 TFIM 主图。固定 C、场类型、geometry 等通用适配能力没有删除。
-
-### 3. 由数据决定的分布几何
-
-在每层统计局域模式频率 \(p^a_{i,k},p^b_{i,k}\)：
-1D 为相邻两自旋的4种模式，2D 为2×2 plaquette的16种模式。
-定义
+要求潜距离 \(r_{ij}=\|\bar g_i-\bar g_j\|\) 尽量落入统计容许区间：
 
 $$
-\bar p_i=\tfrac12(p_i^a+p_i^b),\quad
-v_i=\tfrac14\|p_i^a-p_i^b\|_2^2,\quad
-d_{ij}=\|\bar p_i-\bar p_j\|_2,\quad
-e_{ij}=2\sqrt{v_i+v_j},
+\ell_{ij}=[4(d_{ij}-a_{ij})_+-r_{ij}]_+^2+
+[r_{ij}-4(d_{ij}+a_{ij})]_+^2.
 $$
 
-$$
-\ell_{ij}=4(d_{ij}-e_{ij})_+,\qquad u_{ij}=4(d_{ij}+e_{ij}).
-$$
+`relative_local` 用 \(s_{ij}=(4d_{ij})^2+(4a_{ij})^2+0.05^2\) 归一化：乘 \(\min(100,s_{ij}^{-1})\)，再按可靠性 \((4d_{ij})^2/s_{ij}\) 加权。全局配对平均与每个系综 4 个可分辨近邻的局部平均各占一半，无有效局部近邻时回退全局项；各尺度等权。
+
+统计目标停止梯度。这里的噪声容许区间不是严格置信区间，也不是完整分布距离。该项允许物理上一维的流形嵌入二维，不强迫协方差各向同性或满秩。当前配方没有额外协方差白化、弱方向加权 R loss 或局部轨迹排斥项。
+
+### 3. RSMI：有限经验分布上的直接求和
 
 $$
-\mathcal L_{\rm data}
-=\frac1{K+1}\sum_{k=0}^K
-\left\langle
-(\ell_{ij,k}-\|\bar g_{i,k}-\bar g_{j,k}\|_2)_+^2+
-(\|\bar g_{i,k}-\bar g_{j,k}\|_2-u_{ij,k})_+^2
-\right\rangle_{i<j}.
+\hat p(h,e)=\sum_v\hat p(v,e)P_C(h\mid v),\qquad
+\widehat I(H;E)=\sum_{h,e}\hat p(h,e)\log\frac{\hat p(h,e)}{\hat p(h)\hat p(e)}.
 $$
 
-数据目标及噪声容差停止梯度；坐标距离保持梯度。因子4是固定坐标单位，
-因子2控制分半噪声容差，均不是学习到的物理常数。
-容差是启发式估计，不是置信区间；局域频率不是完整构型分布。
-分布无法区分时允许相同 g，不强制每个系综分开或把潜空间全部维度填满。
+当前 `--estimator histogram` 不训练 critic；在微观尺度逐系综计数，使用全部缓存样本及平移位置。一维 V 为 2 格、E 为两侧各一个自旋；二维 V 为 2×2、E 为完整 20 自旋外壳。V 与 E 之间留出宽度为 1 的 buffer，buffer 不进入 E。
 
-### 4. 单步与多步闭环
+梯度经过概率核 P_C；这不是枚举候选核后选最优核。优化使用自然对数，报告的 MI 通常换算为 bit。所谓“精确 MI”仅指经验表上的有限求和，**不代表真实分布 MI 无偏**；大环境字母表尤其容易产生有限样本上偏。旧日志中的零值 shuffled MI 占位不能当作实测零偏差基线。
 
-$$
-\mathcal L_{\rm step}
-=\frac1K\sum_{k=0}^{K-1}
-\langle\|R(\bar g_{i,k})-\bar g_{i,k+1}\|_2^2\rangle_i,
-$$
+### 4. C 的逐系综方差下限
+
+令 m 为一个系综内跨构型、跨位置的平均二值自旋，sg 表示停止梯度：
 
 $$
-\mathcal L_{\rm rollout}
-=\frac1K\sum_{k=1}^{K}
-\langle\|R^k(\bar g_{i,0})-\bar g_{i,k}\|_2^2\rangle_i.
+\mathcal L_{\rm variance}=\mathbb E_{i,k}
+\left[|m_{\rm out}|-\sqrt{1-\rho(1-\operatorname{sg}(m_{\rm in})^2)}\right]_+^2.
 $$
 
-所有可用尺度等权，没有旧版高 k 衰减。多步项从 g0 自主递推，保留全部 R 调用的梯度；
-闭环两侧都参与联合优化，没有冻结 Q/C 的目标或交替更新。
-**尚未采用**此前讨论的“所有起点、所有跨度”、最差尺度加权或更多 R 专用更新。
+多类别用颜色频率向量 p 替代：
 
-L128主实验取levels=6，覆盖k=0..5；k>5仍是无数据监督的外推。
-当前不把只剩2格或1格的退化层加入此实验。
+$$
+\mathbb E_{i,k}\left[\|p_{\rm out}\|-
+\sqrt{1-\rho(1-\|\operatorname{sg}(p_{\rm in})\|^2)}\right]_+^2.
+$$
 
-### 日志字段与数学项
+当前取 ρ=1，逐系综、逐尺度计算，权重 2。它惩罚方差缩减，但允许常数输入保持常数，不要求每个系综各颜色均匀。这是一项软统计假设，不是对任意物理系统都严格成立的 RG 恒等式。
 
-| 日志字段（未乘外部权重） | 数学含义 | 外部权重 |
-|---|---|---:|
-| anchor | \(10\mathcal L_{\rm split,0}\) | 2 |
-| coarse_consistency | \(\mathcal L_{\rm split,coarse}\) | 5 |
-| kernel_noncollapse | \(\mathcal L_C\) | 2 |
-| separation | \(\mathcal L_{\rm data}\)，不是旧固定分离下限 | 10 |
-| commutator | \(\mathcal L_{\rm step}\) | 5 |
-| rollout | \(\mathcal L_{\rm rollout}\) | 5 |
+### 5. 可选保色
 
-保留历史日志键以便读取旧报告；不再把 legacy 锚点/固定跨度目标混写为当前 loss。
+$$
+\mathcal L_{\rm color}=-\frac1q\sum_{a=1}^q\log P_C(a\mid a,a,\ldots,a).
+$$
 
-## 运行与复现
+只约束均匀块，混合块仍可学习；二值情形就是全正 / 全负块的 Bernoulli NLL。它不等于硬对称性，也不保证全局不存在周期轨道。三态 Potts 的精选结果未使用此项，应与保色 Ising 对照区分。
 
-安装依赖并测试：
+### 6. R 的一步和全尺度闭环
 
-~~~bash
-python -m pip install -e ".[dev]"
-python -m pytest
-~~~
+$$
+\mathcal L_{\rm step}=\mathbb E_{i,0\le k<n}\|R(\operatorname{sg}\bar g_{ik})-\operatorname{sg}\bar g_{i,k+1}\|^2,
+$$
+$$
+\mathcal L_{\rm rollout}=\mathbb E_{i,1\le k\le n}\|R^k(\operatorname{sg}\bar g_{i0})-\operatorname{sg}\bar g_{ik}\|^2.
+$$
 
-当前一维 TFIM 主配置（命令为明确参数，不依赖旧默认值）：
+覆盖缓存链的所有可用尺度，不只前两步；但不约束链长之外的无限次递推。R loss 不再通过收缩 Q/C 表示来降低自身误差。日志总量含负 MI，可能为负，不能只按其大小判断相变学习是否正确。
 
-~~~bash
-python experiments/joint_qcr_tfim_1d.py \
-  --sites 128 --levels 6 --hidden 60 --theory-dim 1 \
-  --ensemble-size 128 --sample-batch 128 --system-batch 32 \
-  --epochs 1000 --seed 91 --binary-lookup \
-  --objective-mode data_geometry --coordinate-reduction sum --rollout-weight 5 \
-  --output-dir results/tfim_g1_new_run
+## 精选实验
 
-python experiments/joint_qcr_tfim_1d.py \
-  --sites 128 --levels 6 --hidden 60 --theory-dim 2 \
-  --ensemble-size 128 --sample-batch 128 --system-batch 32 \
-  --epochs 2000 --seed 91 --binary-lookup \
-  --objective-mode data_geometry --coordinate-reduction sum --rollout-weight 5 \
-  --output-dir results/tfim_g2_new_run
-~~~
+下面均为预定最终 2400 步、单种子结果，不按临界位置挑选早停检查点。保留“效果较好”的定性结构，也明确支持范围及误差；尚不能据此宣称多 seed 鲁棒性、完整相图或临界指数都已恢复。
 
-上述命令启动新训练，不保证跨硬件逐位重现已保存权重。
-向量主图来自原2000步检查点的连续续训；历史恢复入口为
-[scripts/continue_tfim_g2.py](scripts/continue_tfim_g2.py)，其源/输出目录固定在脚本内，
-运行前检查路径，不要无意覆盖已完成的续训目录。
+| 问题 | dim_g | 参数量 | 已恢复的主要结构 | 主要限制 |
+|---|---:|---:|---|---|
+| 1D 经典 Ising | 1 | 9,711 | 有序端不稳定、无序端稳定，流向正确 | 深尺度闭环误差大 |
+| 1D 经典 Ising | 2 | 9,893 | 近一维流形，有序端鞍点、无序端吸引子 | 有序端外推，位置精度退化 |
+| 2D 经典 Ising，K/B | 2 | 10,373 | 中心两方向均不稳定的排斥子 | 临界 K 插值偏低约 3.20% |
+| 2D 三态 Potts，零场 | 1 | 11,873 | 中间不稳定、两侧稳定的标量结构 | 一个吸引子在训练支持外；未保色 |
 
-标量报告输出 R(g)、R(g)-g、各尺度 g(h/J) 及 loss/闭环；
-向量用 [scripts/plot_qcr_vector_flow.py](scripts/plot_qcr_vector_flow.py)。
-所有训练报告必须注明检查点，画 R 的流和真实 Q(C^kD) 对耦合的映射，
-不能以 R 递推冒充直接 Q 编码。
+复现命令依赖已有 source 目录中的配置和数据缓存；`--source` 在以下命令里**仅读配置，不恢复旧模型权重**。输出用新 `_repro` 目录以免覆盖结果。完整数据生成和报告命令见各实验记录；本地缓存、检查点和图片不保证随 Git 分发。
 
-## 代码与历史边界
+---
 
-- recurrent_rg/：模型、几何、场适配器与采样器；历史作用量能力保留，但主 QCR 不优化 A。
-- experiments/joint_qcr_ising.py：共享目标、训练、评估及优化器/RNG续训。
-- experiments/joint_qcr_tfim_1d.py、joint_qcr_tfim_2d.py：量子TFIM入口。
-- experiments/joint_qcr_ising2d_field.py：二维经典 K/B 问题，不是二维量子TFIM。
-- [archive/qcr_ablations/](archive/qcr_ablations/README.md)：旧固定分离loss、强制协方差利用、
-  额外磁化与Q结构消融；从主入口移除但保留历史可追溯性。
-- scripts/：报告、续训及独立 R-only 诊断；诊断脚本不参与主 loss。
-- results/：历史实验保留；本页仅以一维TFIM两种潜维度作为关键展示。
+### 1D 经典 Ising：dim_g=1
 
-本次清理不删除数据、权重和历史报告，不新增训练。
-测试 loss 低、相界附近有不动点、得到两侧吸引的流，都不是精确 RG 或正确临界指数的充分证据。
+零场周期链 L=128→64→32→16→8→4，64 个无量纲 J=J_phys/T∈[0.01,2]，每点 3 个系综、每系综 128 构型；129 个训练系综 / 63 个留出系综。注意：**不是 TFIM，也没有有限温度临界点**。
+
+C 学到近似正 decimation。R 的有序端不稳定根 g≈0.01475，乘子 1.54102；无序端稳定根 g≈1.95142，乘子 0.08485。300 个诊断 J 的流向均正确，相对精确 decimation 参考的一步 RMSE / 端点跨度约 1.07%。测试首步 NRMSE=3.78%，第 5 步 rollout NRMSE=58.10%，不能称为所有尺度精确闭环。
+
+```bash
+python -m experiments.rsmi_separate_qcr \
+  --source results/ising1d_g1_random_independentC_variance2ratio1_2400_seed91/qr \
+  --output results/ising1d_g1_color1_repro/qr \
+  --estimator histogram --variance-weight 2 --variance-ratio 1 \
+  --variance-per-ensemble --independent-c --color-weight 1
+```
+
+![1D Ising 标量流与物理端点](results/ising1d_g1_random_independentC_variance2ratio1_color1_2400_seed91/qr/endpoint_report/physical_validation.png)
+
+[详细记录](docs/ising_color_comparison.md) · [各尺度 J–g](results/ising1d_g1_random_independentC_variance2ratio1_color1_2400_seed91/qr/full_report/coupling_by_scale.png) · [loss 曲线](results/ising1d_g1_random_independentC_variance2ratio1_color1_2400_seed91/qr/report/loss_comparison.png)
+
+---
+
+### 1D 经典 Ising：dim_g=2
+
+使用同一份数据。Q 表示近似一维，population 编码弱主成分占比约 2.64×10⁻⁶。鞍点 g≈(0.08504,−0.20728)，DR 特征值约 (1.22713,0.33305)；吸引子 g≈(1.80140,−1.46916)，特征值约 (0.32129,−0.05039)。鞍点的不稳定方向沿物理流形，横向稳定。
+
+300 个 J 的位移方向均符合精确参考。但有序端在训练支持外，归一化端点位置误差约 11.84%；测试首步 / 第 5 步 rollout NRMSE 为 7.65% / 80.15%。无保色版本有序端误差较小（5.40%），见[原始对照](docs/ising1d_g2_random_gradient_mi.md)。
+
+```bash
+python -m experiments.rsmi_separate_qcr \
+  --source results/ising1d_g2_random_independentC_variance2ratio1_2400_seed91/qr \
+  --output results/ising1d_g2_color1_repro/qr \
+  --estimator histogram --variance-weight 2 --variance-ratio 1 \
+  --variance-per-ensemble --independent-c --color-weight 1
+```
+
+![1D Ising 二维潜空间流场](results/ising1d_g2_random_independentC_variance2ratio1_color1_2400_seed91/qr/full_report/R_one_vs_two_step.png)
+![1D Ising J 与二维 g 的映射](results/ising1d_g2_random_independentC_variance2ratio1_color1_2400_seed91/qr/full_report/coupling_by_scale.png)
+
+[详细记录](docs/ising_color_comparison.md)
+
+---
+
+### 2D 经典 Ising：dim_g=2，K/B 双参数
+
+\(P(X)\propto\exp(K\sum_{\langle ij\rangle}s_is_j+B\sum_i s_i)\)，K=J/T、B=h/T，非二维 TFIM。格点 16×16→8×8→4×4；K=0.20:0.03:0.68，B=−0.01:0.001:0.01，每个系综 64 构型。
+
+C 学得近似对块内三个自旋做正多数票，非预设此规则。中心排斥子 g≈(−0.17197,0.05356)，DR 特征值 (1.56649,1.12415)，两者均大于 1，**不是鞍点**。微观网格内反插值 K≈0.426565、B≈−0.000493；相比理论零场 Kc≈0.440687，K 偏低约 3.20%。
+
+测试两尺度一步 NRMSE=3.74%、5.21%，两步 rollout=6.62%。另外两个鞍点没有微观网格内反插值，不直接赋予确定的 K/B。有限范围 R² 查根未发现额外二周期，不构成全局证明。
+
+```bash
+python -m experiments.rsmi_separate_qcr \
+  --source results/ising2d_g2_random_independentC_variance2ratio1_2400_seed91/qr \
+  --output results/ising2d_g2_color1_repro/qr \
+  --estimator histogram --variance-weight 2 --variance-ratio 1 \
+  --variance-per-ensemble --independent-c --color-weight 1
+```
+
+![2D Ising 流场及中心放大](results/ising2d_g2_random_independentC_variance2ratio1_color1_2400_seed91/qr/report/R_flow_and_center.png)
+![2D Ising K/B 与 g 的映射](results/ising2d_g2_random_independentC_variance2ratio1_color1_2400_seed91/qr/report/g_KB_maps.png)
+
+[详细记录](docs/ising_color_comparison.md) · [无保色随机核对照](docs/ising_random_gradient_mi.md)
+
+---
+
+### 2D 三态 Potts：dim_g=1
+
+零场 \(P(X)\propto\exp(K\sum_{\langle ij\rangle}\delta_{s_i,s_j})\)。L=16→8→4，64 个 K∈[0.4,1.6]，每点 3 个系综、每系综 128 构型；129 个训练 / 63 个留出系综。
+
+最终不稳定点 g≈1.583052，R′≈1.393651，唯一微观反插值 K≈0.993806；理论 Kc=log(1+√3)≈1.005053，偏低约 **1.12%**。两侧稳定根 g≈0.782294 和 3.149505，其中后者位于 R 训练输入范围之外，不能声称完整验证了两个物理吸引子。
+
+一步 NRMSE=4.37%、5.18%，两步 rollout=7.91%。此实验**保色权重为 0**；均匀块学到 0→1→2→0 的颜色循环，Q 在已测试微观构型上对全局重标号近似不变，不等于严格对称或任意尺度无周期。当前结果使用最终 2400 步，不是选取早期较好的检查点。
+
+```bash
+python -m experiments.rsmi_separate_qcr \
+  --source results/potts2d_g1_MIinit_independentC_variance2_2400_seed91_fast \
+  --output results/potts2d_g1_random_ratio1_repro \
+  --estimator histogram --variance-weight 2 --variance-ratio 1 \
+  --variance-per-ensemble --independent-c --color-weight 0
+```
+
+source 名称含 MIinit，但本命令没有 `--mi-initialize` 或恢复权重，仍从随机概率 C 开始。
+
+![三态 Potts 的 R(g) 与 K–g 映射](results/potts2d_g1_random_independentC_variance2ratio1_2400_seed91/full_report/R_and_K_mapping.png)
+
+[详细记录与限制](docs/potts_random_gradient_mi.md) · [loss 曲线](results/potts2d_g1_random_independentC_variance2ratio1_2400_seed91/report/loss_comparison.png)
+
+---
+
+### 补充：八态 Potts
+
+八态零场 Potts 的单种子 dim_g=1、保色权重 1 实验也已完成。理论一级相变 Kc=log(1+√8)≈1.342454；不稳定点反插值 K≈1.327668，偏低约 1.10%。这只支持转变位置识别，尚不能从该局部流场断言已区分一级与连续相变或验证标度律。
+
+```bash
+python -m experiments.rsmi_separate_qcr \
+  --config configs/potts2d_q8_g1_random_color1_seed91.json \
+  --output results/potts2d_q8_color1_repro \
+  --estimator histogram --variance-weight 2 --variance-ratio 1 \
+  --variance-per-ensemble --independent-c --color-weight 1
+```
+
+[数据、命令与有限样本限制](docs/potts8.md) · [相图与 K–g](results/potts2d_q8_g1_random_mi_variance2ratio1_color1_2400_seed91/full_report/R_and_K_mapping.png)
+
+## 如何解读图像与验收结果
+
+- 流场箭头画 R(g)−g；标量图画 R(g) 并与 y=g 比较。稳定性判断使用 **DR** 特征值的模，不靠箭头的视觉印象；R² 图使用 R²(g)−g。
+- 微观耦合–g 反插值仅在采样支持内且映射可辨识时成立，不能给任意粗尺度 g 都赋予唯一微观耦合。
+- 区分定性不动点结构、临界位置误差、逐尺度闭环误差；三者不能互相替代。临界指数还要求正确的尺度因子、临界固定点及相关方向，以上结果并非临界指数验收。
+- 当前未把 Ashkin–Teller 的三相实验列为成功案例。固定 decimation 也不保证粗粒化后出现三个孤立吸引子。
+
+## 开发与历史记录
+
+公共模型、loss、配置、数据和评估位于 `recurrent_rg/`；数据生成和报告入口在 `scripts/`，专项研究驱动在 `experiments/`。通用 `python -m recurrent_rg` 与上述 MI 专项驱动不是同一个训练目标，复现时不要直接互换入口。
+
+参见 [开发指南](docs/development.md)、[实验索引](experiments/README.md) 及 [历史 README](README.history.md)。本次文档整理不修改模型、loss 实现或全项目 CLI 默认值。

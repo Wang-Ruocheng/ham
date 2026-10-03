@@ -6,7 +6,8 @@ import torch
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from recurrent_rg.model_nd import RecurrentRGNetwork2D
-from experiments.joint_qcr_ising import train, evaluate, plaquette_distribution
+from recurrent_rg.training import train, evaluate
+from recurrent_rg.data.statistics import plaquette_distribution
 from experiments.qcr_scalar_report import scalar_report
 
 

@@ -13,7 +13,7 @@ import torch
 from torch import nn
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from experiments._utils import balanced_views
+from recurrent_rg.data.views import balanced_views
 from recurrent_rg.model_nd import RecurrentRGNetwork1D
 from fit_frozen_qcr_R import errors, metrics
 

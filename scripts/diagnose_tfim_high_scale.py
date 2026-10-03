@@ -7,8 +7,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from experiments._utils import balanced_views
-from experiments.joint_qcr_ising import two_spin_distribution
+from recurrent_rg.data.views import balanced_views
+from recurrent_rg.data.statistics import two_spin_distribution
 from recurrent_rg.model_nd import RecurrentRGNetwork1D
 
 

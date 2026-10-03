@@ -24,7 +24,7 @@ from recurrent_rg.unsupervised2d import (
     unsupervised_objective_2d,
 )
 from recurrent_rg.unsupervised_nd import UnsupervisedLossWeights
-from experiments._utils import fixed_eval_subset
+from recurrent_rg.data.views import fixed_eval_subset
 
 
 def train(

@@ -4,8 +4,9 @@ from pathlib import Path
 import sys
 import torch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from experiments._utils import balanced_views
-from experiments.joint_qcr_ising import distribution_geometry_loss, two_spin_distribution
+from recurrent_rg.data.views import balanced_views
+from recurrent_rg.losses import distribution_geometry_loss
+from recurrent_rg.data.statistics import two_spin_distribution
 from recurrent_rg.model_nd import RecurrentRGNetwork1D
 
 

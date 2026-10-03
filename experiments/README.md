@@ -1,11 +1,28 @@
 # Auxiliary experiments
 
+公共训练、loss、数据组织、检查点和评估已迁至 `recurrent_rg/`。
+通用实验使用 `python -m recurrent_rg` 和 `configs/` 中的配置，当前独立梯度 MI 配方使用 `python -m experiments.rsmi_separate_qcr`；二者训练目标不同，不可直接互换。详见
+[开发指南](../docs/development.md)。以下特定实验脚本保留作为历史配方，
+其旧导入路径和检查点仍兼容；无需继续复制通用训练循环。
+
+精确经验 MI 的一维 Ising 修正实验（逐系综防塌缩、数据选核初始化、Q/C/R 独立梯度）
+见 [实验记录与复现命令](../docs/ising1d_mi_repair.md)。这是显式可选实验，非全项目默认设置。
+**无选核版本**：[随机概率C直接梯度训练的一维/二维Ising](../docs/ising_random_gradient_mi.md)，
+使用统一的ratio=1逐系综方差下限；记录了2400步结果、失败对照和外推限制。
+该配方的[一维经典Ising dim_g=2验证](../docs/ising1d_g2_random_gradient_mi.md)学得近一维表示、一个鞍点和一个吸引子，保留有序端外推及深尺度闭环误差。
+[Blume-Capel Delta/J=1温度扫描](../docs/blume_capel.md)提供独立数据生成、采样器精确小系统测试与dim_g=1/2及保色实验；临界定位仍有偏差。
+[Ising保色对照](../docs/ising_color_comparison.md)汇总1D dim_g=1/2和2D dim_g=2的weight=1单种子结果，定性结构保留但部分精度退化。
+同方案的 [二维 Ising K/B 验证](../docs/ising2d_mi_independent.md) 包含完整环境的精确经验MI、65536核枚举和二维流场。
+同方案的 [三值 Potts 测试](../docs/potts_mi_independent.md) 记录了2400步结果、初始化搜索及有限样本MI的限制；本次未恢复正确临界位置。
+后续 [随机概率C、ratio=1的Potts实验](../docs/potts_random_gradient_mi.md) 不做选核或预训练，
+最终临界插值K≈.9938，偏差约1.12%；保留外推吸引子等限制。
+
 主训练与最新 loss 以根目录 [README](../README.md) 为准：
-data_geometry、坐标平方误差求和、多步闭环权重5；一维 TFIM 默认 levels6、hidden60、sample_batch128。
+当前精选配方为随机概率 C、经验 RSMI、逐系综 ratio=1 方差下限，以及 Q/C/R 独立梯度同步更新；Q 使用 relative_local 分布几何，R 使用一步与全尺度多步闭环。坐标平方误差求和，微观子集一致性有效权重为20（配置anchor=2，内部再乘10）。保色是否启用按实验明确标注。
 旧固定分离目标不再提供主 CLI 选项，历史协方差满秩、磁化特征和 Q 结构消融已移入
 [archive/qcr_ablations](../archive/qcr_ablations/README.md)。下列旧实验说明是历史记录，
 不是当前默认配置；重现旧向量 mean-loss 需显式传入 coordinate_reduction='mean'。
-旧结果与检查点全部保留，根 README 的关键展示仅使用一维 TFIM 的联合训练 dim g=1/2。
+旧结果与检查点全部保留，根 README 展示1D经典Ising dim_g=1/2、2D经典Ising dim_g=2及Potts；旧TFIM等记录移至[历史README](../README.history.md)。
 
 ## Two-dimensional quantum TFIM (scalar QCR)
 

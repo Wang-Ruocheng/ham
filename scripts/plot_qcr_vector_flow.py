@@ -14,8 +14,9 @@ from scipy.spatial import cKDTree
 import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from experiments._utils import balanced_views
+from recurrent_rg.data.views import balanced_views
 from recurrent_rg.model_nd import RecurrentRGNetwork1D, RecurrentRGNetwork2D
+from recurrent_rg.checkpoints import load_run
 
 
 def main():
@@ -30,15 +31,9 @@ def main():
     if cfg["theory_dim"] != 2:
         raise ValueError("This figure requires dim(g)=2")
     is_2d = cfg.get("dimension", 1) == 2
-    cls = RecurrentRGNetwork2D if is_2d else RecurrentRGNetwork1D
-    kwargs = {} if is_2d else {"learnable_kernel": not cfg.get("fixed_kernel", False)}
-    model = cls(levels=cfg["levels"], hidden=cfg["hidden"], theory_dim=2,
-                kernel_layout=cfg.get("kernel_layout", "overlapping"), **kwargs).double().eval()
-    model.theory_encoder.binary_lookup = cfg.get("binary_lookup", False)
-    model.rg_kernel.binary_lookup = cfg.get("binary_lookup", False)
-    mismatch = model.load_state_dict(torch.load(args.run / "qcr_model.pt", weights_only=True), strict=False)
-    if mismatch.unexpected_keys or any(not k.startswith("action_network.") for k in mismatch.missing_keys):
-        raise ValueError(str(mismatch))
+    is_quantum = 'time_slices' in cfg
+    coupling_name = 'h/J' if is_quantum or not is_2d else 'K'
+    model = load_run(args.run, overrides={'dimension':2 if is_2d else 1}).model
     train_x, train_h, test_x, test_h = torch.load(args.cache, weights_only=True)
     x = torch.cat((train_x, test_x))
     h = torch.cat((train_h, test_h)).numpy()
@@ -126,8 +121,13 @@ def main():
     knots = np.unique(h)
     means = np.array([direct[h==value].mean(0) for value in knots])
     selected_fields = []
-    critical = .5*np.log(1+np.sqrt(2)) if is_2d else 1.
-    requested_fields = (.25, .38, critical, .5, .62) if is_2d else (.5, .8, 1., 1.2, 1.7)
+    critical = float(cfg.get('reference_critical_coupling', .5*np.log(1+np.sqrt(2)) if is_2d else 1.))
+    if is_quantum and is_2d:
+        if 'reference_critical_coupling' not in cfg:
+            raise ValueError('2D TFIM requires its own critical-coupling reference')
+        requested_fields=(2.,2.8,critical,3.4,4.5)
+    else:
+        requested_fields = (.25, .38, critical, .5, .62) if is_2d else (.5, .8, 1., 1.2, 1.7)
     for i, requested in enumerate(requested_fields):
         j = int(np.argmin(abs(knots-requested)))
         selected_fields.append(float(knots[j]))
@@ -136,7 +136,6 @@ def main():
         for _ in range(cfg["levels"]-1):
             path.append(path[-1]+residual(path[-1]))
         path = np.array(path)
-        coupling_name = "K" if is_2d else "h/J"
         paths.plot(actual[:, 0], actual[:, 1], "o-", color=f"C{i}", label=f"initial {coupling_name}={knots[j]:.3f}", ms=4)
         paths.plot(path[:, 0], path[:, 1], "x--", color=f"C{i}", ms=5, alpha=.8)
         paths.annotate("k=0", actual[0], xytext=(3, 4), textcoords="offset points", fontsize=7)
@@ -150,6 +149,21 @@ def main():
     fig.tight_layout(rect=(0, .06, 1, 1))
     fig.savefig(args.run / "R_vector_field.png", dpi=220)
     plt.close(fig)
+
+    fig,axes=plt.subplots(1,3,figsize=(14,4))
+    for k in range(cfg['levels']):
+        for d in range(2):
+            axes[d].plot(knots,means[:,k,d],label=f'k={k}')
+        axes[2].plot(means[:,k,0],means[:,k,1],'.-',label=f'k={k}')
+        point=[float(np.interp(critical,knots,means[:,k,d])) for d in range(2)]
+        axes[2].scatter(*point,marker='x',color='black')
+    for d in range(2):
+        axes[d].axvline(critical,color='black',ls=':',label='reference')
+        axes[d].set(xlabel=coupling_name,ylabel=f'g{d+1}')
+    axes[2].set(xlabel='g1',ylabel='g2',title='Actual Q curve; crosses = reference coupling')
+    for ax in axes:ax.legend(fontsize=7);ax.grid(alpha=.2)
+    fig.suptitle('Coupling labels used only for evaluation; curves are Q(C^k D), not R rollout')
+    fig.tight_layout();fig.savefig(args.run/'coupling_vs_g.png',dpi=180);plt.close(fig)
 
     fig, axes = plt.subplots(1, 2, figsize=(11, 4.2))
     history = summary["history"]
@@ -194,7 +208,7 @@ def main():
               "g_at_critical_coupling_by_level": [[float(np.interp(critical, knots, means[:, k, d])) for d in range(2)] for k in range(cfg["levels"])]}
     if not is_2d:
         report["g_at_h_over_J_1_interpolated_by_level"] = report["g_at_critical_coupling_by_level"]
-    np.savez_compressed(args.run / "vector_flow_data.npz", direct=direct, rollout=rollout, **({"K": h} if is_2d else {"h_over_J": h}),
+    np.savez_compressed(args.run / "vector_flow_data.npz", direct=direct, rollout=rollout, **({"K": h} if is_2d and not is_quantum else {"h_over_J": h}),
                         grid=grid, delta_g=delta, near_sample=near, is_test=np.arange(len(x))>=len(train_x))
     (args.run / "vector_flow_summary.json").write_text(json.dumps(report, indent=2)+"\n")
     print(json.dumps(report, indent=2))

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "data": {
+    "cache": "../results/tfim_short_vs_long_g1_seed91/ensembles_L16.pt",
+    "physical_model": "1D TFIM; beta=16, M=32, dtau=0.5; independent L16 SW chains",
+    "coupling_names": ["h/J"],
+    "spin_flip_symmetric": true,
+    "spin_flip_augment": true,
+    "train_pool_replicas": 1,
+    "test_pool_replicas": 1
+  },
+  "model": {"dimension": 1, "theory_dim": 1, "hidden": 60, "binary_lookup": true},
+  "loss": {"isotropy_weight": 20},
+  "training": {"max_rg_steps": 2, "epochs": 2000, "sample_batch": 128, "system_batch": 32, "seed": 91},
+  "evaluation": {"max_rg_steps": 2, "samples": 128, "systems": 24}
+}

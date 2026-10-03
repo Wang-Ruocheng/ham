@@ -7,7 +7,8 @@ import subprocess
 import torch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from recurrent_rg.model_nd import RecurrentRGNetwork2D, FixedDecimationCoarseGrainer
-from experiments.joint_qcr_ising import train, plaquette_distribution
+from recurrent_rg.training import train, evaluate
+from recurrent_rg.data.statistics import plaquette_distribution
 
 
 def build_model(learnable_kernel=True):
@@ -26,10 +27,16 @@ def main():
     p.add_argument('--output-dir', type=Path, required=True)
     p.add_argument('--epochs', type=int, default=2000)
     p.add_argument('--seed', type=int, default=91)
+    p.add_argument('--report-steps', type=int, nargs='+', default=[2000, 4000, 6000])
     p.add_argument('--coordinate-reduction', choices=('mean', 'sum'), default='sum',
                    help='Use mean explicitly to reproduce historical vector loss normalization')
     p.add_argument('--learnable-kernel', action=argparse.BooleanOptionalAction, default=True)
     args = p.parse_args()
+    report_steps = sorted({s for s in args.report_steps if 0 < s < args.epochs} | {args.epochs})
+    if any(s % 500 for s in report_steps if s != args.epochs):
+        p.error('Intermediate report steps must be multiples of 500 (checkpoint interval)')
+    if (args.output_dir/'run_config.json').exists():
+        raise FileExistsError(f'Refusing to overwrite an existing run: {args.output_dir}')
     torch.set_num_threads(4)
     torch.manual_seed(args.seed)
     train_x, train_kb, test_x, test_kb = torch.load(args.cache, weights_only=True)
@@ -45,6 +52,7 @@ def main():
            'learnable_kernel': args.learnable_kernel,
            'initialization': 'Q/R initialized identically to learned-C baseline at the same seed',
            'seed': args.seed, 'epochs': args.epochs, 'system_batch': 32, 'sample_batch': 256,
+           'report_steps': report_steps,
            'eval_systems': 48, 'eval_samples': 128, 'learning_rate': .001, 'threads': 4,
            'data_cache': str(args.cache.resolve()), 'spin_flip_augmentation': False,
            'objective_kwargs': objective}
@@ -69,15 +77,29 @@ def main():
                     system_batch=32, sample_batch=256, eval_samples=128, eval_systems=48,
                     learning_rate=.001, seed=args.seed, progress_dir=args.output_dir,
                     spin_flip_augment=False, objective_kwargs=objective)
-    summary['history'] = history
     torch.save({k: v for k, v in model.state_dict().items() if not k.startswith('action_network.')},
                args.output_dir/'qcr_model.pt')
+    # Logging intervals need not land on the requested checkpoint steps.
+    # Evaluate the exact checkpoint, never label a nearby history row as it.
+    train_eval = train_x[torch.linspace(0, len(train_x)-1, min(48, len(train_x))).long()]
+    test_eval = test_x[torch.linspace(0, len(test_x)-1, min(48, len(test_x))).long()]
+    for step in report_steps:
+        if any(h['epoch'] == step for h in history):
+            continue
+        state = torch.load(args.output_dir/f'training_step_{step}.pt', weights_only=True)
+        model.load_state_dict(state['model'], strict=False)
+        row = {'epoch': step}
+        for split, data in (('train', train_eval), ('test', test_eval)):
+            metrics = evaluate(model, data, plaquette_distribution, 128,
+                               spin_flip_augment=False, objective_kwargs=objective)
+            row.update({f'{split}_{key}': value for key, value in metrics.items()})
+        history.append(row)
+    history.sort(key=lambda row: row['epoch'])
+    summary['history'] = history
     (args.output_dir/'summary.json').write_text(json.dumps(summary, indent=2)+'\n')
     print('finished', history[-1], flush=True)
     plotter = Path(__file__).resolve().parents[1]/'scripts/plot_ising2d_field_qcr.py'
-    for step in sorted({1000, args.epochs}):
-        if step > args.epochs:
-            continue
+    for step in report_steps:
         command = [sys.executable, str(plotter), '--run', str(args.output_dir),
                    '--output-dir', str(args.output_dir/f'step{step}')]
         if step != args.epochs:

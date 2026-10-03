@@ -20,14 +20,10 @@ import torch
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from experiments.joint_qcr_ising import (
-    find_fixed_points_1d,
-    qcr_objective,
-    summarize_representation,
-    train,
-    trajectory_data,
-    two_spin_distribution,
-)
+from recurrent_rg.evaluation import find_fixed_points_1d, summarize_representation, trajectory_data
+from recurrent_rg.losses import qcr_objective
+from recurrent_rg.training import train
+from recurrent_rg.data.statistics import two_spin_distribution
 from recurrent_rg.model_nd import RecurrentRGNetwork1D, FixedDecimationCoarseGrainer
 from recurrent_rg.tfim import DTYPE, sample_tfim_ensembles
 

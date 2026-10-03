@@ -63,8 +63,9 @@ def main():
                                             sample_m.square().mean(1)), dim=-1).numpy())
             coarse_moments.append(np.stack(moments, axis=1))
             observables.append(field_observables(chunk.squeeze(-1).numpy()).mean(1))
-            split_g.append(np.stack([model.theory_encoder(chunk[:, :128].double()).numpy(),
-                                     model.theory_encoder(chunk[:, 128:].double()).numpy()], axis=1))
+            midpoint = chunk.shape[1]//2
+            split_g.append(np.stack([model.theory_encoder(chunk[:, :midpoint].double()).numpy(),
+                                     model.theory_encoder(chunk[:, midpoint:].double()).numpy()], axis=1))
     direct, rollout, observables, split_g = map(np.concatenate, (direct, rollout, observables, split_g))
     coarse_moments = np.concatenate(coarse_moments)
     with torch.no_grad():
@@ -85,7 +86,7 @@ def main():
                          'one_step_rmse': one_step_error.tolist(),
                          'identity_map_one_step_rmse': identity_error.tolist(),
                          'one_step_error_relative_to_identity': (one_step_error/np.maximum(identity_error, 1e-12)).tolist(),
-                         'covariance_eigenvalues_by_scale': [np.linalg.eigvalsh(np.cov(d[:, k].T, bias=True)).tolist() for k in range(4)],
+                         'covariance_eigenvalues_by_scale': [np.linalg.eigvalsh(np.cov(d[:, k].T, bias=True)).tolist() for k in range(cfg['levels'])],
                          'microscopic_split_rmse': float(np.sqrt(np.mean(np.diff(split_g[subset], axis=1)**2))),
                          'rollout_pc_nrmse_by_scale_weak_then_strong': pc_errors}
     # Disaggregate closure instead of allowing strongly magnetized cells to
@@ -102,7 +103,7 @@ def main():
     ks, bs = np.unique(labels[:, 0]), np.unique(labels[:, 1])
     uniform_b = np.allclose(np.diff(bs), np.diff(bs)[0])
     near_b = float(bs[bs > 1e-12].min())
-    means = np.array([direct[np.all(labels == cell, axis=1)].mean(0) for cell in cells]).reshape(len(ks), len(bs), 4, 2)
+    means = np.array([direct[np.all(labels == cell, axis=1)].mean(0) for cell in cells]).reshape(len(ks), len(bs), cfg['levels'], 2)
     obs = np.array([observables[np.all(labels == cell, axis=1)].mean(0) for cell in cells]).reshape(len(ks), len(bs), 3)
     kc = .5*np.log(1+np.sqrt(2))
     zi = int(np.argmin(abs(bs)))
@@ -214,8 +215,12 @@ def main():
     ax.quiver(*grid[~near].T, *arrow[~near].T, color='.85', angles='xy', scale_units='xy', scale=1, width=.003)
     q = ax.quiver(*grid[near].T, *arrow[near].T, speed[near], cmap='viridis', angles='xy', scale_units='xy', scale=1, width=.0035)
     fig.colorbar(q, ax=ax, shrink=.8, label='$||R(g)-g||$')
-    for level in range(4):
+    for level in range(cfg['levels']):
         ax.scatter(direct[:, level, 0], direct[:, level, 1], s=4, alpha=.2, color=f'C{level}', label=f'k={level}')
+    zero_line = means[:, zi, 0]
+    ax.plot(*zero_line.T, color='black', lw=1.4, label='B=0, varying K (not RG time)')
+    ax.scatter(*zero_line[ki], marker='D', c='gold', edgecolors='black', s=55,
+               label=critical_input_label, zorder=5)
     for i, f in enumerate(roots):
         ax.scatter(*f['g'], marker='*', c='black', s=100)
         ax.annotate(f"F{i+1}: {f['stability']}", f['g'], xytext=(5, 5), textcoords='offset points', fontsize=8)
@@ -224,7 +229,7 @@ def main():
         a, c = np.argmin(abs(ks-k)), np.argmin(abs(bs-b))
         actual = means[a, c]
         path = [actual[0]]
-        for _ in range(3):
+        for _ in range(cfg['levels']-1):
             path.append(path[-1]+residual(path[-1]))
         path = np.array(path)
         axes[1].plot(*actual.T, 'o-', c=f'C{i}', label=f'K={ks[a]:.3f}, B={bs[c]:.3f}', ms=4)
@@ -270,10 +275,13 @@ def main():
     cell_eig, cell_axes = np.linalg.eigh(np.cov(cell_g.T, bias=True))
     residuals = np.concatenate([direct[np.all(labels == cell, axis=1), 0]-cell_g[i]
                                 for i, cell in enumerate(cells)])
-    # Three independent replicas: unbias pooled within-cell covariance.
-    within_cov = residuals.T@residuals/(len(cells)*2)
+    # Unbias pooled within-cell covariance for the actual replica count.
+    replica_counts = np.array([np.all(labels == cell, axis=1).sum() for cell in cells])
+    assert np.all(replica_counts == replica_counts[0]) and replica_counts[0] >= 2
+    replicas = int(replica_counts[0])
+    within_cov = residuals.T@residuals/(len(cells)*(replicas-1))
     pc_noise = np.diag(cell_axes.T@within_cov@cell_axes)
-    pc_snr = np.sqrt(np.maximum(cell_eig-pc_noise/3, 0)/np.maximum(pc_noise, 1e-30))
+    pc_snr = np.sqrt(np.maximum(cell_eig-pc_noise/replicas, 0)/np.maximum(pc_noise, 1e-30))
     # Post-hoc readout only: fit measured observables on training cells, then
     # evaluate held-out cells. These coefficients never affect Q/C/R training.
     z = direct[:, 0]
@@ -313,7 +321,7 @@ def main():
               'kernel_uniform_inputs': {'all_minus_output': float(output[0]), 'all_plus_output': float(output[-1])},
               'plot_box': [lower.tolist(), upper.tolist()], 'near_sample_radius': float(radius),
               'root_search': '121 initial guesses, residual norm < 1e-8, within plotted box; not exhaustive',
-              'phase_map_caution': 'Reference coexistence line is overlaid, not learned. Finite 32x32 system, no thermodynamic phase-boundary extraction.'}
+              'phase_map_caution': f'Reference coexistence line is overlaid, not learned. Finite {cfg["sites"]}x{cfg["sites"]} system, no thermodynamic phase-boundary extraction.'}
     np.savez_compressed(args.run/'field_flow_data.npz', direct=direct, rollout=rollout, KB=labels,
                         observables=observables, coarse_moments=coarse_moments,
                         coarse_moment_names=np.array(['mean_m', 'mean_abs_m', 'mean_m_squared']),

@@ -31,6 +31,8 @@ class BinaryFieldHead(FieldHead):
         super().__init__()
         self.output_channels = 1
         self.projection = nn.Linear(features, 1)
+        self.sampling_mode = 'deterministic'
+        self.relaxation_temperature = 1.0
 
     def logits(self, features: torch.Tensor) -> torch.Tensor:
         return self.projection(features)
@@ -39,9 +41,27 @@ class BinaryFieldHead(FieldHead):
         return torch.tanh(self.logits(features))
 
     def forward(self, features: torch.Tensor) -> torch.Tensor:
+        if self.sampling_mode == 'bernoulli':
+            return self.sample_logits(self.logits(features))
         relaxed = self.relaxed(features)
         hard = torch.where(relaxed >= 0, 1.0, -1.0)
         return hard.detach() + relaxed - relaxed.detach()
+
+    def sample_logits(self, logits: torch.Tensor) -> torch.Tensor:
+        """Independent Bernoulli spins with a biased logistic-noise ST gradient.
+
+        P(+1)=sigmoid(2*logits); temperature affects the gradient relaxation,
+        not that probability. Sampling stays active in eval mode. Call AFTER
+        any lookup expansion so repeated input patterns get independent draws.
+        """
+        if self.relaxation_temperature <= 0:
+            raise ValueError('Relaxation temperature must be positive')
+        eps = torch.finfo(logits.dtype).eps
+        u = torch.rand_like(logits).clamp(eps, 1-eps)
+        noisy = logits + .5*(torch.log(u)-torch.log1p(-u))
+        soft = torch.tanh(noisy/self.relaxation_temperature)
+        hard = torch.where(noisy >= 0, 1., -1.)
+        return hard.detach() + soft - soft.detach()
 
 
 class ContinuousFieldHead(FieldHead):
@@ -68,12 +88,26 @@ class CategoricalFieldHead(FieldHead):
             raise ValueError("states must be >=2 and temperature must be positive")
         self.output_channels = states
         self.temperature = temperature
+        self.sampling_mode = 'deterministic'
         self.projection = nn.Linear(features, states)
+
+    def logits(self, features: torch.Tensor) -> torch.Tensor:
+        return self.projection(features)
+
+    def sample_logits(self, logits: torch.Tensor) -> torch.Tensor:
+        eps = torch.finfo(logits.dtype).eps
+        u = torch.rand_like(logits).clamp(eps, 1-eps)
+        noisy = logits - torch.log(-torch.log(u))
+        soft = torch.softmax(noisy / self.temperature, dim=-1)
+        hard = F.one_hot(noisy.argmax(-1), self.output_channels).to(soft.dtype)
+        return hard.detach() + soft - soft.detach()
 
     def relaxed(self, features: torch.Tensor) -> torch.Tensor:
         return torch.softmax(self.projection(features) / self.temperature, dim=-1)
 
     def forward(self, features: torch.Tensor) -> torch.Tensor:
+        if self.sampling_mode == 'categorical':
+            return self.sample_logits(self.logits(features))
         relaxed = self.relaxed(features)
         hard = F.one_hot(relaxed.argmax(dim=-1), self.output_channels).to(relaxed.dtype)
         return hard.detach() + relaxed - relaxed.detach()
