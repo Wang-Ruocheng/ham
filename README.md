@@ -1,12 +1,14 @@
 # Recurrent RG Network：从构型系综学习 QCR
 
-更新：2026-10-03。输入为无耦合标签的构型系综，学习局域粗粒化 C、系综坐标 Q 和共享尺度映射 R：
+更新：2026-10-09。输入为无耦合标签的构型系综，学习局域粗粒化 C、系综坐标 Q 和共享尺度映射 R：
 
 $$
 \mathcal D_k=C^k\mathcal D_0,\qquad g_k=Q(\mathcal D_k),\qquad R(g)=g+F(g).
 $$
 
-当前精选实验使用**随机初始化的可训练概率 C、经验 RSMI 和逐系综方差下限，Q/C/R 同步更新但独立传递梯度**。不穷举选择核，不预训练 C，不使用耦合或相标签监督。真实耦合用于采样和事后物理诊断；采样区间的选择仍包含实验设计知识。
+当前默认训练使用**随机初始化的可训练概率 C、经验 RSMI、逐系综方差下限及保色；Q 使用共享仿射分布重构，Q/C/R 同步更新但独立传递梯度**。不穷举选择核，不预训练 C，不使用耦合或相标签监督。真实耦合用于采样和事后物理诊断；采样区间的选择仍包含实验设计知识。历史实验及用户授权的冻结/PCA诊断单独标明，不等同于当前默认配方。
+
+**最新进展：**三值自旋 Ising 的微观正负 K 编码不再 U 形折叠；冻结已展开的 Q/C 后继续拟合 R，得到两个独立排斥子及“吸引—排斥—吸引—排斥—吸引”结构。微观插值 K≈−0.56159、+0.56266，测试两步闭环 NRMSE≈2.06%。详见[三值自旋实验](#二维三值自旋-ising两个对称相变点)；这不是默认从头联合训练已完成的成功复现。
 
 这是有限尺度统计与潜空间动力学的研究原型，不能自动视为精确、闭合的物理 RG。
 
@@ -20,21 +22,47 @@ $$
 
 | 模块 | 输入 → 输出 | 结构及职责 |
 |---|---|---|
-| C | 局域自旋块 → 一个粗粒化自旋 | 不重叠一维 2 格 / 二维 2×2 块；局域 MLP 输出 Bernoulli 或 categorical 概率 |
+| C | 局域自旋块 → 一个粗粒化自旋 | 默认不重叠一维 2 格 / 二维 3×3 块，步长分别为 2 / 3；局域 MLP 输出 Bernoulli 或 categorical 概率 |
 | Q | 同一系综的多份构型 → dim_g 维坐标 | 周期局域特征网络，跨样本与位置平均，再接输出网络；无显式总磁化输入 |
 | R | g → 下一尺度 g | 残差 MLP，所有尺度共享参数，不显式输入 k |
 
-C 在构型路径上随机采样，使用直通梯度估计；MI 与均匀块保色项直接使用输出概率。没有硬编码 Z2 或颜色置换等变性。当前不学习作用量 A。
+C 在构型路径上随机采样，使用直通梯度估计；MI 与均匀块保色项直接使用输出概率。没有硬编码 Z2 或颜色置换等变性。当前不学习作用量 A，也没有输入耦合量、尺度编号或显式总磁化。
 
-下列精选实验均为 seed=91、hidden=60、Adam 学习率 0.001、每批 32 个系综 × 64 个构型、2400 次更新。这里的“步/epoch”指训练循环更新次数，不表示完整遍历缓存一次。
+Q 先对每个有序局域窗口提取特征，再对系综样本和格点平移取平均；当前局域特征数为 12。它不是单构型分类器，也不直接输出物理耦合。以二维、hidden=96 为例，Q 的局域 MLP 为 `9c→96→12→12`，池化后的输出头为 `12→96→dim_g`；C 为 `9c→96→96→输出概率`，R 的残差网络为 `dim_g→96→96→dim_g`，中间激活均为 Tanh。二值输入 c=1，多类别输入为 c=q 的 one-hot。
 
-当前配方入口是 `python -m experiments.rsmi_separate_qcr`。`--independent-c` 模式下：
+辅助重构头是 Q 坐标上的**共享仿射 decoder**，不是另一个作用量网络。二维目标是有序 2×2 图案频率，有 q⁴ 个 bins；一维为自旋对，有 q² 个 bins。因此 Q 的 3×3 感受野、C 的 3×3 粗粒化块、重构目标的 2×2 图案是三个不同概念。
+
+这里的“步/epoch”指训练循环更新次数，不表示完整遍历缓存一次。隐藏宽度、batch、数据范围和总步数由各实验配置决定，不能把历史精选实验的 hidden=60、2400 步当成所有新实验的默认规模。
+
+默认入口是 `python -m recurrent_rg train --config CONFIG --output OUTPUT`，也可使用 `python -m experiments.rsmi_separate_qcr`。两者默认均使用经验 histogram MI 和独立梯度：
 
 - Q 只优化表示目标；其粗粒化输入不向 C 反传 Q loss。
-- C 只优化 MI、防塌缩及可选保色目标。
+- C 只优化 MI、防塌缩及保色目标。
 - R 只优化一步和多步闭环；目标和初始 Q 坐标均停止梯度，但 R 的递推保留梯度。
 
-因此它既不是 Q→C→R 逐个训练，也不是所有 loss 对三个模块全反传。下面描述的是**经验证的实验配方**，不代表所有历史脚本或通用 CLI 的默认值；例如保色必须显式传入 `--color-weight 1`。
+因此它既不是 Q→C→R 逐个训练，也不是所有 loss 对三个模块全反传。**固定默认：Q 用共享仿射分布重构；随机概率 C，histogram MI 权重 2，逐系综 variance floor 权重 2 / ratio 1，保色权重 1，Q/C/R 独立梯度；未经用户明确要求不得改变。**缓冲区宽度 1，MI 使用微观尺度的完整环境壳层。
+
+2026-10-09 按用户要求将重构头 loss 设为默认：新模型及默认入口的新训练使用
+`affine_reconstruction=true`，替代原几何距离项，保留20/5子集一致性、C/R目标和随机初始化。
+Q编码器结构不变，新增共享仿射decoder，列范数每步归一化；方向随机初始化，偏置仅用初始随机 C 下的训练图案分布均值校准，不使用PCA初始化或K监督。
+显式 `affine_reconstruction=false` 保留几何消融；旧配置的反序列化、旧权重和resume
+不自动增加decoder，历史实验结论不追溯改写。但默认入口的**从头新训练**若读取省略该字段的旧配置/manifest，会采用新的重构默认；复现旧几何目标必须在另存的配置中显式写 `affine_reconstruction=false`，不能修改历史 manifest。详细过程见[Q折叠诊断](docs/q_unfolding.md)。
+
+当前双 Ising 扫描 `K1=K2/2` 的设置为：K2∈[0,1.3] 均匀 48 点、每点 2 个副本、每系综 64 构型，64 个训练 / 32 个测试系综，36→12→4，hidden=96，Adam 学习率 0.001，batch=8×64，seed=91，目标 1200 更新。dim_g=2 的 Q/C/R 参数量为 7,082 / 13,252 / 9,794，总计 30,128（含 Q decoder，不含未训练的 A）。这是单参数初始扫描，不是完整 K1/K2 二维采样；配置见[dim_g=2](configs/dual_ising2d_K1halfK2_g2_affineQ_joint_1200_seed91.json)。
+
+同设置的 dim_g=1 已从实际 114 步短测续训至累计 1200 步，只有一个排斥子，插值 K2≈0.91796，尚未恢复两个边界；dim_g=2 的最终结果待训练/报告管线完成，暂不列为成功案例。不能把旧目录名中的 `1200` 当作其实际完成步数。详细记录见[双 Ising 实验](docs/dual_ising_reconstruction.md)。
+
+改变固定 C loss/梯度配方的消融必须显式加 `--allow-nondefault-recipe`；冻结 C、PCA 初始化及 R-only 续训有专门的显式诊断入口，也不能默认启用。旧通用训练器需 `--allow-legacy-training`（Python API 为 `allow_legacy_training=True`）。旧配置文件的反序列化默认保持兼容，实际生效的 C 目标和梯度路由由默认训练入口设置并写入 manifest；不应只凭旧 JSON 的 `gradient_mode` 判断新实验。历史结果不追溯改写。
+
+**二维块大小默认更新（2026-10-06）：**新配置使用 `schema_version: 5`，省略 `model.block_factor` 时二维取 3、一维取 2；显式设置仍被尊重。无版本号以及版本 1–4 的旧配置若省略该字段，仍取 2，旧 checkpoint 同样保持兼容。二维数据必须支持每次除以 3，例如 `36×36 → 12×12 → 4×4`，不能直接复用原来 `16×16` 的两步链。底层历史几何/MI API 的默认参数未追溯修改；默认训练入口会显式传入模型的实际块大小。
+
+历史正负 K、B=0 的二维 Ising 单种子实验采用原几何 Q 目标、3×3 C、`dim g=1`、3000 epoch，得到“吸引—排斥—吸引—排斥—吸引”的标量流结构；两个排斥子的微观插值为 K≈−0.42432、+0.43349，理论边界为 ±0.440687。两端吸引子位于微观编码支持范围外，应视为外推。结果支持框架可学习两次相变的定性结构，但本次 L 也从 16 增至 36，并非只改核尺寸的严格消融，也不是多种子稳健性验证。
+
+实验配置：[signed-K block3](configs/ising2d_signedK_B0_g1_block3_locked_recipe_h96_seed91.json)（历史版本 4，已显式设置 block_factor=3）；[R(g) 与耦合映射](results/ising2d_signedK_B0_g1_block3_locked_recipe_h96_3000_seed91/full_report/R_and_two_transitions.png)；[loss 曲线](results/ising2d_signedK_B0_g1_block3_locked_recipe_h96_3000_seed91/report/loss_comparison.png)。C/R 目标、初始化和独立梯度路由保留当时固定配方；Q 目标与当前仿射重构默认不同。
+
+3×3 的 n 态块有 `n^9` 种输入。经验 MI 训练入口的显式资源上限现为262,144种，
+支持四态联合自旋的3×3块；稀疏条件计数和完整环境壳层定义不变，不退回2×2。
+四态仍需评价大型概率表，时间/内存明显高于二态；有限样本MI上偏仍需警惕。
 
 ## Loss 组成和目的
 
@@ -44,7 +72,7 @@ C 在构型路径上随机采样，使用直通梯度估计；MI 与均匀块保
 
 $$
 \begin{aligned}
-\mathcal L_Q&=20\mathcal L_{\rm split,0}+5\mathcal L_{\rm split,coarse}+10\mathcal L_{\rm geometry},\\
+\mathcal L_Q&=20\mathcal L_{\rm split,0}+5\mathcal L_{\rm split,coarse}+10\mathcal L_{\rm rec},\\
 \mathcal L_C&=-2\widehat I(H;E)+2\mathcal L_{\rm variance}+\lambda_{\rm color}\mathcal L_{\rm color},\\
 \mathcal L_R&=5\mathcal L_{\rm step}+5\mathcal L_{\rm rollout}.
 \end{aligned}
@@ -52,13 +80,15 @@ $$
 
 **权重口径：**配置中的 `anchor=2` 乘的是代码内部已放大 10 倍的微观一致性项，所以相对原始平方误差的有效系数为 **20**，不是 2。日志中分项不应再重复乘这个内部因子。三个 Ising 保色实验取 λ_color=1；下面的三态 Potts 成功实验取 0。
 
+默认 λ_color=1。历史几何项不再与仿射重构叠加；配置/日志沿用 `separation` 字段时，默认模式指的是权重为 10 的重构目标，不是额外的成对排斥项。
+
 | 项 | 目的 | 更新模块 |
 |---|---|---|
 | 子集一致性 | 同一系综的不同抽样给出稳定坐标，避免编码抽样噪声 | Q |
-| 分布几何 | 可区分的构型分布对应可区分的 g，不把系综编号当分离标签 | Q |
+| 仿射分布重构（默认） | g保留局域图案分布信息，减轻正负K的U形折叠；并不保证RG充分性 | Q及辅助decoder |
 | 经验 RSMI | 粗变量保留隔着 buffer 的环境信息 | C |
 | 逐系综方差下限 | 防止 C 把仍有变化的输入压为偏置或常数输出 | C |
-| 可选均匀块保色 | 固定颜色约定，抑制全同块的翻转 / 循环重标号 | C |
+| 均匀块保色（默认权重 1） | 固定颜色约定，抑制全同块的翻转 / 循环重标号 | C |
 | 一步闭环 | 拟合每个已观测尺度的 Q(CD) | R |
 | 全尺度 rollout | 从微观编码递推，匹配所有可用的 Q(C^kD) | R |
 
@@ -69,9 +99,25 @@ $$
 \mathcal L_{\rm split,coarse}=\mathbb E_{i,k\ge1}\|g^a_{ik}-g^b_{ik}\|^2.
 $$
 
-它提高 Q 的抽样稳定性，但单独使用允许所有系综塌缩到同一点，必须配合分布几何。
+它提高 Q 的抽样稳定性，但单独使用允许所有系综塌缩到同一点，必须配合重构等非平庸表示目标。
 
-### 2. 分布几何：`relative_local`
+### 2. 默认表示目标：共享仿射重构
+
+对每个尺度的局域图案概率（1D为自旋对，2D为有向2×2图案）：
+
+$$
+\mathcal L_{\rm rec}=\mathbb E_{i,k}\|\bar p_{ik}-b-W\bar g_{ik}\|_2^2,
+\qquad \|W_{:,j}\|_2=1.
+$$
+
+对概率bins求和、系综及尺度平均；目标停止梯度，W/b只接受Q目标梯度。
+不使用softmax、作用量或耦合标签；单位列范数避免g缩小而decoder放大的尺度退化，
+但不强迫潜空间满秩，也不保证不存在折叠或跨尺度非闭合。
+相同W/b跨尺度共享；当前无tail、协方差白化、弱方向加权R或局部轨迹排斥。
+日志仍保留`separation`/`data_geometry_level_*`历史字段名；默认模式的值是重构MSE，
+并新增`reconstruction_mse_level_*`字段明确其含义。
+
+#### 历史分布几何：`relative_local`（显式关闭重构时）
 
 在每个尺度统计局域模式频率 p（一维自旋对 / 二维 plaquette）。两个子集给出：
 
@@ -98,7 +144,7 @@ $$
 \widehat I(H;E)=\sum_{h,e}\hat p(h,e)\log\frac{\hat p(h,e)}{\hat p(h)\hat p(e)}.
 $$
 
-当前 `--estimator histogram` 不训练 critic；在微观尺度逐系综计数，使用全部缓存样本及平移位置。一维 V 为 2 格、E 为两侧各一个自旋；二维 V 为 2×2、E 为完整 20 自旋外壳。V 与 E 之间留出宽度为 1 的 buffer，buffer 不进入 E。
+当前 `--estimator histogram` 不训练 critic；在微观尺度逐系综计数，使用全部缓存样本及平移位置。一维 V 为 2 格、E 为两侧各一个自旋；新二维默认 V 为 3×3、E 为完整 24 自旋外壳（历史 2×2 实验为 20 自旋外壳）。V 与 E 之间留出宽度为 1 的 buffer，buffer 不进入 E。
 
 梯度经过概率核 P_C；这不是枚举候选核后选最优核。优化使用自然对数，报告的 MI 通常换算为 bit。所谓“精确 MI”仅指经验表上的有限求和，**不代表真实分布 MI 无偏**；大环境字母表尤其容易产生有限样本上偏。旧日志中的零值 shuffled MI 占位不能当作实测零偏差基线。
 
@@ -120,7 +166,7 @@ $$
 
 当前取 ρ=1，逐系综、逐尺度计算，权重 2。它惩罚方差缩减，但允许常数输入保持常数，不要求每个系综各颜色均匀。这是一项软统计假设，不是对任意物理系统都严格成立的 RG 恒等式。
 
-### 5. 可选保色
+### 5. 保色（默认开启）
 
 $$
 \mathcal L_{\rm color}=-\frac1q\sum_{a=1}^q\log P_C(a\mid a,a,\ldots,a).
@@ -139,9 +185,11 @@ $$
 
 覆盖缓存链的所有可用尺度，不只前两步；但不约束链长之外的无限次递推。R loss 不再通过收缩 Q/C 表示来降低自身误差。日志总量含负 MI，可能为负，不能只按其大小判断相变学习是否正确。
 
+训练使用两个半系综编码的均值 \(\bar g\)，常规报告使用完整系综的 \(Q(\mathcal D_k)\)；Q 输出头非线性，二者并非代数恒等。下述三值自旋 R-only 诊断改用缓存的完整系综坐标，是明确的目标抽样方式变更。
+
 ## 精选实验
 
-下面均为预定最终 2400 步、单种子结果，不按临界位置挑选早停检查点。保留“效果较好”的定性结构，也明确支持范围及误差；尚不能据此宣称多 seed 鲁棒性、完整相图或临界指数都已恢复。
+前四项为历史原几何 Q 目标、hidden=60、seed=91、Adam 学习率 0.001、batch=32×64、预定最终 2400 步的单种子结果，不按临界位置挑选早停检查点。它们不是新增仿射重构默认目标的严格复现。新增三值自旋结果使用 hidden=96、分阶段诊断，具体冻结与初始化方式见下文。保留效果较好的定性结构，同时明确支持范围及误差；尚不能据此宣称多 seed 鲁棒性、完整相图或临界指数都已恢复。
 
 | 问题 | dim_g | 参数量 | 已恢复的主要结构 | 主要限制 |
 |---|---:|---:|---|---|
@@ -149,8 +197,9 @@ $$
 | 1D 经典 Ising | 2 | 9,893 | 近一维流形，有序端鞍点、无序端吸引子 | 有序端外推，位置精度退化 |
 | 2D 经典 Ising，K/B | 2 | 10,373 | 中心两方向均不稳定的排斥子 | 临界 K 插值偏低约 3.20% |
 | 2D 三态 Potts，零场 | 1 | 11,873 | 中间不稳定、两侧稳定的标量结构 | 一个吸引子在训练支持外；未保色 |
+| 2D 三值自旋 Ising，正负 K | 1 | 27,407 | 消除微观 U 形；两个独立排斥子及中间吸引子 | 冻结 C/PCA 诊断后 R-only 续训；临界插值偏低约 4.9% / 4.7%，两端吸引子外推 |
 
-复现命令依赖已有 source 目录中的配置和数据缓存；`--source` 在以下命令里**仅读配置，不恢复旧模型权重**。输出用新 `_repro` 目录以免覆盖结果。完整数据生成和报告命令见各实验记录；本地缓存、检查点和图片不保证随 Git 分发。
+下列前四项保留**当时的历史命令**，依赖已有 source 配置与数据缓存；普通从头训练模式的 `--source` **仅读配置，不恢复旧模型权重**（后文 R-only 入口不同）。旧 manifest 缺少 `affine_reconstruction` 字段，不能直接把这些命令在当前默认入口的结果称为历史复现：应另存其配置、显式补 `model.affine_reconstruction=false`，以 `--config` 替代 `--source`，并核验架构、数据指纹及实际更新数。输出使用新的 `_repro` 目录，历史配置和权重不得覆盖。完整数据生成和报告命令见各实验记录；本地缓存、检查点和图片不保证随 Git 分发。
 
 ---
 
@@ -216,6 +265,18 @@ python -m experiments.rsmi_separate_qcr \
 
 [详细记录](docs/ising_color_comparison.md) · [无保色随机核对照](docs/ising_random_gradient_mi.md)
 
+**固定默认后的复现（2026-10-05）**：以下命令只读取历史配置，不加载历史权重，也没有显式传入 loss 开关：
+
+```bash
+python -m experiments.rsmi_separate_qcr \
+  --source results/ising2d_g2_random_independentC_variance2ratio1_color1_2400_seed91/qr \
+  --output results/ising2d_g2_locked_recipe_repro_2400_seed91/qr
+```
+
+2400 步训练循环耗时 234 秒。数据指纹、完整生效配置、25 次日志的全部指标和最终 Q/C/R 每个权重张量均与历史实验完全一致（最大权重差 0）。中心排斥子 g=(-0.171966, 0.053559)，DR 乘子=(1.566488, 1.124152)，微观网格反插值 (K,B)=(0.426565,-0.000493)。这是同 seed 的严格复现，不是跨 seed 鲁棒性验证。
+
+[复现审计](results/ising2d_g2_locked_recipe_repro_2400_seed91/qr/report/reproduction_audit.json) · [本次流场](results/ising2d_g2_locked_recipe_repro_2400_seed91/qr/report/R_flow_and_center.png) · [K/B 映射](results/ising2d_g2_locked_recipe_repro_2400_seed91/qr/report/g_KB_maps.png) · [loss 曲线](results/ising2d_g2_locked_recipe_repro_2400_seed91/qr/report/loss_comparison.png)
+
 ---
 
 ### 2D 三态 Potts：dim_g=1
@@ -231,7 +292,7 @@ python -m experiments.rsmi_separate_qcr \
   --source results/potts2d_g1_MIinit_independentC_variance2_2400_seed91_fast \
   --output results/potts2d_g1_random_ratio1_repro \
   --estimator histogram --variance-weight 2 --variance-ratio 1 \
-  --variance-per-ensemble --independent-c --color-weight 0
+  --variance-per-ensemble --independent-c --color-weight 0 --allow-nondefault-recipe
 ```
 
 source 名称含 MIinit，但本命令没有 `--mi-initialize` 或恢复权重，仍从随机概率 C 开始。
@@ -256,6 +317,77 @@ python -m experiments.rsmi_separate_qcr \
 
 [数据、命令与有限样本限制](docs/potts8.md) · [相图与 K–g](results/potts2d_q8_g1_random_mi_variance2ratio1_color1_2400_seed91/full_report/R_and_K_mapping.png)
 
+---
+
+### 二维三值自旋 Ising：两个对称相变点
+
+这里是 spin-1 模型 \(s_i\in\{-1,0,+1\}\)，不是三态 Potts，也不是两套不耦合 Ising：
+
+$$
+P(X)\propto\exp\left(K\sum_{\langle ij\rangle}s_is_j\right),\qquad \Delta=B=0.
+$$
+
+负 K、弱耦合、正 K 分别对应反铁磁、无序、铁磁区域。数据 K∈[−0.9,0.9] 均匀取 47 点，31 个训练 / 16 个测试耦合点、每点 2 个系综，每系综 64 构型，共 62 个训练 / 32 个测试系综；按整个 |K| 单元留出，正负两侧及同 K 副本不跨训练/测试，不能把同 K 副本当作独立测试耦合。格点 36→12→4，dim_g=1、hidden=96，Q/C/R 参数量为 5,515 / 12,291 / 9,601，合计 27,407；Q 中仿射 decoder 为 162 参数。
+
+**解决的问题与实际流程：**原距离几何目标下 g(K) 容易 U 形折叠；有序局域图案在 Q/C 输入中仍可辨识。改为共享仿射分布重构后，冻结 C 的 QR 诊断展开了微观 g(K)，但短训练的 R 仍只找到一个排斥子。随后冻结 Q/C，继续训练原 R，最终拟合出两条分界；没有使用 K 或相标签。
+
+1. 从随机可训练概率 C 和随机 Q/R 开始，默认独立梯度同步训练；时限内实际完成 **359 步**，不是目录名中的 360 步。
+2. 用户授权冻结第 359 步的**已学习 C**（不是固定 decimation），继承 Q/R 权重；仅用 TRAIN 图案分布 PCA 初始化仿射 decoder，重置 Adam，QR 独立梯度更新，实际完成 **433 次新更新**。微观测试 Spearman 绝对值约 0.9985，微观回折变化占比为 0；最粗尺度仍有约 1.2% 小幅回折，不能称为严格单射。
+3. 用户授权冻结 Q/C 及 decoder，继承原 R 与 Adam 动量；用 62 个 TRAIN **完整系综**的缓存轨迹全批次拟合 R，追加 **6000 步**，Adam step 从 433 到 6433。保持原 9,601 参数残差 Tanh MLP、学习率 0.001 和一步/多步权重 5/5。此阶段约 44.2 秒，Q/C 最大参数差均为 0；TEST 只用于评估，没有测试选检查点。
+
+最终搜索区间 g∈[−0.6754,0.7089] 内得到五个根：
+
+| g* | R′(g*) | 稳定性 | 微观 K 插值 | 在观测 TRAIN R 输入范围内 |
+|---:|---:|---|---:|---|
+| −0.477979 | 0.040087 | 吸引 | 无 | 否 |
+| −0.167730 | 1.890856 | 排斥 | −0.561587 | 是 |
+| +0.013348 | 0.200437 | 吸引 | −0.034757 | 是 |
+| +0.190939 | 1.848119 | 排斥 | +0.562658 | 是 |
+| +0.510441 | 0.102112 | 吸引 | 无 | 否 |
+
+两个排斥子是**两个独立不动点**，各有一个微观插值分支，不是同一根对应正负两个 K。相对此前采用的数值临界参考 ±0.59067，插值分别偏向零约 **4.9% / 4.7%**；该参考不是解析精确值。两端吸引子没有微观反插值，且在 TRAIN R 输入范围外，属于外推，不能据此宣称完整验证了三个物理吸引子。
+
+| 测试闭环指标 | R 续训前 | 追加 6000 步后 |
+|---|---:|---:|
+| 一步 0→1 NRMSE | 14.948% | 2.242% |
+| 一步 1→2 NRMSE | 10.347% | 1.977% |
+| 两步 rollout NRMSE | 21.386% | 2.058% |
+
+分母固定为原 TRAIN 目标的逐尺度标准差，没有重新缩放 g。最终固定目标的 TRAIN / TEST 加权闭环 loss 为 0.0007507 / 0.0003788。三个新 C 抽样种子下，两步测试误差为 1.98%–2.16%；这是同一训练种子和同一批微观测试构型的抽样审计，**不是多训练 seed 验证**。
+
+这组结果支持“仿射重构展开 Q 后，原 R 结构有能力拟合两个相变边界”。但成功流程包含冻结、TRAIN-only PCA 和固定完整系综目标，因此不是默认从头联合训练的严格复现，也不能将改善单独归因于增加 epoch。
+
+以下命令是上述**明确授权的诊断流程**，不是以后新实验自动采用的默认配方；输出改用 `_repro` 以免覆盖历史产物：
+
+```bash
+# 1. 随机 QCR；首次学习 C，不冻结、不预训练、不做 PCA
+python -m experiments.rsmi_separate_qcr \
+  --config configs/spin1_signedK_g1_affineQ_joint_360_seed91.json \
+  --output results/spin1_affineQ_joint_repro --max-wall-seconds 540
+
+# 2. 冻结已学习 C；显式 TRAIN-only PCA 初始化重构轴
+python -m experiments.rsmi_separate_qcr \
+  --config configs/spin1_signedK_g1_affineQ_frozenC_pca_QR_1200_seed91.json \
+  --freeze-c-checkpoint results/spin1_affineQ_joint_repro/checkpoint_last.pt \
+  --affine-pca-init --output results/spin1_affineQ_frozenC_QR_repro \
+  --max-wall-seconds 540
+
+# 保存完整系综 Q 轨迹，供下一阶段 R-only 固定目标拟合使用
+python -m scripts.report_scalar_joint --run results/spin1_affineQ_frozenC_QR_repro
+
+# 3. 保留 Q/C、R 结构与 Adam；此处 epochs 是追加 R 更新数
+python -m experiments.rsmi_separate_qcr \
+  --source results/spin1_affineQ_frozenC_QR_repro \
+  --output results/spin1_affineQ_R_continue_repro \
+  --r-only-continue --epochs 6000 --max-wall-seconds 540
+```
+
+前两阶段按墙钟时限退出，复跑的实际步数可能不同；命令演示流程，严格复现必须核对实际 source 检查点和数据指纹。原数据 SHA256 为 `f68f19b454d06588f0e9317ae7e5e54aa510ce4030da89d17b53632a36393979`。
+
+![三值自旋：R(g)、漂移、各尺度 K–g 与 R-only loss](results/spin1_signedK_g1_affineQ_frozenQC_R_continue6000_seed91/R_continuation_comparison.png)
+
+[数值报告与抽样审计](results/spin1_signedK_g1_affineQ_frozenQC_R_continue6000_seed91/report.json) · [实验 manifest](results/spin1_signedK_g1_affineQ_frozenQC_R_continue6000_seed91/manifest.json) · [不动点原始数据](results/spin1_signedK_g1_affineQ_frozenQC_R_continue6000_seed91/after/fixed_points.json) · [Q 折叠诊断及完整过程](docs/q_unfolding.md)
+
 ## 如何解读图像与验收结果
 
 - 流场箭头画 R(g)−g；标量图画 R(g) 并与 y=g 比较。稳定性判断使用 **DR** 特征值的模，不靠箭头的视觉印象；R² 图使用 R²(g)−g。
@@ -265,6 +397,6 @@ python -m experiments.rsmi_separate_qcr \
 
 ## 开发与历史记录
 
-公共模型、loss、配置、数据和评估位于 `recurrent_rg/`；数据生成和报告入口在 `scripts/`，专项研究驱动在 `experiments/`。通用 `python -m recurrent_rg` 与上述 MI 专项驱动不是同一个训练目标，复现时不要直接互换入口。
+公共模型、loss、配置、数据和评估位于 `recurrent_rg/`；数据生成和报告入口在 `scripts/`，专项研究驱动在 `experiments/`。当前 `python -m recurrent_rg train` 默认委托上述 MI/独立梯度驱动，两者使用同一固定训练配方；显式解锁的旧通用训练器不是同一个目标。复现历史实验仍需保留其实际入口、架构与配置，不能只按目录名或当前默认值推断。
 
-参见 [开发指南](docs/development.md)、[实验索引](experiments/README.md) 及 [历史 README](README.history.md)。本次文档整理不修改模型、loss 实现或全项目 CLI 默认值。
+参见 [开发指南](docs/development.md)、[实验索引](experiments/README.md) 及 [历史 README](README.history.md)。历史无保色实验现在需要显式消融开关，不能视为当前默认配置。

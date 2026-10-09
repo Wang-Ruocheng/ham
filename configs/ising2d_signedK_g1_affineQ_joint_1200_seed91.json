@@ -1,0 +1,8 @@
+{
+  "schema_version": 5,
+  "data": {"cache": "../data_cache/ising2d_signedK_B0_L36_n64_seed91/ensembles.pt", "physical_model": "Zero-field square Ising, signed K in [-.68,.68]; B=0 slice of L36 symmetric KB cache", "coupling_names": ["K"], "spin_flip_augment": false},
+  "model": {"dimension": 2, "theory_dim": 1, "hidden": 96, "categorical_states": 0, "affine_reconstruction": true, "fixed_kernel": false, "block_factor": 3, "kernel_layout": "nonoverlapping", "kernel_sampling": "bernoulli", "kernel_initialization": "random", "kernel_temperature": 1.0, "binary_lookup": true},
+  "loss": {"geometry_mode": "relative_local", "kernel_noncollapse_mode": "variance_floor_ensemble", "kernel_variance_ratio": 1.0, "kernel_sign_weight": 1, "weights": {"anchor": 2, "coarse_consistency": 5, "separation": 10, "commutator": 5, "kernel_noncollapse": 2}, "rollout_weight": 5},
+  "training": {"epochs": 1200, "max_rg_steps": 2, "system_batch": 32, "sample_batch": 64, "learning_rate": 0.001, "seed": 91, "threads": 2, "checkpoint_every": 400, "log_every": 100, "gradient_mode": "qc_r_separate", "train_modules": ["Q", "C", "R"]},
+  "evaluation": {"max_rg_steps": 2, "samples": 64, "systems": 32}
+}

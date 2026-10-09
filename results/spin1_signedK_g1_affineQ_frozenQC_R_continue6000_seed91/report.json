@@ -1,0 +1,2385 @@
+{
+  "contract": {
+    "config": {
+      "data": {
+        "cache": "/Users/ruochengwang/ham/data_cache/spin1_signedK_delta0_L36_n64_seed91/ensembles.pt",
+        "physical_model": "Square spin-1 Ising, signed K, zero crystal field and longitudinal field",
+        "coupling_names": [
+          "K"
+        ],
+        "spin_flip_augment": false,
+        "spin_flip_symmetric": false,
+        "train_pool_replicas": 1,
+        "test_pool_replicas": 1
+      },
+      "model": {
+        "categorical_states": 3,
+        "dimension": 2,
+        "theory_dim": 1,
+        "hidden": 96,
+        "width": 3,
+        "block_factor": 3,
+        "kernel_layout": "nonoverlapping",
+        "fixed_kernel": false,
+        "binary_lookup": true,
+        "kernel_initialization": "random",
+        "kernel_sampling": "categorical",
+        "kernel_temperature": 1.0,
+        "reconstruction_hidden": 0,
+        "affine_reconstruction": true,
+        "theory_head": "nonlinear"
+      },
+      "loss": {
+        "geometry_scale": 4.0,
+        "geometry_mode": "relative_local",
+        "geometry_distance": "euclidean",
+        "geometry_bounds": "interval",
+        "geometry_relative_floor": 0.05,
+        "geometry_max_inverse_weight": 100.0,
+        "geometry_neighbors": 4,
+        "geometry_local_fraction": 0.5,
+        "geometry_tail_mix": 0.0,
+        "geometry_tail_add_weight": 0.0,
+        "geometry_tail_fraction": 0.1,
+        "geometry_tail_min_reliability": 0.5,
+        "noise_multiplier": 2.0,
+        "rollout_weight": 5,
+        "isotropy_weight": 0.0,
+        "tangent_weight": 0.0,
+        "orientation_weight": 0.0,
+        "orientation_radius": 0.02,
+        "kernel_sign_weight": 1.0,
+        "kernel_neutral_weight": 0.0,
+        "kernel_neutral_max_patterns": 65536,
+        "kernel_distinct_alpha": 0.0,
+        "kernel_distinct_margin": 0.8,
+        "closure_metric": "euclidean",
+        "coordinate_reduction": "sum",
+        "kernel_noncollapse_mode": "variance_floor_ensemble",
+        "kernel_variance_ratio": 1.0,
+        "weights": {
+          "anchor": 2,
+          "coarse_consistency": 5,
+          "kernel_noncollapse": 2.0,
+          "separation": 10,
+          "commutator": 5
+        }
+      },
+      "training": {
+        "max_rg_steps": 2,
+        "epochs": 6000,
+        "system_batch": 32,
+        "sample_batch": 64,
+        "learning_rate": 0.001,
+        "seed": 91,
+        "threads": 2,
+        "train_modules": [
+          "R"
+        ],
+        "checkpoint_every": 400,
+        "log_every": 100,
+        "gradient_mode": "qc_r_separate"
+      },
+      "evaluation": {
+        "max_rg_steps": 2,
+        "samples": 64,
+        "systems": 32
+      },
+      "schema_version": 5
+    },
+    "data_sha256": "f68f19b454d06588f0e9317ae7e5e54aa510ce4030da89d17b53632a36393979",
+    "source": "/Users/ruochengwang/ham/results/spin1_signedK_g1_affineQ_frozenC_pca_QR_1200_seed91",
+    "source_checkpoint_sha256": "c91ce897494ec9ef062afe35e56347f1d49b2764b15aa9de9397f129f77a1d7f",
+    "source_epoch": 433,
+    "target_cache_sha256": "998af88b70c691c84a690d51e9e278c96274b6542e7244cef824a8cf8d4fe235",
+    "training_driver": "frozen_qc_r_continue",
+    "independent_c": true,
+    "optimized_modules": [
+      "R"
+    ],
+    "frozen_modules": [
+      "Q",
+      "C"
+    ],
+    "labels_used_in_training": false,
+    "targets": "Original full-report TRAIN ensemble trajectories; no coupling labels; fixed C draws",
+    "differences_from_source": "Q/C frozen; full-batch cached 64-sample full-ensemble Q trajectories rather than fresh stochastic system/sample batches and the mean of two half-subset Q outputs",
+    "R": "Original weights, architecture, learning rate, Adam moments and step counters; no scheduler",
+    "closure": "Original weighted one-step and all-horizon rollout squared Euclidean loss",
+    "selection": "Final completed update, not test-selected",
+    "requested_extra_R_updates": 6000,
+    "max_wall_seconds": 540.0
+  },
+  "actual_extra_R_updates": 6000,
+  "R_parameters": 9601,
+  "initial_R_Adam_steps": [
+    433.0,
+    433.0,
+    433.0,
+    433.0,
+    433.0,
+    433.0
+  ],
+  "final_R_Adam_steps": [
+    6433.0,
+    6433.0,
+    6433.0,
+    6433.0,
+    6433.0,
+    6433.0
+  ],
+  "frozen_max_parameter_difference": {
+    "theory_encoder.": 0.0,
+    "rg_kernel.": 0.0
+  },
+  "history": [
+    {
+      "extra_R_updates": 0,
+      "epoch": 0,
+      "train_closure": 0.01708408816619314,
+      "train_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.037900583804496374,
+            0.055125772619032815
+          ],
+          "nrmse": [
+            0.0,
+            0.13350229012536918,
+            0.18731613566714655
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.037900583804496374,
+            0.030362410217053652
+          ],
+          "nrmse": [
+            0.13350229012536918,
+            0.1031707871144748
+          ]
+        }
+      },
+      "test_closure": 0.021224843607794735,
+      "test_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.042436715790809945,
+            0.06293643619384873
+          ],
+          "nrmse": [
+            0.0,
+            0.14948051388064437,
+            0.2138565948447748
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.042436715790809945,
+            0.03044983987011336
+          ],
+          "nrmse": [
+            0.14948051388064437,
+            0.10346787110941566
+          ]
+        }
+      }
+    },
+    {
+      "extra_R_updates": 250,
+      "epoch": 250,
+      "train_closure": 0.01647299925461812,
+      "train_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.03693157517227371,
+            0.05400731752133799
+          ],
+          "nrmse": [
+            0.0,
+            0.13008902155356344,
+            0.18351565039748377
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.03693157517227371,
+            0.030733155818854944
+          ],
+          "nrmse": [
+            0.13008902155356344,
+            0.1044305723319074
+          ]
+        }
+      },
+      "test_closure": 0.020494458048737566,
+      "test_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.04151439255313133,
+            0.06173151643486944
+          ],
+          "nrmse": [
+            0.0,
+            0.14623169151154586,
+            0.20976230460052225
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.04151439255313133,
+            0.03066127068527167
+          ],
+          "nrmse": [
+            0.14623169151154586,
+            0.10418630826457556
+          ]
+        }
+      }
+    },
+    {
+      "extra_R_updates": 500,
+      "epoch": 500,
+      "train_closure": 0.016463412046719292,
+      "train_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.03692157242166364,
+            0.054017824653811414
+          ],
+          "nrmse": [
+            0.0,
+            0.13005378752865013,
+            0.1835513533973395
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.03692157242166364,
+            0.03067628429555142
+          ],
+          "nrmse": [
+            0.13005378752865013,
+            0.10423732417467357
+          ]
+        }
+      },
+      "test_closure": 0.020473830647166534,
+      "test_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.04149349572727057,
+            0.061716166329651614
+          ],
+          "nrmse": [
+            0.0,
+            0.14615808382985016,
+            0.20971014528819193
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.04149349572727057,
+            0.03061415844179534
+          ],
+          "nrmse": [
+            0.14615808382985016,
+            0.1040262219207236
+          ]
+        }
+      }
+    },
+    {
+      "extra_R_updates": 750,
+      "epoch": 750,
+      "train_closure": 0.016452339572516066,
+      "train_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.03691110841139859,
+            0.05403374945565653
+          ],
+          "nrmse": [
+            0.0,
+            0.13001692874722645,
+            0.18360546551588533
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.03691110841139859,
+            0.03060114214296135
+          ],
+          "nrmse": [
+            0.13001692874722645,
+            0.10398199283000188
+          ]
+        }
+      },
+      "test_closure": 0.02044820021248393,
+      "test_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.04146791442181047,
+            0.0616979348181699
+          ],
+          "nrmse": [
+            0.0,
+            0.14606797537978153,
+            0.20964819502217522
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.04146791442181047,
+            0.030552726084217698
+          ],
+          "nrmse": [
+            0.14606797537978153,
+            0.10381747615119231
+          ]
+        }
+      }
+    },
+    {
+      "extra_R_updates": 1000,
+      "epoch": 1000,
+      "train_closure": 0.016439858407779975,
+      "train_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.03689908393848586,
+            0.05405567004129315
+          ],
+          "nrmse": [
+            0.0,
+            0.1299745733397298,
+            0.1836799511729189
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.03689908393848586,
+            0.030509721540846302
+          ],
+          "nrmse": [
+            0.1299745733397298,
+            0.10367134767992117
+          ]
+        }
+      },
+      "test_closure": 0.02041783079555569,
+      "test_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.04143720208975246,
+            0.061677678193904094
+          ],
+          "nrmse": [
+            0.0,
+            0.14595979322918498,
+            0.20957936346845976
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.04143720208975246,
+            0.030478072392746754
+          ],
+          "nrmse": [
+            0.14595979322918498,
+            0.1035638045864187
+          ]
+        }
+      }
+    },
+    {
+      "extra_R_updates": 1250,
+      "epoch": 1250,
+      "train_closure": 0.01642643559795942,
+      "train_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.0368857540764907,
+            0.0540854643758106
+          ],
+          "nrmse": [
+            0.0,
+            0.12992761978585876,
+            0.18378119165158124
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.0368857540764907,
+            0.030400971610361253
+          ],
+          "nrmse": [
+            0.12992761978585876,
+            0.10330181786174866
+          ]
+        }
+      },
+      "test_closure": 0.020382875255418112,
+      "test_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.04140123841622544,
+            0.06165640053929206
+          ],
+          "nrmse": [
+            0.0,
+            0.1458331135769151,
+            0.20950706247658923
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.04140123841622544,
+            0.03038936145942108
+          ],
+          "nrmse": [
+            0.1458331135769151,
+            0.10326236682994808
+          ]
+        }
+      }
+    },
+    {
+      "extra_R_updates": 1500,
+      "epoch": 1500,
+      "train_closure": 0.016412918816226075,
+      "train_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.03687174469794145,
+            0.054124696864096766
+          ],
+          "nrmse": [
+            0.0,
+            0.12987827268004093,
+            0.18391450276450041
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.03687174469794145,
+            0.03027595748642339
+          ],
+          "nrmse": [
+            0.12987827268004093,
+            0.10287702267997974
+          ]
+        }
+      },
+      "test_closure": 0.02034426943838257,
+      "test_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.04136068144190492,
+            0.06163573964074206
+          ],
+          "nrmse": [
+            0.0,
+            0.14569025432756225,
+            0.20943685720794758
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.04136068144190492,
+            0.030287479849175486
+          ],
+          "nrmse": [
+            0.14569025432756225,
+            0.10291617540949147
+          ]
+        }
+      }
+    },
+    {
+      "extra_R_updates": 1750,
+      "epoch": 1750,
+      "train_closure": 0.016400495207474653,
+      "train_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.03685805770565434,
+            0.05417280374541715
+          ],
+          "nrmse": [
+            0.0,
+            0.12983006115842735,
+            0.18407796886537864
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.03685805770565434,
+            0.03014087891358992
+          ],
+          "nrmse": [
+            0.12983006115842735,
+            0.10241802872719724
+          ]
+        }
+      },
+      "test_closure": 0.020304332871098917,
+      "test_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.041317719007524234,
+            0.061617761070938984
+          ],
+          "nrmse": [
+            0.0,
+            0.14553892200485272,
+            0.20937576643206662
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.041317719007524234,
+            0.030177423035686553
+          ],
+          "nrmse": [
+            0.14553892200485272,
+            0.10254220483226151
+          ]
+        }
+      }
+    },
+    {
+      "extra_R_updates": 2000,
+      "epoch": 2000,
+      "train_closure": 0.016390146217364104,
+      "train_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.03684571023104912,
+            0.05422485359835361
+          ],
+          "nrmse": [
+            0.0,
+            0.12978656799891392,
+            0.18425483309513702
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.03684571023104912,
+            0.030008515696746545
+          ],
+          "nrmse": [
+            0.12978656799891392,
+            0.10196826149300499
+          ]
+        }
+      },
+      "test_closure": 0.02026661701449964,
+      "test_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.04127620305326533,
+            0.06160379465443421
+          ],
+          "nrmse": [
+            0.0,
+            0.14539268481233625,
+            0.20932830886286624
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.04127620305326533,
+            0.03006940992080456
+          ],
+          "nrmse": [
+            0.14539268481233625,
+            0.10217517869693836
+          ]
+        }
+      }
+    },
+    {
+      "extra_R_updates": 2250,
+      "epoch": 2250,
+      "train_closure": 0.016387215725241152,
+      "train_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.03684225733011808,
+            0.05424279098738624
+          ],
+          "nrmse": [
+            0.0,
+            0.12977440538463209,
+            0.1843157839396861
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.03684225733011808,
+            0.029965014026993392
+          ],
+          "nrmse": [
+            0.12977440538463209,
+            0.10182044379746823
+          ]
+        }
+      },
+      "test_closure": 0.020254536121485645,
+      "test_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.04126316371343055,
+            0.061599589776558536
+          ],
+          "nrmse": [
+            0.0,
+            0.14534675460348656,
+            0.20931402078240582
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.04126316371343055,
+            0.030033441838577545
+          ],
+          "nrmse": [
+            0.14534675460348656,
+            0.10205295996239683
+          ]
+        }
+      }
+    },
+    {
+      "extra_R_updates": 2500,
+      "epoch": 2500,
+      "train_closure": 0.01638054199031158,
+      "train_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.03683329049252481,
+            0.05427972007776998
+          ],
+          "nrmse": [
+            0.0,
+            0.12974282029454326,
+            0.18444126815833262
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.03683329049252481,
+            0.02987551183478086
+          ],
+          "nrmse": [
+            0.12974282029454326,
+            0.10151631736109423
+          ]
+        }
+      },
+      "test_closure": 0.020228877615882844,
+      "test_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.04123430920360649,
+            0.061590806451788854
+          ],
+          "nrmse": [
+            0.0,
+            0.14524511650836308,
+            0.20928417524236168
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.04123430920360649,
+            0.029959757942516322
+          ],
+          "nrmse": [
+            0.14524511650836308,
+            0.10180258374061626
+          ]
+        }
+      }
+    },
+    {
+      "extra_R_updates": 2750,
+      "epoch": 2750,
+      "train_closure": 0.016373918175683514,
+      "train_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.036824782836448834,
+            0.05430739319778923
+          ],
+          "nrmse": [
+            0.0,
+            0.12971285264086277,
+            0.18453530079783287
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.036824782836448834,
+            0.029801762572554135
+          ],
+          "nrmse": [
+            0.12971285264086277,
+            0.10126571902655328
+          ]
+        }
+      },
+      "test_closure": 0.020206652237084094,
+      "test_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.04120986287610163,
+            0.06158127072845563
+          ],
+          "nrmse": [
+            0.0,
+            0.1451590059427874,
+            0.20925177306891887
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.04120986287610163,
+            0.029898200510533955
+          ],
+          "nrmse": [
+            0.1451590059427874,
+            0.10159341297107045
+          ]
+        }
+      }
+    },
+    {
+      "extra_R_updates": 3000,
+      "epoch": 3000,
+      "train_closure": 0.016370526337018333,
+      "train_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.036863280676865944,
+            0.054277125628596136
+          ],
+          "nrmse": [
+            0.0,
+            0.12984845872775252,
+            0.18443245227838498
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.036863280676865944,
+            0.029738884373529034
+          ],
+          "nrmse": [
+            0.12984845872775252,
+            0.10105206032029825
+          ]
+        }
+      },
+      "test_closure": 0.02021764218273483,
+      "test_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.0412543191896696,
+            0.0615819673576625
+          ],
+          "nrmse": [
+            0.0,
+            0.14531560035575133,
+            0.2092541401992977
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.0412543191896696,
+            0.02984762077364693
+          ],
+          "nrmse": [
+            0.14531560035575133,
+            0.10142154416258745
+          ]
+        }
+      }
+    },
+    {
+      "extra_R_updates": 3250,
+      "epoch": 3250,
+      "train_closure": 0.01635902400440166,
+      "train_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.03680839641470969,
+            0.05430426399765283
+          ],
+          "nrmse": [
+            0.0,
+            0.12965513255822708,
+            0.1845246678461402
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.03680839641470969,
+            0.029747948167715074
+          ],
+          "nrmse": [
+            0.12965513255822708,
+            0.10108285888911187
+          ]
+        }
+      },
+      "test_closure": 0.020180306432001104,
+      "test_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.04118482033791673,
+            0.06155336940917016
+          ],
+          "nrmse": [
+            0.0,
+            0.1450707952646754,
+            0.20915696501344383
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.04118482033791673,
+            0.029848390821712957
+          ],
+          "nrmse": [
+            0.1450707952646754,
+            0.10142416076859863
+          ]
+        }
+      }
+    },
+    {
+      "extra_R_updates": 3500,
+      "epoch": 3500,
+      "train_closure": 0.01632629967075083,
+      "train_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.03677364695113984,
+            0.05427181680669398
+          ],
+          "nrmse": [
+            0.0,
+            0.12953272987991657,
+            0.18441441302094855
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.03677364695113984,
+            0.029673010440917934
+          ],
+          "nrmse": [
+            0.12953272987991657,
+            0.10082822217868734
+          ]
+        }
+      },
+      "test_closure": 0.020132128215867,
+      "test_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.041141262307666064,
+            0.06149058646209066
+          ],
+          "nrmse": [
+            0.0,
+            0.1449173649950571,
+            0.20894362997115787
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.041141262307666064,
+            0.029775025346061124
+          ],
+          "nrmse": [
+            0.1449173649950571,
+            0.10117486653220839
+          ]
+        }
+      }
+    },
+    {
+      "extra_R_updates": 3750,
+      "epoch": 3750,
+      "train_closure": 0.015871534556840858,
+      "train_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.03630922997514611,
+            0.05347022230434632
+          ],
+          "nrmse": [
+            0.0,
+            0.12789685191592315,
+            0.18169061292857666
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.03630922997514611,
+            0.029203232469780335
+          ],
+          "nrmse": [
+            0.12789685191592315,
+            0.09923192719733291
+          ]
+        }
+      },
+      "test_closure": 0.019577429366218785,
+      "test_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.04067441726260482,
+            0.060554550593712946
+          ],
+          "nrmse": [
+            0.0,
+            0.14327293431897967,
+            0.20576300114039173
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.04067441726260482,
+            0.029245541704266704
+          ],
+          "nrmse": [
+            0.14327293431897967,
+            0.09937569302464914
+          ]
+        }
+      }
+    },
+    {
+      "extra_R_updates": 4000,
+      "epoch": 4000,
+      "train_closure": 0.010746891595352345,
+      "train_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.03013085677547592,
+            0.04293534790103494
+          ],
+          "nrmse": [
+            0.0,
+            0.10613394251959556,
+            0.14589334661895761
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.03013085677547592,
+            0.025289829550820354
+          ],
+          "nrmse": [
+            0.10613394251959556,
+            0.08593427208501213
+          ]
+        }
+      },
+      "test_closure": 0.012995804137761798,
+      "test_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.03374859106177109,
+            0.04806760358893788
+          ],
+          "nrmse": [
+            0.0,
+            0.11887717135155289,
+            0.1633326360300559
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.03374859106177109,
+            0.024695998522273496
+          ],
+          "nrmse": [
+            0.11887717135155289,
+            0.0839164476043401
+          ]
+        }
+      }
+    },
+    {
+      "extra_R_updates": 4250,
+      "epoch": 4250,
+      "train_closure": 0.004728605798596233,
+      "train_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.020261686369718153,
+            0.026185868041126728
+          ],
+          "nrmse": [
+            0.0,
+            0.07137044500719388,
+            0.08897899072457029
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.020261686369718153,
+            0.019613025398483183
+          ],
+          "nrmse": [
+            0.07137044500719388,
+            0.06664461923780879
+          ]
+        }
+      },
+      "test_closure": 0.005348178081431685,
+      "test_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.02265230834192795,
+            0.02864537801540084
+          ],
+          "nrmse": [
+            0.0,
+            0.0797912521842108,
+            0.09733635030662476
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.02265230834192795,
+            0.017101444514774397
+          ],
+          "nrmse": [
+            0.0797912521842108,
+            0.05811032387648853
+          ]
+        }
+      }
+    },
+    {
+      "extra_R_updates": 4500,
+      "epoch": 4500,
+      "train_closure": 0.0010184328098603894,
+      "train_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.008736960412960267,
+            0.009464704179744748
+          ],
+          "nrmse": [
+            0.0,
+            0.03077536298336675,
+            0.03216085195639262
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.008736960412960267,
+            0.012850040631017804
+          ],
+          "nrmse": [
+            0.03077536298336675,
+            0.04366414908690141
+          ]
+        }
+      },
+      "test_closure": 0.000716176611016948,
+      "test_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.009233385981442022,
+            0.008075598228336344
+          ],
+          "nrmse": [
+            0.0,
+            0.03252398908925908,
+            0.027440701172325072
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.009233385981442022,
+            0.007123519094990198
+          ],
+          "nrmse": [
+            0.03252398908925908,
+            0.024205557687984096
+          ]
+        }
+      }
+    },
+    {
+      "extra_R_updates": 4750,
+      "epoch": 4750,
+      "train_closure": 0.0008132596393869173,
+      "train_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.0070148297253083995,
+            0.008179218929386804
+          ],
+          "nrmse": [
+            0.0,
+            0.024709271973195404,
+            0.027792801984227185
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.0070148297253083995,
+            0.01264865847866037
+          ],
+          "nrmse": [
+            0.024709271973195404,
+            0.0429798570619602
+          ]
+        }
+      },
+      "test_closure": 0.00043422723131759846,
+      "test_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.006925372822972372,
+            0.0064191155822209914
+          ],
+          "nrmse": [
+            0.0,
+            0.02439416597401118,
+            0.021812010392526594
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.006925372822972372,
+            0.00604683968654688
+          ],
+          "nrmse": [
+            0.02439416597401118,
+            0.02054702527092806
+          ]
+        }
+      }
+    },
+    {
+      "extra_R_updates": 5000,
+      "epoch": 5000,
+      "train_closure": 0.0007750934548051482,
+      "train_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.0066080867373346655,
+            0.007978246600727367
+          ],
+          "nrmse": [
+            0.0,
+            0.02327654680286473,
+            0.027109902530995465
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.0066080867373346655,
+            0.012611555908918012
+          ],
+          "nrmse": [
+            0.02327654680286473,
+            0.04285378336435437
+          ]
+        }
+      },
+      "test_closure": 0.00038196656590785586,
+      "test_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.0063491441792994764,
+            0.006117784963364873
+          ],
+          "nrmse": [
+            0.0,
+            0.022364438834107853,
+            0.02078809572610739
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.0063491441792994764,
+            0.005893731406002835
+          ],
+          "nrmse": [
+            0.022364438834107853,
+            0.020026766776804934
+          ]
+        }
+      }
+    },
+    {
+      "extra_R_updates": 5250,
+      "epoch": 5250,
+      "train_closure": 0.000893656508189837,
+      "train_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.007305037246212009,
+            0.009104362137366885
+          ],
+          "nrmse": [
+            0.0,
+            0.025731508697887793,
+            0.03093641779992106
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.007305037246212009,
+            0.012955541478862461
+          ],
+          "nrmse": [
+            0.025731508697887793,
+            0.04402263859532865
+          ]
+        }
+      },
+      "test_closure": 0.0005096386620665307,
+      "test_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.0071492955696218705,
+            0.007623799809042791
+          ],
+          "nrmse": [
+            0.0,
+            0.02518291898222538,
+            0.025905500303804736
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.0071492955696218705,
+            0.0065960811861757425
+          ],
+          "nrmse": [
+            0.02518291898222538,
+            0.022413335535085444
+          ]
+        }
+      }
+    },
+    {
+      "extra_R_updates": 5500,
+      "epoch": 5500,
+      "train_closure": 0.0007559087837231279,
+      "train_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.006404158589306625,
+            0.00794225620548077
+          ],
+          "nrmse": [
+            0.0,
+            0.022558223440797182,
+            0.026987607977315173
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.006404158589306625,
+            0.012540238649315003
+          ],
+          "nrmse": [
+            0.022558223440797182,
+            0.04261144892003687
+          ]
+        }
+      },
+      "test_closure": 0.00036486849324239475,
+      "test_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.006174567435536049,
+            0.005989541568841684
+          ],
+          "nrmse": [
+            0.0,
+            0.02174950384484042,
+            0.02035232755551077
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.006174567435536049,
+            0.005815687668720782
+          ],
+          "nrmse": [
+            0.02174950384484042,
+            0.01976157591260199
+          ]
+        }
+      }
+    },
+    {
+      "extra_R_updates": 5750,
+      "epoch": 5750,
+      "train_closure": 0.0007483816331704325,
+      "train_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.006342404182835983,
+            0.007927011108974414
+          ],
+          "nrmse": [
+            0.0,
+            0.022340697644052446,
+            0.026935805482224934
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.006342404182835983,
+            0.01249251642021969
+          ],
+          "nrmse": [
+            0.022340697644052446,
+            0.04244928985876922
+          ]
+        }
+      },
+      "test_closure": 0.00036181211362107033,
+      "test_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.00617387320557436,
+            0.00593374046524274
+          ],
+          "nrmse": [
+            0.0,
+            0.021747058465892245,
+            0.020162716660361023
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.00617387320557436,
+            0.005769068280281569
+          ],
+          "nrmse": [
+            0.021747058465892245,
+            0.01960316427908261
+          ]
+        }
+      }
+    },
+    {
+      "extra_R_updates": 6000,
+      "epoch": 6000,
+      "train_closure": 0.0007507192975894181,
+      "train_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.006397715145038511,
+            0.007976754253189352
+          ],
+          "nrmse": [
+            0.0,
+            0.02253552683616107,
+            0.02710483156762185
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.006397715145038511,
+            0.012441768060283175
+          ],
+          "nrmse": [
+            0.02253552683616107,
+            0.042276848072956105
+          ]
+        }
+      },
+      "test_closure": 0.0003788186718651446,
+      "test_metrics": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.006364764494052719,
+            0.006055512336449308
+          ],
+          "nrmse": [
+            0.0,
+            0.02241946035574968,
+            0.020576494740262193
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.006364764494052719,
+            0.005817025439144969
+          ],
+          "nrmse": [
+            0.02241946035574968,
+            0.019766121626419015
+          ]
+        }
+      }
+    }
+  ],
+  "snapshots": {
+    "1000": {
+      "roots": [
+        {
+          "g": [
+            0.010902850430381382
+          ],
+          "stability": "unstable",
+          "residual_norm": 2.0795865030009963e-14,
+          "eigenvalues": [
+            {
+              "real": 1.117659211757442,
+              "imag": 0.0
+            }
+          ],
+          "inside_training_input_range": true,
+          "microscopic_inverse_coupling": [
+            -0.06680073811528228
+          ]
+        }
+      ],
+      "search_box": [
+        [
+          -0.6753785433745911
+        ],
+        [
+          0.7089330475077027
+        ]
+      ],
+      "convention": "Jacobian of full discrete R",
+      "search_note": "Sign-change/grid-zero search; tangential roots may be missed."
+    },
+    "3000": {
+      "roots": [
+        {
+          "g": [
+            0.011876057487563712
+          ],
+          "stability": "unstable",
+          "residual_norm": 0.0,
+          "eigenvalues": [
+            {
+              "real": 1.1327963999081738,
+              "imag": 0.0
+            }
+          ],
+          "inside_training_input_range": true,
+          "microscopic_inverse_coupling": [
+            -0.05418854752508449
+          ]
+        }
+      ],
+      "search_box": [
+        [
+          -0.6753785433745911
+        ],
+        [
+          0.7089330475077027
+        ]
+      ],
+      "convention": "Jacobian of full discrete R",
+      "search_note": "Sign-change/grid-zero search; tangential roots may be missed."
+    },
+    "6000": {
+      "roots": [
+        {
+          "g": [
+            -0.4779788123192023
+          ],
+          "stability": "stable",
+          "residual_norm": 3.11972669919669e-14,
+          "eigenvalues": [
+            {
+              "real": 0.0400866721158053,
+              "imag": 0.0
+            }
+          ],
+          "inside_training_input_range": false,
+          "microscopic_inverse_coupling": []
+        },
+        {
+          "g": [
+            -0.16772954485846148
+          ],
+          "stability": "unstable",
+          "residual_norm": 5.551115123125783e-17,
+          "eigenvalues": [
+            {
+              "real": 1.8908559515897818,
+              "imag": 0.0
+            }
+          ],
+          "inside_training_input_range": true,
+          "microscopic_inverse_coupling": [
+            -0.5615872049164178
+          ]
+        },
+        {
+          "g": [
+            0.013347883633497286
+          ],
+          "stability": "stable",
+          "residual_norm": 6.938893903907228e-17,
+          "eigenvalues": [
+            {
+              "real": 0.20043687588061365,
+              "imag": 0.0
+            }
+          ],
+          "inside_training_input_range": true,
+          "microscopic_inverse_coupling": [
+            -0.03475719975373158
+          ]
+        },
+        {
+          "g": [
+            0.1909385551582839
+          ],
+          "stability": "unstable",
+          "residual_norm": 5.551115123125783e-17,
+          "eigenvalues": [
+            {
+              "real": 1.8481193643067975,
+              "imag": 0.0
+            }
+          ],
+          "inside_training_input_range": true,
+          "microscopic_inverse_coupling": [
+            0.5626578491352584
+          ]
+        },
+        {
+          "g": [
+            0.5104409819073769
+          ],
+          "stability": "stable",
+          "residual_norm": 1.1102230246251565e-16,
+          "eigenvalues": [
+            {
+              "real": 0.10211155319370113,
+              "imag": 0.0
+            }
+          ],
+          "inside_training_input_range": false,
+          "microscopic_inverse_coupling": []
+        }
+      ],
+      "search_box": [
+        [
+          -0.6753785433745911
+        ],
+        [
+          0.7089330475077027
+        ]
+      ],
+      "convention": "Jacobian of full discrete R",
+      "search_note": "Sign-change/grid-zero search; tangential roots may be missed."
+    }
+  },
+  "before": {
+    "train": {
+      "normalization": "explicit reference target SD",
+      "target_sd": [
+        0.23992906574745432,
+        0.2838946340838403,
+        0.29429270694004256
+      ],
+      "rollout": {
+        "rmse": [
+          0.0,
+          0.037900583804496374,
+          0.055125772619032815
+        ],
+        "nrmse": [
+          0.0,
+          0.13350229012536918,
+          0.18731613566714655
+        ]
+      },
+      "one_step": {
+        "rmse": [
+          0.037900583804496374,
+          0.030362410217053652
+        ],
+        "nrmse": [
+          0.13350229012536918,
+          0.1031707871144748
+        ]
+      }
+    },
+    "test": {
+      "normalization": "explicit reference target SD",
+      "target_sd": [
+        0.23992906574745432,
+        0.2838946340838403,
+        0.29429270694004256
+      ],
+      "rollout": {
+        "rmse": [
+          0.0,
+          0.042436715790809945,
+          0.06293643619384873
+        ],
+        "nrmse": [
+          0.0,
+          0.14948051388064437,
+          0.2138565948447748
+        ]
+      },
+      "one_step": {
+        "rmse": [
+          0.042436715790809945,
+          0.03044983987011336
+        ],
+        "nrmse": [
+          0.14948051388064437,
+          0.10346787110941566
+        ]
+      }
+    },
+    "fixed_points": {
+      "roots": [
+        {
+          "g": [
+            -0.04930458613466006
+          ],
+          "stability": "unstable",
+          "residual_norm": 4.163336342344337e-17,
+          "eigenvalues": [
+            {
+              "real": 1.10757145499004,
+              "imag": 0.0
+            }
+          ],
+          "inside_training_input_range": true,
+          "microscopic_inverse_coupling": [
+            -0.4185561044125156
+          ]
+        }
+      ],
+      "search_box": [
+        [
+          -0.6753785433745911
+        ],
+        [
+          0.7089330475077027
+        ]
+      ],
+      "convention": "Jacobian of full discrete R",
+      "search_note": "Sign-change/grid-zero search; tangential roots may be missed."
+    }
+  },
+  "after": {
+    "train": {
+      "normalization": "explicit reference target SD",
+      "target_sd": [
+        0.23992906574745432,
+        0.2838946340838403,
+        0.29429270694004256
+      ],
+      "rollout": {
+        "rmse": [
+          0.0,
+          0.006397715145038511,
+          0.007976754253189352
+        ],
+        "nrmse": [
+          0.0,
+          0.02253552683616107,
+          0.02710483156762185
+        ]
+      },
+      "one_step": {
+        "rmse": [
+          0.006397715145038511,
+          0.012441768060283175
+        ],
+        "nrmse": [
+          0.02253552683616107,
+          0.042276848072956105
+        ]
+      }
+    },
+    "test": {
+      "normalization": "explicit reference target SD",
+      "target_sd": [
+        0.23992906574745432,
+        0.2838946340838403,
+        0.29429270694004256
+      ],
+      "rollout": {
+        "rmse": [
+          0.0,
+          0.006364764494052719,
+          0.006055512336449308
+        ],
+        "nrmse": [
+          0.0,
+          0.02241946035574968,
+          0.020576494740262193
+        ]
+      },
+      "one_step": {
+        "rmse": [
+          0.006364764494052719,
+          0.005817025439144969
+        ],
+        "nrmse": [
+          0.02241946035574968,
+          0.019766121626419015
+        ]
+      }
+    },
+    "fixed_points": {
+      "roots": [
+        {
+          "g": [
+            -0.4779788123192023
+          ],
+          "stability": "stable",
+          "residual_norm": 3.11972669919669e-14,
+          "eigenvalues": [
+            {
+              "real": 0.0400866721158053,
+              "imag": 0.0
+            }
+          ],
+          "inside_training_input_range": false,
+          "microscopic_inverse_coupling": []
+        },
+        {
+          "g": [
+            -0.16772954485846148
+          ],
+          "stability": "unstable",
+          "residual_norm": 5.551115123125783e-17,
+          "eigenvalues": [
+            {
+              "real": 1.8908559515897818,
+              "imag": 0.0
+            }
+          ],
+          "inside_training_input_range": true,
+          "microscopic_inverse_coupling": [
+            -0.5615872049164178
+          ]
+        },
+        {
+          "g": [
+            0.013347883633497286
+          ],
+          "stability": "stable",
+          "residual_norm": 6.938893903907228e-17,
+          "eigenvalues": [
+            {
+              "real": 0.20043687588061365,
+              "imag": 0.0
+            }
+          ],
+          "inside_training_input_range": true,
+          "microscopic_inverse_coupling": [
+            -0.03475719975373158
+          ]
+        },
+        {
+          "g": [
+            0.1909385551582839
+          ],
+          "stability": "unstable",
+          "residual_norm": 5.551115123125783e-17,
+          "eigenvalues": [
+            {
+              "real": 1.8481193643067975,
+              "imag": 0.0
+            }
+          ],
+          "inside_training_input_range": true,
+          "microscopic_inverse_coupling": [
+            0.5626578491352584
+          ]
+        },
+        {
+          "g": [
+            0.5104409819073769
+          ],
+          "stability": "stable",
+          "residual_norm": 1.1102230246251565e-16,
+          "eigenvalues": [
+            {
+              "real": 0.10211155319370113,
+              "imag": 0.0
+            }
+          ],
+          "inside_training_input_range": false,
+          "microscopic_inverse_coupling": []
+        }
+      ],
+      "search_box": [
+        [
+          -0.6753785433745911
+        ],
+        [
+          0.7089330475077027
+        ]
+      ],
+      "convention": "Jacobian of full discrete R",
+      "search_note": "Sign-change/grid-zero search; tangential roots may be missed."
+    }
+  },
+  "fresh_C_sampling_audit": {
+    "9001": {
+      "before": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.04245105412834961,
+            0.06234358289383141
+          ],
+          "nrmse": [
+            0.0,
+            0.14953101972266544,
+            0.21184209266365858
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.04245105412834961,
+            0.030058438049048126
+          ],
+          "nrmse": [
+            0.14953101972266544,
+            0.10213789652345022
+          ]
+        }
+      },
+      "after": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.006360555470093858,
+            0.005835503959721222
+          ],
+          "nrmse": [
+            0.0,
+            0.022404634348303486,
+            0.019828911223784124
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.006360555470093858,
+            0.00546671168991048
+          ],
+          "nrmse": [
+            0.022404634348303486,
+            0.01857576338452803
+          ]
+        }
+      }
+    },
+    "9002": {
+      "before": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.042349861912203,
+            0.0623686938462236
+          ],
+          "nrmse": [
+            0.0,
+            0.14917457685972382,
+            0.21192741911518123
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.042349861912203,
+            0.029850987370966836
+          ],
+          "nrmse": [
+            0.14917457685972382,
+            0.10143298378457098
+          ]
+        }
+      },
+      "after": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.006385211722647748,
+            0.006362340859691576
+          ],
+          "nrmse": [
+            0.0,
+            0.02249148436092686,
+            0.02161909116214627
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.006385211722647748,
+            0.005709337002554374
+          ],
+          "nrmse": [
+            0.02249148436092686,
+            0.019400198740628528
+          ]
+        }
+      }
+    },
+    "9003": {
+      "before": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.04228851456987006,
+            0.0627174384219512
+          ],
+          "nrmse": [
+            0.0,
+            0.148958484919378,
+            0.21311244534078405
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.04228851456987006,
+            0.030442119570233444
+          ],
+          "nrmse": [
+            0.148958484919378,
+            0.10344163770404116
+          ]
+        }
+      },
+      "after": {
+        "normalization": "explicit reference target SD",
+        "target_sd": [
+          0.23992906574745432,
+          0.2838946340838403,
+          0.29429270694004256
+        ],
+        "rollout": {
+          "rmse": [
+            0.0,
+            0.006220393974844268,
+            0.00585104249566957
+          ],
+          "nrmse": [
+            0.0,
+            0.021910924787001258,
+            0.019881710819499264
+          ]
+        },
+        "one_step": {
+          "rmse": [
+            0.006220393974844268,
+            0.005736593675387224
+          ],
+          "nrmse": [
+            0.021910924787001258,
+            0.019492816301954652
+          ]
+        }
+      }
+    }
+  },
+  "elapsed_seconds": 44.24914450000506
+}

@@ -1,0 +1,11 @@
+{
+  "reference": "/Users/ruochengwang/ham/results/ising2d_g2_random_independentC_variance2ratio1_color1_2400_seed91/qr",
+  "run": "/Users/ruochengwang/ham/results/ising2d_g2_locked_recipe_repro_2400_seed91/qr",
+  "changed_contract_fields": [],
+  "history_exact_match": true,
+  "parameter_exact_match": true,
+  "max_parameter_absolute_difference": 0.0,
+  "logged_steps": 25,
+  "final_step": 2400,
+  "exact_reproduction": true
+}

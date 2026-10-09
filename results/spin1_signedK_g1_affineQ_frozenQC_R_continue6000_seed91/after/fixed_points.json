@@ -1,0 +1,95 @@
+{
+  "roots": [
+    {
+      "g": [
+        -0.4779788123192023
+      ],
+      "stability": "stable",
+      "residual_norm": 3.11972669919669e-14,
+      "eigenvalues": [
+        {
+          "real": 0.0400866721158053,
+          "imag": 0.0
+        }
+      ],
+      "inside_training_input_range": false,
+      "microscopic_inverse_coupling": []
+    },
+    {
+      "g": [
+        -0.16772954485846148
+      ],
+      "stability": "unstable",
+      "residual_norm": 5.551115123125783e-17,
+      "eigenvalues": [
+        {
+          "real": 1.8908559515897818,
+          "imag": 0.0
+        }
+      ],
+      "inside_training_input_range": true,
+      "microscopic_inverse_coupling": [
+        -0.5615872049164178
+      ]
+    },
+    {
+      "g": [
+        0.013347883633497286
+      ],
+      "stability": "stable",
+      "residual_norm": 6.938893903907228e-17,
+      "eigenvalues": [
+        {
+          "real": 0.20043687588061365,
+          "imag": 0.0
+        }
+      ],
+      "inside_training_input_range": true,
+      "microscopic_inverse_coupling": [
+        -0.03475719975373158
+      ]
+    },
+    {
+      "g": [
+        0.1909385551582839
+      ],
+      "stability": "unstable",
+      "residual_norm": 5.551115123125783e-17,
+      "eigenvalues": [
+        {
+          "real": 1.8481193643067975,
+          "imag": 0.0
+        }
+      ],
+      "inside_training_input_range": true,
+      "microscopic_inverse_coupling": [
+        0.5626578491352584
+      ]
+    },
+    {
+      "g": [
+        0.5104409819073769
+      ],
+      "stability": "stable",
+      "residual_norm": 1.1102230246251565e-16,
+      "eigenvalues": [
+        {
+          "real": 0.10211155319370113,
+          "imag": 0.0
+        }
+      ],
+      "inside_training_input_range": false,
+      "microscopic_inverse_coupling": []
+    }
+  ],
+  "search_box": [
+    [
+      -0.6753785433745911
+    ],
+    [
+      0.7089330475077027
+    ]
+  ],
+  "convention": "Jacobian of full discrete R",
+  "search_note": "Sign-change/grid-zero search; tangential roots may be missed."
+}
