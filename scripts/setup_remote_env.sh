@@ -17,7 +17,7 @@ fi
 "$task_prefix/bin/python" -m pip install --upgrade pip
 # CUDA 11.8 build selected for the existing server driver. Actual CUDA execution
 # is verified separately; installing this wheel does not move QCR onto CUDA.
-"$task_prefix/bin/python" -m pip install torch==2.7.1 --index-url https://download.pytorch.org/whl/cu118
+"$task_prefix/bin/python" -m pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cu118
 "$task_prefix/bin/python" -m pip install 'numpy>=1.24,<2'
 "$task_prefix/bin/python" -m pip install -e "$task_root[dev]"
 "$task_prefix/bin/python" -m pip check

@@ -18,10 +18,12 @@ bash scripts/setup_remote_env.sh /absolute/path/to/python /absolute/path/to/ham/
 ```
 
 The script refuses to overwrite an existing environment. It installs the
-[official PyTorch 2.7.1 CUDA 11.8 build](https://pytorch.org/get-started/previous-versions/)
+[official PyTorch 2.6.0 CUDA 11.8 build](https://pytorch.org/get-started/previous-versions/)
 without installing torchvision or torchaudio. CUDA driver compatibility must
 still be checked by actual execution; see
 [NVIDIA's compatibility limitations](https://docs.nvidia.com/deploy/cuda-compatibility/minor-version-compatibility.html).
+The deployment server's compatible-wheel list excludes 2.7.1; this version pin
+is an environment compatibility choice, not a model or objective change.
 
 ## Smoke test, not a physics experiment
 
