@@ -128,3 +128,32 @@ mode: pre-optimization CUDA checkpoints require `--reference-execution`.
 Categorical/historical paths without compatible binary lookup retain their
 existing Q/C operations; static statistics caching and bounded residency do not
 change their objectives. Optional legacy ablations remain guarded.
+
+### Measured audit: RTX 3090, 2026-10-11
+
+Optimization commit `292f750` was deployed on SSH225 and tested with the same
+cache/config/seed, 60 real updates and 10-update timing warmup described above.
+Cache SHA256: `169ba064b80b00becc3ab64573ca4a3315db30505351d4953d9d369e1d5f001c`.
+Server artifacts: `tmp/cuda_optimization_292f750_seed91/`.
+
+| Execution | Mean update | Median update | Setup |
+| --- | ---: | ---: | ---: |
+| Reference | 71.64 ms | 71.71 ms | 24.42 s |
+| Optimized, MI cache miss | 57.17 ms | 57.18 ms | 21.06 s |
+| Optimized, MI cache hit | 54.94 ms | 47.13 ms | 13.56 s |
+
+The mean-update throughput improved **1.25–1.30x**. Median ratios were
+1.25–1.52x, but the warm run had a broad timing distribution; these are short
+audits, not a universal speedup promise. Cache hits do not accelerate the MI
+algebra inside an update: CPU statistics build took 8.04 s in total, versus
+0.49 s to read the cached statistics. Import/filesystem/clock warmth also affects
+setup and CPU report timings, so whole-job changes cannot all be attributed to
+the code optimizations.
+
+Local targeted regression: 193 passed, 37 skipped. Server CUDA audit: 186 passed,
+1 skipped (the unavailable-CUDA check). It includes objective/gradient, C input
+VJP, stochastic RNG and resume comparisons. After the real 60-update A/B runs,
+the maximum parameter difference was `2.22e-16`; maximum difference across the
+recorded loss rows was `4.44e-16`. CPU, CUDA, batch-selection and MI RNG states
+matched exactly. All execution, R(g)-g, coupling and loss reports were retained.
+These short runs validate acceleration/equivalence, not physical convergence.
