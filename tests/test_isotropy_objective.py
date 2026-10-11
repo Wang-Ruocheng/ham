@@ -19,7 +19,7 @@ def test_current_training_presets_retain_covariance(name):
 @pytest.mark.parametrize('theory_dim', [1, 2])
 def test_opt_in_covariance_term_and_gradient(theory_dim):
     torch.manual_seed(4)
-    model=build_model(ModelConfig(dimension=2,theory_dim=theory_dim,hidden=6,kernel_sampling='deterministic'),1)
+    model=build_model(ModelConfig(dimension=2,block_factor=2,theory_dim=theory_dim,hidden=6,kernel_sampling='deterministic'),1)
     x=(2*torch.randint(2,(4,8,8,8,1))-1).double()
     base,terms=qcr_objective(model,x,pattern_fn=plaquette_distribution)
     boosted,extra=qcr_objective(model,x,pattern_fn=plaquette_distribution,isotropy_weight=20)

@@ -9,7 +9,7 @@ from recurrent_rg.losses import qcr_objective, categorical_kernel_preserve_loss
 
 def test_uniform_color_term_changes_only_c_gradients():
     torch.set_num_threads(1);torch.manual_seed(12)
-    m=build_model(ModelConfig(dimension=2,categorical_states=3,kernel_sampling='categorical',hidden=5),2)
+    m=build_model(ModelConfig(dimension=2,block_factor=2,categorical_states=3,kernel_sampling='categorical',hidden=5),2)
     m.detach_kernel_representation=True
     x=torch.nn.functional.one_hot(torch.randint(3,(3,8,8,8)),3).double()
     gradients=[]

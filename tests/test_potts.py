@@ -29,7 +29,7 @@ def test_lookup_matches_dense_values_and_gradients(pooled):
 
 
 def test_categorical_joint_gradients_and_sampling():
-    m=build_model(ModelConfig(dimension=2,categorical_states=3,kernel_sampling='categorical',hidden=6),2)
+    m=build_model(ModelConfig(dimension=2,block_factor=2,categorical_states=3,kernel_sampling='categorical',hidden=6),2)
     x=torch.nn.functional.one_hot(torch.randint(3,(6,8,16,16)),3).double()
     levels=m.coarse_grain(x)
     assert all(torch.allclose(v.sum(-1),torch.ones_like(v[...,0])) for v in levels)
@@ -49,7 +49,7 @@ def test_categorical_joint_gradients_and_sampling():
 
 
 def test_color_preservation_and_collapse():
-    m=build_model(ModelConfig(dimension=2,categorical_states=3,kernel_sampling='categorical',hidden=6),2)
+    m=build_model(ModelConfig(dimension=2,block_factor=2,categorical_states=3,kernel_sampling='categorical',hidden=6),2)
     c=m.rg_kernel
     patterns=torch.eye(3,dtype=torch.double).repeat(1,4)
     expected=-torch.log_softmax(c.field_head.logits(c.local_encoder(patterns)),-1).diag().mean()
@@ -89,7 +89,7 @@ def test_checkpoint_roundtrip_and_evaluation_rng(tmp_path):
     from recurrent_rg.checkpoints import load_run,qcr_state_dict
     from recurrent_rg.evaluation import collect_trajectories
     cfg=RunConfig(data=DataConfig(cache='unused',physical_model='potts'),
-        model=ModelConfig(dimension=2,categorical_states=3,kernel_sampling='categorical',hidden=6),
+        model=ModelConfig(dimension=2,block_factor=2,categorical_states=3,kernel_sampling='categorical',hidden=6),
         loss=LossConfig(kernel_noncollapse_mode='variance_floor'),
         training=TrainingConfig(max_rg_steps=1),evaluation=EvaluationConfig(max_rg_steps=1))
     cfg.validate();m=build_model(cfg.model,1)

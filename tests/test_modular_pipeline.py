@@ -10,7 +10,10 @@ from recurrent_rg.checkpoints import build_model, load_run, load_model_state, qc
 from recurrent_rg.data.ensembles import EnsembleDataset, grouped_split, load_ensembles
 from recurrent_rg.data.statistics import two_spin_distribution
 from recurrent_rg.evaluation import collect_trajectories, closure_metrics, discrete_fixed_point, scalar_flow
-from recurrent_rg.runner import run_training, evaluate_run
+from recurrent_rg.runner import run_training as legacy_run_training, evaluate_run
+from functools import partial
+# These tests deliberately exercise the historical trainer/resume contract.
+run_training = partial(legacy_run_training, allow_legacy_training=True)
 from recurrent_rg.training import train
 
 
@@ -22,7 +25,7 @@ def tiny_config(tmp_path, dimension=1):
     cache=tmp_path/'data.pt'
     torch.save((tx,torch.tensor([.2,.2,.8,.8]),vx,torch.tensor([.5,.5])),cache)
     return RunConfig(DataConfig(str(cache),'synthetic test',('h/J',)),
-                     model=ModelConfig(dimension=dimension,theory_dim=dimension,hidden=4),
+                     model=ModelConfig(dimension=dimension,block_factor=2,theory_dim=dimension,hidden=4),
                      training=TrainingConfig(max_rg_steps=1,epochs=4,system_batch=3,sample_batch=4,threads=1,checkpoint_every=2,log_every=1),
                      evaluation=EvaluationConfig(max_rg_steps=1,samples=4,systems=2))
 
@@ -92,7 +95,7 @@ def test_fixed_model_preserves_paired_QR_initialization():
 
 @pytest.mark.parametrize('dimension,fixed',[(1,False),(2,False),(2,True)])
 def test_legacy_checkpoint_loading(tmp_path,dimension,fixed):
-    m=build_model(ModelConfig(dimension=dimension,hidden=4,fixed_kernel=fixed,kernel_sampling='deterministic'),2)
+    m=build_model(ModelConfig(dimension=dimension,block_factor=2,hidden=4,fixed_kernel=fixed,kernel_sampling='deterministic'),2)
     torch.save(qcr_state_dict(m),tmp_path/'qcr_model.pt')
     # Missing dimension/layout are recovered from weight shapes, not directory name.
     (tmp_path/'summary.json').write_text(json.dumps({'config':{'levels':3,'hidden':4,'fixed_kernel':fixed}}))

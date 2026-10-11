@@ -114,6 +114,8 @@ def train(model, train_x, test_x, *, pattern_fn, epochs: int, system_batch: int,
         else:
             loss.backward()
         optimizer.step()
+        from .representation import normalize_affine_decoder_
+        normalize_affine_decoder_(model.theory_encoder)
 
         if epoch == 0 or (epoch + 1) % record_every == 0 or epoch + 1 == epochs:
             train_metrics = evaluate(model, train_eval, pattern_fn, eval_samples, spin_flip_augment=spin_flip_augment, objective_kwargs=objective_kwargs)

@@ -21,8 +21,12 @@ class QCRWeights:
 class ScaleConfig:
     spatial_shape: tuple[int, ...]
     max_rg_steps: int
-    block_factor: int = 2
+    block_factor: int | None = None
     min_sites: int = 4
+
+    def __post_init__(self):
+        if self.block_factor is None:
+            object.__setattr__(self, 'block_factor', 3 if len(self.spatial_shape) == 2 else 2)
 
     def shapes(self):
         shape = tuple(self.spatial_shape)
@@ -48,13 +52,20 @@ class ModelConfig:
     theory_dim: int = 1
     hidden: int = 60
     width: int = 3
-    block_factor: int = 2
+    block_factor: int | None = None
     kernel_layout: str = 'nonoverlapping'
     fixed_kernel: bool = False
     binary_lookup: bool = True
     kernel_initialization: str = 'random'
     kernel_sampling: str = 'bernoulli'
     kernel_temperature: float = 1.0
+    reconstruction_hidden: int = 0
+    affine_reconstruction: bool = True
+    theory_head: str = 'nonlinear'
+
+    def __post_init__(self):
+        if self.block_factor is None:
+            object.__setattr__(self, 'block_factor', 3 if self.dimension == 2 else 2)
 
 
 @dataclass(frozen=True)
@@ -70,12 +81,19 @@ class DataConfig:
 
 @dataclass(frozen=True)
 class LossConfig:
+    balanced_reconstruction_weight: float = 0.0
     geometry_scale: float = 4.0
     geometry_mode: str = 'absolute'
+    geometry_distance: str = 'euclidean'
+    geometry_bounds: str = 'interval'
     geometry_relative_floor: float = .05
     geometry_max_inverse_weight: float = 100.
     geometry_neighbors: int = 4
     geometry_local_fraction: float = .5
+    geometry_tail_mix: float = 0.0
+    geometry_tail_add_weight: float = 0.0
+    geometry_tail_fraction: float = .1
+    geometry_tail_min_reliability: float = .5
     noise_multiplier: float = 2.0
     rollout_weight: float = 5.0
     isotropy_weight: float = 0.0
@@ -95,6 +113,18 @@ class LossConfig:
 
     def objective_kwargs(self):
         import math
+        if not math.isfinite(self.balanced_reconstruction_weight) or self.balanced_reconstruction_weight < 0:
+            raise ValueError('Invalid balanced reconstruction weight')
+        if self.geometry_bounds not in ('interval', 'lower_only'):
+            raise ValueError('Unknown geometry bounds')
+        if self.geometry_distance not in ('euclidean', 'hellinger'):
+            raise ValueError('Unknown geometry distance')
+        if not 0 <= self.geometry_tail_mix <= 1 or not 0 < self.geometry_tail_fraction <= 1 or not 0 <= self.geometry_tail_min_reliability <= 1:
+            raise ValueError('Invalid geometry tail settings')
+        if not 0 <= self.geometry_tail_add_weight < float('inf') or (self.geometry_tail_mix and self.geometry_tail_add_weight):
+            raise ValueError('Invalid or conflicting additive geometry tail weight')
+        if (self.geometry_tail_mix or self.geometry_tail_add_weight) and self.geometry_mode != 'relative_local':
+            raise ValueError('Geometry tail requires relative_local')
         if not math.isfinite(self.kernel_distinct_alpha) or self.kernel_distinct_alpha < 0 or not math.isfinite(self.kernel_distinct_margin) or not 0 < self.kernel_distinct_margin <= 1:
             raise ValueError('Invalid kernel distinct settings')
         if not math.isfinite(self.kernel_sign_weight) or self.kernel_sign_weight < 0:
@@ -141,7 +171,7 @@ class RunConfig:
     loss: LossConfig = field(default_factory=LossConfig)
     training: TrainingConfig = field(default_factory=TrainingConfig)
     evaluation: EvaluationConfig = field(default_factory=EvaluationConfig)
-    schema_version: int = 4
+    schema_version: int = 5
 
     @classmethod
     def from_dict(cls, values):
@@ -149,9 +179,17 @@ class RunConfig:
         if set(values) - known:
             raise ValueError(f'Unknown configuration keys: {set(values)-known}')
         version = values.get('schema_version', 1)
-        if version not in (1, 2, 3, 4):
+        if version not in (1, 2, 3, 4, 5):
             raise ValueError('Unsupported configuration version')
         model = dict(values.get('model', {}))
+        # Serialized configurations retain their historical representation.
+        # Fresh default-driver runs upgrade omitted fields explicitly; loading
+        # a checkpoint/config must never silently add a new decoder.
+        model.setdefault('affine_reconstruction', False)
+        # Old JSON files (including unversioned ones) used stride two.
+        # Only new schema-5 configurations adopt the dimension-aware default.
+        if version < 5:
+            model.setdefault('block_factor', 2)
         if version == 1 or model.get('fixed_kernel', False):
             model.setdefault('kernel_sampling', 'deterministic')
         loss = dict(values.get('loss', {}))
@@ -181,6 +219,10 @@ class RunConfig:
 
     def validate(self):
         m, t, e = self.model, self.training, self.evaluation
+        if self.loss.balanced_reconstruction_weight and not m.affine_reconstruction:
+            raise ValueError('Balanced reconstruction requires the shared affine decoder')
+        if not isinstance(m.affine_reconstruction, bool) or (m.affine_reconstruction and m.reconstruction_hidden):
+            raise ValueError('Affine and nonlinear distribution decoders are mutually exclusive')
         if m.dimension not in (1, 2) or min(m.theory_dim, m.hidden, m.width) < 1:
             raise ValueError('Current runner supports binary 1D/2D models with positive dimensions')
         if m.width % 2 != 1 or m.block_factor < 2:
@@ -213,8 +255,8 @@ class RunConfig:
             raise ValueError('train_modules must be a nonempty, unique subset of Q,C,R')
         if t.gradient_mode not in ('joint', 'qc_r_separate'):
             raise ValueError('Unknown gradient mode')
-        if t.gradient_mode == 'qc_r_separate' and (set(t.train_modules) not in ({'Q','C','R'},{'Q','R'}) or self.loss.tangent_weight or self.loss.orientation_weight):
-            raise ValueError('Separate gradients require Q/R, optional C, and no tangent/orientation terms')
+        if t.gradient_mode == 'qc_r_separate' and (set(t.train_modules) not in ({'Q','C','R'},{'Q','R'},{'R'}) or self.loss.tangent_weight or self.loss.orientation_weight):
+            raise ValueError('Separate gradients require Q/R with optional C, or explicit R-only continuation, and no tangent/orientation terms')
         if self.data.spin_flip_augment and not self.data.spin_flip_symmetric:
             raise ValueError('Spin-flip augmentation requires an explicitly symmetric data measure')
         if min(self.data.train_pool_replicas,self.data.test_pool_replicas) < 1:

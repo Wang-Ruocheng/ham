@@ -20,7 +20,7 @@ def test_new_and_legacy_defaults():
 def test_sign_default_versioning():
     data = {'cache': 'unused', 'physical_model': 'test'}
     fresh = RunConfig(data=DataConfig(**data))
-    assert fresh.schema_version == 4
+    assert fresh.schema_version == 5
     assert LossConfig().kernel_sign_weight == 0
     assert RunConfig.from_dict(fresh.to_dict()).loss.kernel_sign_weight == 0
     assert RunConfig.from_dict({'data':data,'schema_version':4}).loss.kernel_sign_weight == 0

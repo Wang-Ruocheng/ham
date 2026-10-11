@@ -40,7 +40,11 @@ def prepared_data(config):
     return tx,vx
 
 
-def run_training(config: RunConfig, output, *, resume=None, initialize_from=None):
+def run_training(config: RunConfig, output, *, resume=None, initialize_from=None, allow_legacy_training=False):
+    if not allow_legacy_training:
+        raise ValueError('This legacy runner omits empirical MI and independent C gradients. '
+                         'Use python -m recurrent_rg train for the locked default recipe; '
+                         'allow_legacy_training=True is only for explicitly requested legacy experiments.')
     if resume and initialize_from: raise ValueError('Resume and weight initialization are different operations')
     config=replace(config,data=replace(config.data,cache=str(Path(config.data.cache).resolve())))
     tx,vx=prepared_data(config)
@@ -50,8 +54,8 @@ def run_training(config: RunConfig, output, *, resume=None, initialize_from=None
     state=None;history=None
     if resume:
         state=torch.load(resume,map_location='cpu',weights_only=True)
-        if state.get('metadata',{}).get('training_driver') == 'rsmi_separate_qcr':
-            raise ValueError('RSMI/critic checkpoint requires its custom trainer; generic resume would omit its loss')
+        if state.get('metadata',{}).get('training_driver') in ('rsmi_separate_qcr','at_predictive_q'):
+            raise ValueError('Specialized checkpoint requires its custom trainer; generic resume would omit its objective/state')
         if not state.get('metadata',{}).get('config'):
             raise ValueError('Exact CLI resume requires a versioned checkpoint; legacy weights can use initialize_from')
         previous=json.loads(json.dumps(state['metadata']['config']))
@@ -60,6 +64,7 @@ def run_training(config: RunConfig, output, *, resume=None, initialize_from=None
         previous['model'].setdefault('categorical_states', 0)
         previous['model'].setdefault('kernel_sampling', 'deterministic')
         previous['model'].setdefault('kernel_temperature', 1.0)
+        previous['model'].setdefault('affine_reconstruction', False)
         previous['loss'].setdefault('orientation_weight', 0.0)
         previous['loss'].setdefault('orientation_radius', 0.02)
         previous['loss'].setdefault('kernel_sign_weight', 0.0)

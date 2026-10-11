@@ -7,6 +7,42 @@ from .config import ModelConfig
 from .model_nd import RecurrentRGNetwork1D, RecurrentRGNetwork2D, FixedDecimationCoarseGrainer
 
 
+def attach_distribution_decoder(model, config):
+    """Optional Q-only ablation; preserve Q/C/R initialization and sampling RNG."""
+    if config.theory_head not in ('nonlinear', 'linear'):
+        raise ValueError('Unknown Q theory head')
+    if config.theory_head == 'linear':
+        first, last = model.theory_encoder.head[0], model.theory_encoder.head[2]
+        # Match the old head's value and Jacobian at pooled feature zero.
+        # Construct after the original model to preserve all other weights/RNG.
+        with torch.random.fork_rng(devices=[]), torch.no_grad():
+            head = torch.nn.Linear(first.in_features, last.out_features).double()
+            activation = first.bias.tanh()
+            head.weight.copy_((last.weight * (1-activation.square())[None]) @ first.weight)
+            head.bias.copy_(last.weight @ activation + last.bias)
+        model.theory_encoder.head = head
+    if not isinstance(config.reconstruction_hidden, int) or config.reconstruction_hidden < 0:
+        raise ValueError('reconstruction_hidden must be a nonnegative integer')
+    if config.affine_reconstruction:
+        if config.reconstruction_hidden:
+            raise ValueError('Affine reconstruction cannot also use a nonlinear decoder')
+        states = config.categorical_states or 2
+        outputs = states ** (4 if config.dimension == 2 else 2)
+        with torch.random.fork_rng(devices=[]):
+            model.theory_encoder.distribution_decoder = torch.nn.Linear(config.theory_dim, outputs).double()
+        model.theory_encoder.distribution_reconstruction_mode = 'affine_mse'
+        from .representation import normalize_affine_decoder_
+        normalize_affine_decoder_(model.theory_encoder)
+    if config.reconstruction_hidden:
+        states = config.categorical_states or 2
+        outputs = states ** (4 if config.dimension == 2 else 2)
+        with torch.random.fork_rng(devices=[]):
+            model.theory_encoder.distribution_decoder = torch.nn.Sequential(
+                torch.nn.Linear(config.theory_dim, config.reconstruction_hidden),
+                torch.nn.Tanh(), torch.nn.Linear(config.reconstruction_hidden, outputs)).double()
+    return model
+
+
 def build_model(config: ModelConfig, max_rg_steps: int):
     if config.dimension not in (1, 2) or max_rg_steps < 1:
         raise ValueError('Unsupported dimension or depth')
@@ -32,7 +68,7 @@ def build_model(config: ModelConfig, max_rg_steps: int):
             # Construct first, then replace: paired Q/R initialization is preserved.
             # Downsample the entire one-hot vector, retaining both AT spins together.
             model.rg_kernel = FixedDecimationCoarseGrainer(model.geometry)
-        return model
+        return attach_distribution_decoder(model, config)
     cls = RecurrentRGNetwork1D if config.dimension == 1 else RecurrentRGNetwork2D
     # Preserve paired Q/R initialization: construct C, then replace if fixed.
     model = cls(levels=max_rg_steps+1, hidden=config.hidden, theory_dim=config.theory_dim,
@@ -51,7 +87,7 @@ def build_model(config: ModelConfig, max_rg_steps: int):
     if not config.fixed_kernel:
         model.rg_kernel.field_head.sampling_mode = config.kernel_sampling
         model.rg_kernel.field_head.relaxation_temperature = config.kernel_temperature
-    return model
+    return attach_distribution_decoder(model, config)
 
 
 def qcr_state_dict(model):
@@ -63,13 +99,23 @@ def load_model_state(model, payload):
     mismatch = model.load_state_dict(state, strict=False)
     if mismatch.unexpected_keys or any(not k.startswith('action_network.') for k in mismatch.missing_keys):
         raise ValueError(f'Incompatible Q/C/R checkpoint: {mismatch}')
+    if 'balanced_reconstruction_metrics' in payload:
+        from .balanced_reconstruction import BalancedMetric
+        model.balanced_reconstruction_metrics = [BalancedMetric(**item)
+            for item in payload['balanced_reconstruction_metrics']]
+        model.balanced_metric_fitted_epoch = payload['balanced_metric_fitted_epoch']
     return model
 
 
 def checkpoint_payload(model, optimizer, generator, epoch, *, metadata=None, history=None):
-    return dict(epoch=epoch, model=qcr_state_dict(model), optimizer=optimizer.state_dict(),
+    payload = dict(epoch=epoch, model=qcr_state_dict(model), optimizer=optimizer.state_dict(),
                 batch_generator_state=generator.get_state(), torch_rng_state=torch.get_rng_state(),
                 metadata=metadata or {}, history=history or [])
+    if hasattr(model, 'balanced_reconstruction_metrics'):
+        payload['balanced_reconstruction_metrics'] = [m.state_dict()
+            for m in model.balanced_reconstruction_metrics]
+        payload['balanced_metric_fitted_epoch'] = model.balanced_metric_fitted_epoch
+    return payload
 
 
 @dataclass
@@ -108,6 +154,8 @@ def load_run(path, checkpoint=None, *, overrides=None):
     cfg = dict(cfg)
     if 'model' in cfg and 'training' in cfg:
         model_values = dict(cfg['model'])
+        if cfg.get('schema_version', 1) < 5:
+            model_values.setdefault('block_factor', 2)
         steps = cfg['training']['max_rg_steps']
         if overrides:
             raise ValueError('Do not override versioned run architecture; use a new run')
@@ -146,6 +194,8 @@ def load_run(path, checkpoint=None, *, overrides=None):
         steps = cfg['levels']-1
     # Historical saved runs without the sampling field used hard deterministic C.
     model_values.setdefault('kernel_sampling', 'deterministic')
+    model_values.setdefault('affine_reconstruction',
+                           'theory_encoder.distribution_decoder.weight' in state)
     if 'model' in cfg:
         cfg['model'] = dict(model_values)
     spec = ModelConfig(**model_values)

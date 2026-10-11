@@ -69,7 +69,7 @@ def test_two_dimensional_joint_objective_has_finite_gradients():
     from recurrent_rg.losses import qcr_objective
     from recurrent_rg.data.statistics import plaquette_distribution
     torch.manual_seed(8)
-    m = build_model(ModelConfig(dimension=2,theory_dim=2,hidden=6,
+    m = build_model(ModelConfig(dimension=2,block_factor=2,theory_dim=2,hidden=6,
                                kernel_sampling='bernoulli'), 1)
     x = (2*torch.randint(2,(4,8,8,8,1))-1).double()
     loss, _ = qcr_objective(m,x,pattern_fn=plaquette_distribution,

@@ -36,20 +36,26 @@ class EmpiricalBinaryMI:
         return binary_entropy(self.marginal@positive)-torch.sparse.mm(self.weights,conditional_entropy[:,None]).squeeze(-1)
 
 
-def binary_lattice_mi_statistics(x,*,flip=False,buffer=1):
-    return lattice_mi_statistics(x,states=2,flip=flip,buffer=buffer)
+def binary_lattice_mi_statistics(x,*,flip=False,buffer=1,block=2):
+    return lattice_mi_statistics(x,states=2,flip=flip,buffer=buffer,block=block)
 
 
-def categorical_lattice_mi_statistics(x,*,flip=False,buffer=1):
+def categorical_lattice_mi_statistics(x,*,flip=False,buffer=1,block=2):
     if flip:raise ValueError('Binary flip is not a categorical augmentation')
-    return lattice_mi_statistics(x,states=x.shape[-1],buffer=buffer)
+    return lattice_mi_statistics(x,states=x.shape[-1],buffer=buffer,block=block)
 
 
-def lattice_mi_statistics(x,*,states,flip=False,buffer=1,shuffle_visible_seed=None,sparse_conditionals=None):
+def lattice_mi_statistics(x,*,states,flip=False,buffer=1,shuffle_visible_seed=None,sparse_conditionals=None,environment_offsets=None,block=2):
     """All samples and translated V/E regions; individual ensembles preserved."""
     dimension=x.ndim-3
-    visible,environment=region_offsets(dimension,buffer=buffer)
-    if any(n<2+2*(buffer+1) for n in x.shape[2:-1]):raise ValueError('Invalid lattice shape')
+    visible,environment=region_offsets(dimension,block=block,buffer=buffer)
+    if environment_offsets is not None:
+        requested=torch.as_tensor(environment_offsets,dtype=torch.long)
+        allowed={tuple(v) for v in environment.tolist()}
+        if requested.ndim!=2 or requested.shape[1]!=dimension or len(requested)<1 or len({tuple(v) for v in requested.tolist()})!=len(requested) or any(tuple(v) not in allowed for v in requested.tolist()):
+            raise ValueError('Environment subset must contain distinct sites from the buffered shell')
+        environment=requested
+    if any(n<block+2*(buffer+1) for n in x.shape[2:-1]):raise ValueError('Invalid lattice shape')
     if states**len(environment)>=2**62:raise ValueError('Environment code exceeds supported integer width')
     if x.shape[-1]==1:
         if states!=2 or not torch.all((x==1)|(x==-1)):raise ValueError('Expected binary +/-1 data')
@@ -117,6 +123,29 @@ def lattice_mi_statistics(x,*,states,flip=False,buffer=1,shuffle_visible_seed=No
         mean_fraction_environment_categories_seen_once=float(np.mean(singletons)),
         shuffle_visible_seed=shuffle_visible_seed,
         note='Exact empirical MI, not population MI. Unique/rare environments can cause severe finite-sample upward bias.'))
+
+
+@dataclass
+class LocalPairMI:
+    groups: list
+    diagnostics: dict
+
+    def information(self, table):
+        return torch.stack([g.information(table) for g in self.groups]).mean(0)
+
+
+def categorical_local_pair_mi_statistics(x, *, flip=False, shuffle_visible_seed=None):
+    """Average four I(H;two-site side patches), keeping the width-one buffer.
+
+    This is deliberately NOT I(H;union of all patches); synergistic information
+    can be lost. No physical labels or symmetrization of the kernel are used.
+    """
+    if flip or x.ndim!=5:raise ValueError('Requires 2D categorical fields without binary flip')
+    offsets=[[[-2,0],[-2,1]],[[3,0],[3,1]],[[0,-2],[1,-2]],[[0,3],[1,3]]]
+    groups=[lattice_mi_statistics(x,states=x.shape[-1],environment_offsets=o,
+                                shuffle_visible_seed=shuffle_visible_seed) for o in offsets]
+    return LocalPairMI(groups,dict(environment_mode='local_pairs',offsets=offsets,
+        groups=[g.diagnostics for g in groups],aggregation='arithmetic mean of four separate MI values, not joint MI'))
 
 
 def best_deterministic_binary_rule(stats,*,chunk=128):

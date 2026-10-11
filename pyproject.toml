@@ -23,7 +23,7 @@ dev = ["pytest>=7.4"]
 recurrent-rg = "recurrent_rg.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["recurrent_rg*"]
+include = ["recurrent_rg*", "experiments*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

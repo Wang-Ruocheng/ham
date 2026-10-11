@@ -8,7 +8,7 @@ from recurrent_rg.checkpoints import build_model, load_model_state, qcr_state_di
 @pytest.mark.parametrize('dimension', [1, 2])
 @pytest.mark.parametrize('lookup', [False, True])
 def test_positive_decimation_initial_map_and_trainability(dimension, lookup):
-    cfg = ModelConfig(dimension=dimension, theory_dim=2, hidden=12,
+    cfg = ModelConfig(dimension=dimension, block_factor=2, theory_dim=2, hidden=12,
                       binary_lookup=lookup, kernel_initialization='positive_decimation', kernel_sampling='deterministic')
     torch.manual_seed(91)
     model = build_model(cfg, 2)

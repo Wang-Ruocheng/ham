@@ -17,7 +17,8 @@ def binary_kernel_noncollapse(levels: list[torch.Tensor]) -> torch.Tensor:
 
 def distribution_geometry_loss(theory, patterns_a, patterns_b, *, scale=4.0, noise_multiplier=2.0,
                                mode='absolute', relative_floor=.05, max_inverse_weight=100.,
-                               neighbors=4, local_fraction=.5):
+                               neighbors=4, local_fraction=.5, tail_mix=0., tail_fraction=.1,
+                               tail_min_reliability=.5, tail_add_weight=0., distance_metric='euclidean', bounds='interval'):
     """Match distances to fixed-unit, split-noise intervals in pattern space.
 
     Targets are detached (including from C). A half-split difference estimates
@@ -27,22 +28,45 @@ def distribution_geometry_loss(theory, patterns_a, patterns_b, *, scale=4.0, noi
     """
     if scale <= 0 or noise_multiplier < 0:
         raise ValueError('Need positive geometry scale and nonnegative noise multiplier')
+    if bounds not in ('interval', 'lower_only'):
+        raise ValueError('Unknown geometry bounds')
     if theory.shape[0] < 2:
         raise ValueError('Need at least two ensembles')
     if mode not in ('absolute', 'relative_local'):
         raise ValueError('Unknown geometry mode')
+    if distance_metric not in ('euclidean','hellinger'):
+        raise ValueError('Unknown geometry distance')
+    if not 0 <= tail_mix <= 1 or not 0 < tail_fraction <= 1 or not 0 <= tail_min_reliability <= 1:
+        raise ValueError('Invalid geometry tail settings')
+    if not 0 <= tail_add_weight < float('inf') or (tail_mix and tail_add_weight):
+        raise ValueError('Invalid or conflicting additive geometry tail weight')
+    if (tail_mix or tail_add_weight) and mode != 'relative_local':
+        raise ValueError('Geometry tail requires relative_local')
     if relative_floor <= 0 or max_inverse_weight <= 0 or neighbors < 1 or not 0 <= local_fraction <= 1:
         raise ValueError('Invalid relative geometry settings')
     with torch.no_grad():
         mean = .5 * (patterns_a + patterns_b)
         noise = .25 * (patterns_a - patterns_b).square().sum(dim=-1)
         i, j = torch.triu_indices(len(theory), len(theory), offset=1, device=theory.device)
-        distance = (mean[i] - mean[j]).norm(dim=-1)
+        if distance_metric == 'hellinger':
+            for p in (patterns_a,patterns_b):
+                if not torch.isfinite(p).all() or (p < 0).any() or not torch.allclose(p.sum(-1),torch.ones_like(p.sum(-1)),atol=1e-5,rtol=1e-5):
+                    raise ValueError('Hellinger requires normalized nonnegative histograms')
+            # Euclidean embedding phi(p)=sqrt(p)/sqrt(2), with H in [0,1].
+            # Split noise is H(pa,pb)^2/4: a local delta-method heuristic
+            # for the pooled histogram, NOT an unbiased estimate or CI.
+            phi=mean.sqrt()/(2**.5)
+            noise=.125*(patterns_a.sqrt()-patterns_b.sqrt()).square().sum(-1)
+            distance=(phi[i]-phi[j]).norm(dim=-1)
+        else:
+            distance = (mean[i] - mean[j]).norm(dim=-1)
         allowance = noise_multiplier * (noise[i] + noise[j]).sqrt()
         lower = scale * (distance - allowance).clamp_min(0)
         upper = scale * (distance + allowance)
     latent = torch.pdist(theory)
-    penalties = F.relu(lower-latent).square() + F.relu(latent-upper).square()
+    penalties = F.relu(lower-latent).square()
+    if bounds == 'interval':
+        penalties = penalties + F.relu(latent-upper).square()
     loss = penalties.mean()
     extra = {}
     if mode == 'relative_local':
@@ -72,6 +96,23 @@ def distribution_geometry_loss(theory, patterns_a, patterns_b, *, scale=4.0, noi
         extra = {'relative_global':global_loss,'relative_local':local_loss,
                  'local_pair_fraction':local.to(theory.dtype).mean(),
                  'mean_reliability':reliability.mean()}
+        if tail_mix or tail_add_weight:
+            import math
+            # Opt-in ablation only. Retain the noise interval and detached
+            # reliability; never mine unresolved pairs or use physical labels.
+            eligible = torch.where((lower > 0) & (reliability >= tail_min_reliability))[0]
+            base_loss = loss
+            if len(eligible):
+                count = max(1, math.ceil(tail_fraction * len(eligible)))
+                chosen = eligible[scaled[eligible].detach().topk(count).indices]
+                tail_loss = (reliability[chosen]*scaled[chosen]).sum()/reliability[chosen].sum().clamp_min(1e-12)
+                loss = (1-tail_mix)*base_loss+(tail_mix+tail_add_weight)*tail_loss
+            else:
+                # With no eligible pairs there is no additive penalty.
+                # Preserve the historical mixture fallback exactly.
+                tail_loss = base_loss if tail_mix else base_loss*0
+            extra.update(geometry_base=base_loss,geometry_tail=tail_loss,
+                         tail_eligible_fraction=theory.new_tensor(len(eligible)/len(latent)))
     return loss, {
         'resolved_fraction': (lower > 0).to(theory.dtype).mean(),
         'target_distance': (scale * distance).mean(),
@@ -244,7 +285,8 @@ def binary_kernel_variance_floor(levels, ratio=0.25, *, per_ensemble=False):
 def data_geometry_objective(model, levels, first, second, pattern_fn, weights,
                             geometry_scale, noise_multiplier, rollout_weight=5.0,
                             kernel_noncollapse_mode='balance', kernel_variance_ratio=0.25,
-                            coordinate_reduction='sum', geometry_options=None):
+                            coordinate_reduction='sum', geometry_options=None,
+                            balanced_reconstruction_weight=0.):
     """Equal-scale distribution geometry replaces anchor spread + hinge floor."""
     midpoint = levels[0].shape[1] // 2
     pa = [pattern_fn(level[:, :midpoint]) for level in levels]
@@ -260,23 +302,58 @@ def data_geometry_objective(model, levels, first, second, pattern_fn, weights,
             per_ensemble=kernel_noncollapse_mode=='variance_floor_ensemble')
     return data_geometry_statistics_objective(model, first, second, pa, pb, kernel,
                   weights, geometry_scale, noise_multiplier, rollout_weight, coordinate_reduction,
-                  geometry_options=geometry_options)
+                  geometry_options=geometry_options,
+                  balanced_reconstruction_weight=balanced_reconstruction_weight)
+
+
+def distribution_reconstruction_loss(decoder, theory, target):
+    """JS divergence in nats to detached local-pattern frequencies, Q/decoder only."""
+    target = target.detach()
+    predicted = decoder(theory).softmax(-1)
+    if predicted.shape != target.shape:
+        raise ValueError('Distribution reconstruction shape mismatch')
+    mixture = .5 * (target + predicted)
+    log_mix = mixture.clamp_min(1e-15).log()
+    return .5 * ((target * (target.clamp_min(1e-15).log() - log_mix)).sum(-1)
+                 + (predicted * (predicted.clamp_min(1e-15).log() - log_mix)).sum(-1)).mean()
 
 
 def data_geometry_statistics_objective(model, first, second, pattern_first, pattern_second,
                                        kernel, weights, geometry_scale, noise_multiplier,
-                                       rollout_weight=5.0, coordinate_reduction='sum', geometry_options=None):
+                                       rollout_weight=5.0, coordinate_reduction='sum', geometry_options=None,
+                                       balanced_reconstruction_weight=0.):
     """Shared objective algebra, also usable with exact fixed-C sufficient statistics."""
     direct = .5 * (first + second)
-    geometry, extra = [], {}
+    geometry, extra, balanced = [], {}, []
+    if balanced_reconstruction_weight:
+        from .balanced_reconstruction import balanced_reconstruction_loss
+        metrics_by_scale = getattr(model, 'balanced_reconstruction_metrics', None)
+        if metrics_by_scale is None or len(metrics_by_scale) != len(pattern_first):
+            raise ValueError('Fit TRAIN-only balanced metrics before evaluating the balanced objective')
+        if getattr(model.theory_encoder, 'distribution_reconstruction_mode', '') != 'affine_mse':
+            raise ValueError('Balanced objective requires an affine probability decoder')
     for k, (pa, pb) in enumerate(zip(pattern_first, pattern_second)):
-        term, metrics = distribution_geometry_loss(direct[:, k], pa, pb,
-                        scale=geometry_scale, noise_multiplier=noise_multiplier, **(geometry_options or {}))
+        decoder = getattr(model.theory_encoder, 'distribution_decoder', None)
+        if decoder is not None:
+            if getattr(model.theory_encoder, 'distribution_reconstruction_mode', '') == 'affine_mse':
+                from .representation import linear_distribution_reconstruction_loss
+                term = linear_distribution_reconstruction_loss(decoder, direct[:, k], .5*(pa+pb), mode='squared')
+                metrics = {'reconstruction_mse': term}
+            else:
+                term = distribution_reconstruction_loss(decoder, direct[:, k], .5*(pa+pb))
+                metrics = {'reconstruction_js': term}
+        else:
+            term, metrics = distribution_geometry_loss(direct[:, k], pa, pb,
+                            scale=geometry_scale, noise_multiplier=noise_multiplier, **(geometry_options or {}))
         geometry.append(term)
         extra[f'data_geometry_level_{k}'] = term
         for name, value in metrics.items():
             extra[f'{name}_level_{k}'] = value
         extra[f'pairwise_level_{k}'] = mean_pairwise_square(direct[:, k])
+        if balanced_reconstruction_weight:
+            value = balanced_reconstruction_loss(decoder, direct[:, k], .5*(pa+pb), metrics_by_scale[k])
+            balanced.append(value)
+            extra[f'balanced_reconstruction_level_{k}'] = value
     # Preserve old subset-consistency and C/R weights, removing only the
     # old unit-variance/covariance/correlation anchor and fixed separation.
     anchor = 10. * latent_squared_error(first[:, 0], second[:, 0], coordinate_reduction)
@@ -291,6 +368,9 @@ def data_geometry_statistics_objective(model, first, second, pattern_first, patt
     total = (weights.anchor * anchor + weights.coarse_consistency * consistency
              + weights.kernel_noncollapse * kernel + weights.separation * separation
              + weights.commutator * commutator + rollout_weight * rollout)
+    if balanced_reconstruction_weight:
+        extra['balanced_reconstruction'] = torch.stack(balanced).mean()
+        total = total + balanced_reconstruction_weight * extra['balanced_reconstruction']
     return total, {'anchor': anchor, 'coarse_consistency': consistency,
                    'kernel_noncollapse': kernel, 'separation': separation,
                    'commutator': commutator, **extra}
@@ -320,10 +400,17 @@ def qcr_objective(
     kernel_variance_ratio: float = 0.25,
     coordinate_reduction: str = 'sum',
     geometry_mode: str = 'absolute',
+    geometry_distance: str = 'euclidean',
+    geometry_bounds: str = 'interval',
     geometry_relative_floor: float = .05,
     geometry_max_inverse_weight: float = 100.,
     geometry_neighbors: int = 4,
     geometry_local_fraction: float = .5,
+    geometry_tail_mix: float = 0.,
+    geometry_tail_add_weight: float = 0.,
+    geometry_tail_fraction: float = .1,
+    geometry_tail_min_reliability: float = .5,
+    balanced_reconstruction_weight: float = 0.,
 ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
     """Joint all-scale distribution geometry and single/multistep closure."""
     if objective_mode != "data_geometry":
@@ -335,6 +422,8 @@ def qcr_objective(
     if isotropy_weight < 0:
         raise ValueError('isotropy_weight must be nonnegative')
     import math
+    if not math.isfinite(balanced_reconstruction_weight) or balanced_reconstruction_weight < 0:
+        raise ValueError('Invalid balanced reconstruction weight')
     if not math.isfinite(kernel_distinct_alpha) or kernel_distinct_alpha < 0 or not math.isfinite(kernel_distinct_margin) or not 0 < kernel_distinct_margin <= 1:
         raise ValueError('Invalid kernel distinct settings')
     if not math.isfinite(kernel_sign_weight) or kernel_sign_weight < 0:
@@ -367,9 +456,12 @@ def qcr_objective(
     total, terms = data_geometry_objective(model, levels, first, second, pattern_fn,
                                    weights, geometry_scale, noise_multiplier, rollout_weight,
                                    kernel_noncollapse_mode, kernel_variance_ratio, coordinate_reduction,
-                                   geometry_options=dict(mode=geometry_mode,relative_floor=geometry_relative_floor,
+                                   geometry_options=dict(mode=geometry_mode,distance_metric=geometry_distance,bounds=geometry_bounds,relative_floor=geometry_relative_floor,
                                        max_inverse_weight=geometry_max_inverse_weight,neighbors=geometry_neighbors,
-                                       local_fraction=geometry_local_fraction))
+                                       local_fraction=geometry_local_fraction,tail_mix=geometry_tail_mix,
+                                       tail_add_weight=geometry_tail_add_weight,
+                                       tail_fraction=geometry_tail_fraction,tail_min_reliability=geometry_tail_min_reliability),
+                                   balanced_reconstruction_weight=balanced_reconstruction_weight)
     if tangent_weight or closure_metric != 'euclidean':
         direct = .5*(first+second)
         predicted = model.advance_theory(direct[:,:-1])

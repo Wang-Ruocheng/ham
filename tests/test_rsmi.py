@@ -52,7 +52,7 @@ def test_perfect_binary_dependence_gives_one_bit():
 
 def test_binary_kernel_gradient_without_straight_through():
     torch.manual_seed(91)
-    model = build_model(ModelConfig(dimension=2),2)
+    model = build_model(ModelConfig(dimension=2,block_factor=2),2)
     v = torch.tensor([[-1.,-1.,-1.,-1.],[1.,1.,1.,1.]],dtype=torch.double)[None]
     p = kernel_probabilities(model.rg_kernel,v)
     loss = -enumerated_infonce(p,torch.tensor([[[2.,-2.],[-2.,2.]]],dtype=torch.double)).mean()

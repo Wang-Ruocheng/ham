@@ -47,7 +47,7 @@ def test_binary_zero_uniform_random_and_positive_negative_decimation():
 
 
 def test_categorical_output_relabeling_invariant():
-    c=build_model(ModelConfig(dimension=2,hidden=5,categorical_states=3,kernel_sampling='categorical'),2).rg_kernel
+    c=build_model(ModelConfig(dimension=2,block_factor=2,hidden=5,categorical_states=3,kernel_sampling='categorical'),2).rg_kernel
     before=kernel_neutral_loss(c)
     with torch.no_grad():
         head=c.field_head.projection
@@ -58,7 +58,7 @@ def test_categorical_output_relabeling_invariant():
 @pytest.mark.parametrize('categorical',[False,True])
 def test_total_accounting_and_rng_pairing(categorical):
     if categorical:
-        model=build_model(ModelConfig(dimension=2,hidden=5,categorical_states=3,kernel_sampling='categorical'),1)
+        model=build_model(ModelConfig(dimension=2,block_factor=2,hidden=5,categorical_states=3,kernel_sampling='categorical'),1)
         x=torch.nn.functional.one_hot(torch.randint(3,(4,8,8,8)),3).double()
         fn=categorical_plaquette_distribution
     else:

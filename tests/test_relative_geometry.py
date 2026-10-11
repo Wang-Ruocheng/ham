@@ -55,7 +55,7 @@ def test_unresolved_and_identical_data_finite():
 
 def test_full_qcr_relative_objective_gradients():
     torch.manual_seed(3)
-    model=build_model(ModelConfig(dimension=1,theory_dim=2,hidden=6),2)
+    model=build_model(ModelConfig(dimension=1,theory_dim=2,hidden=6,affine_reconstruction=False),2)
     x=(2*torch.randint(2,(8,12,16,1))-1).double()
     loss,terms=qcr_objective(model,x,pattern_fn=two_spin_distribution,geometry_mode='relative_local')
     assert 'isotropy' not in terms and 'relative_local_level_2' in terms

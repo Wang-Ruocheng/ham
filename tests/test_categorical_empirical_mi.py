@@ -21,6 +21,24 @@ def test_categorical_information_matches_joint_and_gradient():
     torch.testing.assert_close(ga,gb,atol=1e-12,rtol=1e-12)
 
 
+def test_four_state_block3_full_shell_sparse_counts_and_gradient():
+    torch.set_num_threads(1);torch.manual_seed(28)
+    x=torch.nn.functional.one_hot(torch.randint(4,(2,2,7,7)),4).double()
+    stats=categorical_lattice_mi_statistics(x,block=3,buffer=1)
+    assert stats.diagnostics['visible_sites']==9 and stats.diagnostics['environment_sites']==24
+    assert stats.diagnostics['sparse_conditionals'] and stats.diagnostics['buffer']==1
+    assert stats.marginal.shape==(2,4**9)
+    torch.testing.assert_close(stats.marginal.sum(-1),torch.ones(2,dtype=torch.double))
+    logits=torch.randn(4**9,4,dtype=torch.double,requires_grad=True)
+    information=stats.information(logits.softmax(-1))
+    assert torch.isfinite(information).all()
+    assert torch.all(information>=-1e-12) and torch.all(information<=math.log(4)+1e-12)
+    information.sum().backward()
+    assert torch.isfinite(logits.grad).all() and logits.grad.abs().sum()>0
+    unseen=stats.marginal.sum(0)==0
+    assert logits.grad[unseen].abs().max()==0
+
+
 def test_categorical_counts_and_per_ensemble_floor():
     colors=torch.stack([torch.zeros(2,6,6,dtype=torch.long),torch.ones(2,6,6,dtype=torch.long)])
     x=torch.nn.functional.one_hot(colors,3).double()
@@ -56,7 +74,7 @@ def test_categorical_search_and_initialization():
     stats=EmpiricalBinaryMI(cond,torch.full((1,3),1/3,dtype=torch.double).to_sparse(),torch.full((1,3),1/3,dtype=torch.double),{})
     table,report=optimize_categorical_rule(stats,3,starts=4,steps=100)
     assert report['best_MI_nats']>math.log(3)-1e-10
-    cfg=ModelConfig(dimension=2,hidden=8,categorical_states=3,kernel_sampling='categorical')
+    cfg=ModelConfig(dimension=2,block_factor=2,hidden=8,categorical_states=3,kernel_sampling='categorical')
     model=build_model(cfg,2)
     colors=(torch.arange(81)[:,None]//(3**torch.arange(4)))%3
     rule=torch.nn.functional.one_hot(colors[:,0],3).double()
@@ -69,7 +87,7 @@ def test_independent_detachment_preserves_all_assigned_gradients():
     from recurrent_rg.data.statistics import categorical_plaquette_distribution
     from experiments.rsmi_separate_qcr import independent_component_gradients
     torch.set_num_threads(1);torch.manual_seed(6)
-    model=build_model(ModelConfig(dimension=2,hidden=5,categorical_states=3,kernel_sampling='categorical'),2)
+    model=build_model(ModelConfig(dimension=2,block_factor=2,hidden=5,categorical_states=3,kernel_sampling='categorical'),2)
     x=torch.nn.functional.one_hot(torch.randint(3,(3,6,8,8)),3).double()
     gradients=[];values=[]
     for detach in [False,True]:
