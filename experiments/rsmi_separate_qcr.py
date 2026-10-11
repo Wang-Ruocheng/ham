@@ -73,6 +73,8 @@ def build_parser():
     p.add_argument('--output',type=Path,required=True)
     p.add_argument('--device',default='cpu',help='Explicit execution device; CPU remains the historical default')
     p.add_argument('--benchmark-warmup',type=int,help='Measure real updates; omit this many first updates from steady timing, without adding extra training')
+    p.add_argument('--reference-execution',action='store_true',help='Disable execution-only GPU accelerations for a same-recipe comparison')
+    p.add_argument('--mi-cache-dir',type=Path,help='GPU CPU-statistics cache directory; defaults to .qcr_mi_cache beside input data')
     p.add_argument('--theory-dim',type=int,help='Override latent dimension; all modules are newly initialized unless resuming')
     p.add_argument('--rsmi-weight',type=float,default=2.)
     p.add_argument('--estimator',choices=['infonce','histogram'],default='histogram')
@@ -154,6 +156,8 @@ def main(argv=None):
             raise ValueError('CUDA execution currently supports fresh/default QCR or identical-device resume, not optional historical ablations')
     if args.benchmark_warmup is not None and args.benchmark_warmup<0:
         raise ValueError('benchmark-warmup must be nonnegative')
+    if args.mi_cache_dir and (device.type!='cuda' or args.reference_execution):
+        raise ValueError('mi-cache-dir requires optimized CUDA execution')
     if args.joint_train_plateau:
         joint_conflicts=('r_only_plateau','r_only_refit','r_only_continue',
             'q_only_weight_sweep','q_only_candidates','q_balanced_reconstruction',
@@ -325,6 +329,13 @@ def main(argv=None):
     if device.type=='cuda' and cfg.loss.balanced_reconstruction_weight:
         raise ValueError('Balanced historical ablation is not yet CUDA-adapted')
     m.detach_kernel_representation=args.independent_c
+    from recurrent_rg.execution import configure_cuda_execution, resident_training_data
+    from recurrent_rg.execution import reference_binary_pattern_distribution, select_training_batch
+    execution=configure_cuda_execution(m,device,reference=args.reference_execution,
+                                      independent_c=args.independent_c)
+    if args.reference_execution and not categorical:
+        fn=reference_binary_pattern_distribution
+    data_sha256=file_fingerprint(cfg.data.cache)
     frozen_source=None
     if args.freeze_c_checkpoint:
         frozen_source=load_run(args.freeze_c_checkpoint)
@@ -347,18 +358,48 @@ def main(argv=None):
     statistics=categorical_lattice_mi_statistics if categorical else binary_lattice_mi_statistics if sparse else binary_chain_joint_histograms
     if args.environment=='local_pairs':statistics=categorical_local_pair_mi_statistics
     statistics_kwargs={'block':block} if sparse and args.environment=='full_shell' else {}
-    histograms=({split:statistics(x,flip=cfg.data.spin_flip_augment,**statistics_kwargs)
-                 for split,x in [('train',tx.configurations),('test',vx.configurations)]} if exact else None)
+    histograms=None
+    execution['mi_statistics_cache']={}
+    if exact:
+        histograms={}
+        for split,x in [('train',tx.configurations),('test',vx.configurations)]:
+            build=lambda x=x:statistics(x,flip=cfg.data.spin_flip_augment,**statistics_kwargs)
+            if execution['enabled']:
+                from recurrent_rg.mi_cache import load_or_build_mi_statistics
+                key_data=dict(data_sha256=data_sha256,split=split,
+                    states=cfg.model.categorical_states or 2,dimension=cfg.model.dimension,
+                    block=block,buffer=1,environment_offsets=env.tolist(),
+                    flip=cfg.data.spin_flip_augment,
+                    pooling=cfg.data.train_pool_replicas if split=='train' else cfg.data.test_pool_replicas,
+                    dtype=str(x.dtype),shape=list(x.shape),environment=args.environment,
+                    statistics=statistics.__name__,statistics_kwargs=statistics_kwargs)
+                cache_dir=args.mi_cache_dir or Path(cfg.data.cache).parent/'.qcr_mi_cache'
+                hist,cache_record=load_or_build_mi_statistics(cache_dir,key_data,build)
+                histograms[split]=hist
+                execution['mi_statistics_cache'][split]=cache_record
+                print(f'MI statistics {split}: '+('cache hit' if cache_record['hit'] else 'built and cached'),flush=True)
+            else:
+                histograms[split]=build()
     # Histogram construction/compression stays on CPU; only its existing tensors
     # move once. No change to the empirical MI estimator or sampled ensembles.
     if histograms is not None:
         histograms={split:hist.to(device) for split,hist in histograms.items()}
+    train_configurations,residency=resident_training_data(tx.configurations,device,
+                                                        enabled=execution['enabled'])
+    execution['training_data']=residency
     resume=torch.load(args.resume_checkpoint,map_location='cpu',weights_only=True) if args.resume_checkpoint else None
     if resume is not None and bool(resume['metadata'].get('joint_train_plateau'))!=args.joint_train_plateau:
         raise ValueError('Exact resume must preserve the joint TRAIN plateau stopping convention')
     initialization=None
     if resume is not None:
         old=resume['metadata']
+        if device.type=='cuda':
+            # Older CUDA checkpoints predate these accelerations. Preserve their
+            # original execution via --reference-execution for an exact resume.
+            old_reference=old.get('execution_optimizations',{}).get('reference',True)
+            if old_reference!=args.reference_execution:
+                raise ValueError('Exact CUDA resume must preserve reference-execution; '
+                                 'older unoptimized CUDA checkpoints require --reference-execution')
         old_config=RunConfig.from_dict(old['config']).to_dict()
         old_config['training']['epochs']=cfg.training.epochs
         if old_config!=cfg.to_dict() or old['estimator']!=args.estimator or old.get('environment_mode','full_shell')!=args.environment or old.get('independent_c',False)!=args.independent_c or old['rsmi_weight']!=args.rsmi_weight:
@@ -402,6 +443,7 @@ def main(argv=None):
     contract['independent_c']=args.independent_c
     contract['execution_device']=str(device)
     contract['precision']='torch.float64'
+    contract['execution_optimizations']=execution
     contract['device_note']='CPU histogram construction; model, selected batches, kernel table and MI tensor algebra on execution_device. Reports reload on CPU.'
     contract['kernel_auxiliaries']=f'Multiscale {cfg.loss.kernel_noncollapse_mode} weight={args.variance_weight}, ratio={args.variance_ratio}; uniform-color NLL weight={args.color_weight}; neutral/distinct disabled'
     if exact:
@@ -422,7 +464,7 @@ def main(argv=None):
             stochastic_sampling='Fresh independent C draws at each training step, not a frozen trajectory cache',
             empirical_MI='Constant diagnostic only; no C updates',labels_used=False)
         contract['trainable_parameters']=sum(p.numel() for p in qc+r)
-    metadata=dict(config=cfg.to_dict(),data_sha256=file_fingerprint(cfg.data.cache),**contract)
+    metadata=dict(config=cfg.to_dict(),data_sha256=data_sha256,**contract)
     if args.joint_train_plateau:
         metadata['joint_train_plateau']=dict(**plateau_settings,
             stopping_split='TRAIN only; TEST and critical exponents not used',
@@ -549,7 +591,7 @@ def main(argv=None):
         m.train();critic.train()
         ids=torch.randperm(len(tx.configurations),generator=gen)[:t.system_batch]
         indices=torch.randperm(tx.configurations.shape[1],generator=gen)[:t.sample_batch]
-        selected=tx.configurations[ids][:,indices].to(device=device,dtype=torch.float64);half=t.sample_batch//2
+        selected=select_training_batch(train_configurations,ids,indices,device);half=t.sample_batch//2
         a,b=selected[:,:half],selected[:,half:]
         batch=torch.cat((a,-a,b,-b),1) if cfg.data.spin_flip_augment else selected
         opt.zero_grad(set_to_none=True)

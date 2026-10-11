@@ -29,6 +29,13 @@ INTERPRETATION = (
     'CPU and CUDA use different random streams, so identical losses are not expected. '
     'Speed ratios apply to this float64 workload and these machines, not all runs.'
 )
+EXECUTION_INTERPRETATION = (
+    'Same-device reference versus optimized execution of the same float64 recipe. '
+    'Update-only timings exclude evaluation, saving and reports. Setup/cache-hit '
+    'ratios are reported separately: a warm MI cache is startup savings, not faster '
+    'optimizer computation. Short timings can vary with GPU load, filesystem/cache '
+    'warmth and clock state; they do not establish physical convergence.'
+)
 
 
 def file_sha256(path):
@@ -193,6 +200,79 @@ def compare_benchmarks(first, second):
     }
 
 
+def validate_execution_record(record):
+    """Do not guess the execution mode of an older unlabelled benchmark."""
+    reference = record.get('reference_execution')
+    if type(reference) is not bool:
+        raise ValueError('Execution comparison requires an explicit reference_execution bool')
+    optimizations = record.get('execution_optimizations')
+    if not isinstance(optimizations, dict):
+        raise ValueError('Execution comparison requires manifest execution_optimizations')
+    if optimizations.get('reference') is not reference:
+        raise ValueError('Manifest execution_optimizations.reference conflicts with reference_execution')
+    if optimizations.get('enabled') is not (not reference):
+        raise ValueError('Manifest execution_optimizations.enabled conflicts with reference_execution')
+    return reference
+
+
+def compare_execution_benchmarks(first, second):
+    """Reference seconds / optimized seconds on the same device and workload."""
+    for key in ('cache_sha256', 'config_sha256', 'dtype', 'actual_epochs', 'warmup_updates'):
+        if first[key] != second[key]:
+            raise ValueError(f'Cannot fairly compare execution benchmarks: {key} differs')
+    if first['device'] != second['device']:
+        raise ValueError('Execution comparison requires the same device')
+    first_reference = validate_execution_record(first)
+    second_reference = validate_execution_record(second)
+    if first_reference == second_reference:
+        raise ValueError('Execution comparison requires one reference and one optimized benchmark')
+    reference, optimized = (first, second) if first_reference else (second, first)
+
+    def duration(record, key):
+        value = record['timing']['driver'].get(key)
+        if not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
+            raise ValueError(f'Execution comparison needs finite nonnegative {key}')
+        return value
+
+    def ratio(numerator, denominator):
+        return numerator / denominator if denominator else None
+
+    reference_setup = duration(reference, 'setup_seconds')
+    optimized_setup = duration(optimized, 'setup_seconds')
+    reference_report = duration(reference, 'report_seconds')
+    optimized_report = duration(optimized, 'report_seconds')
+    reference_wall = duration(reference, 'training_wall_seconds')
+    optimized_wall = duration(optimized, 'training_wall_seconds')
+    return {
+        'device': reference['device'],
+        'reference_source': reference.get('output'), 'optimized_source': optimized.get('output'),
+        'reference_execution_optimizations': reference['execution_optimizations'],
+        'optimized_execution_optimizations': optimized['execution_optimizations'],
+        'steady_update_median_speedup': ratio(
+            reference['timing']['steady_update_median_seconds'],
+            optimized['timing']['steady_update_median_seconds']),
+        'steady_update_mean_speedup': ratio(
+            reference['timing']['steady_update_mean_seconds'],
+            optimized['timing']['steady_update_mean_seconds']),
+        'update_only_wall_speedup': ratio(
+            sum(reference['timing']['driver']['step_seconds_all']),
+            sum(optimized['timing']['driver']['step_seconds_all'])),
+        'training_wall_speedup': ratio(reference_wall, optimized_wall),
+        'setup_wall_ratio': ratio(reference_setup, optimized_setup),
+        'report_wall_ratio': ratio(reference_report, optimized_report),
+        'setup_seconds_reference': reference_setup, 'setup_seconds_optimized': optimized_setup,
+        'report_seconds_reference': reference_report, 'report_seconds_optimized': optimized_report,
+        'ratio_convention': 'Reference seconds / optimized seconds; >1 means optimized is faster',
+        'update_only_wall_convention': 'Sum of all real optimizer update durations, including '
+                                       'warmup updates; no evaluation/checkpoint/report time',
+        'training_wall_convention': 'Driver training loop wall time, including periodic '
+                                    'evaluation and checkpoint overhead',
+        'report_wall_convention': 'Driver final report only; separately launched loss report '
+                                  'is not included',
+        'limitations': EXECUTION_INTERPRETATION,
+    }
+
+
 def verify_training(run, device, epochs):
     import torch
 
@@ -226,6 +306,7 @@ def verify_training(run, device, epochs):
         'labels_used_in_training': manifest['labels_used_in_training'],
         'estimator': manifest['estimator'], 'buffer': manifest['buffer'],
         'environment_mode': manifest['environment_mode'],
+        'execution_optimizations': manifest.get('execution_optimizations'),
         'artifacts': [str(run / name) for name in expected],
     }
 
@@ -240,7 +321,13 @@ def build_parser():
     parser.add_argument('--epochs', type=int, default=60)
     parser.add_argument('--warmup', type=int, default=10)
     parser.add_argument('--threads', type=int, default=2)
-    parser.add_argument('--compare', type=Path, help='Compare with another completed benchmark.json')
+    parser.add_argument('--reference-execution', action='store_true',
+                        help='Use the same default recipe with reference execution, not optimized kernels/caches')
+    comparison = parser.add_mutually_exclusive_group()
+    comparison.add_argument('--compare', type=Path,
+                            help='CPU-versus-CUDA comparison with another completed benchmark.json')
+    comparison.add_argument('--compare-reference', type=Path,
+                            help='Same-device reference-versus-optimized comparison with a completed benchmark.json')
     return parser
 
 
@@ -249,8 +336,8 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.threads < 1 or args.epochs < 1 or not 0 <= args.warmup < args.epochs:
         parser.error('Need positive threads/epochs and 0 <= warmup < epochs')
-    if args.prepare and args.compare:
-        parser.error('--compare requires a training benchmark, not --prepare')
+    if args.prepare and (args.compare or args.compare_reference or args.reference_execution):
+        parser.error('--compare/--compare-reference/--reference-execution require training, not --prepare')
     output = args.output.expanduser().resolve()
     if output.exists():
         parser.error(f'Refusing to overwrite existing output: {output}')
@@ -261,6 +348,7 @@ def main(argv=None):
         'status': 'running', 'started_at': datetime.now(timezone.utc).isoformat(),
         'output': str(output), 'interpretation': INTERPRETATION,
         'environment': environment_record(), 'device': args.device,
+        'reference_execution': args.reference_execution,
     }
     status_path = output / 'benchmark_status.json'
     write_json(status_path, status)
@@ -290,11 +378,14 @@ def main(argv=None):
             status.update(sampling=sampling, config_sha256=config_fingerprint(config))
             write_json(status_path, status)
             run = output / 'run'
-            status['training_command'] = timed_command([
+            training_command = [
                 sys.executable, '-m', 'recurrent_rg', 'train', '--config',
                 str(output / 'config.json'), '--output', str(run),
                 '--device', args.device, '--benchmark-warmup', str(args.warmup),
-            ], output / 'train.log')
+            ]
+            if args.reference_execution:
+                training_command.append('--reference-execution')
+            status['training_command'] = timed_command(training_command, output / 'train.log')
             write_json(status_path, status)
             status['loss_report_command'] = timed_command([
                 sys.executable, '-m', 'scripts.report_mi_training', '--run', str(run),
@@ -308,6 +399,8 @@ def main(argv=None):
                 'config_sha256': status['config_sha256'], 'config': config,
                 'dtype': verification['dtype'], 'actual_epochs': summary['actual_epochs'],
                 'warmup_updates': args.warmup, 'verification': verification,
+                'reference_execution': args.reference_execution,
+                'execution_optimizations': verification['execution_optimizations'],
                 'timing': summarize_timing(summary['timing'], updates=args.epochs,
                                            warmup=args.warmup, device=args.device),
                 'commands': {
@@ -316,9 +409,13 @@ def main(argv=None):
                 },
                 'interpretation': INTERPRETATION,
             }
+            validate_execution_record(benchmark)
             if args.compare:
                 prior = json.loads(args.compare.expanduser().resolve().read_text())
                 benchmark['comparison'] = compare_benchmarks(benchmark, prior)
+            elif args.compare_reference:
+                prior = json.loads(args.compare_reference.expanduser().resolve().read_text())
+                benchmark['execution_comparison'] = compare_execution_benchmarks(benchmark, prior)
             write_json(output / 'benchmark.json', benchmark)
             status.update(status='passed', benchmark=str(output / 'benchmark.json'),
                           verification=verification)

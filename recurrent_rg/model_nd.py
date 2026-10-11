@@ -84,16 +84,18 @@ class LocalCoarseGrainer(nn.Module):
                 lambda p: self.field_head.logits(self.local_encoder(p)), *self.parameters())
             return self.field_head.sample_logits(logits)
         if getattr(self, "binary_lookup", False):
-            from .binary_pooling import BinaryLocal
+            from .binary_pooling import binary_local
             extract = (self.geometry.extract_blocks if self.kernel_layout == "nonoverlapping"
                        else self.geometry.extract_patches)
             if getattr(self.field_head, 'sampling_mode', 'deterministic') == 'bernoulli':
-                logits = BinaryLocal.apply(extract(configurations),
-                    lambda p: self.field_head.logits(self.local_encoder(p)), *self.parameters())
+                logits = binary_local(extract(configurations),
+                    lambda p: self.field_head.logits(self.local_encoder(p)), self.parameters(),
+                    validated_binary_inputs=getattr(self, 'validated_binary_inputs', False))
                 return self.field_head.sample_logits(logits)
-            return BinaryLocal.apply(extract(configurations),
+            return binary_local(extract(configurations),
                                      lambda p: self.field_head(self.local_encoder(p)),
-                                     *self.parameters())
+                                     self.parameters(),
+                                     validated_binary_inputs=getattr(self, 'validated_binary_inputs', False))
         return self.field_head(self.local_features(configurations))
 
     def forward(self, configurations: torch.Tensor) -> torch.Tensor:
@@ -165,6 +167,36 @@ class EnsembleTheoryEncoder(nn.Module):
             ])
             return self.head(features)
         return self.head(self.local_mlp(patches).mean(dim=spatial_dims))
+
+    def forward_many(self, configurations, *, validated_binary_inputs=False):
+        """Share one learned pattern table across detached Q inputs in this call.
+
+        The table is recomputed on every call, so no parameter-dependent output
+        survives an optimizer update. Input-VJP and nonbinary historical paths
+        retain their original per-input implementation. This method does not
+        coarse-grain or sample C, and never receives its differentiable inputs
+        on the optimized independent-gradient route.
+        """
+        configurations = list(configurations)
+        if not configurations:
+            return []
+        if (not getattr(self, 'binary_lookup', False) or
+                getattr(self, 'categorical_states', 0) or
+                any(level.requires_grad for level in configurations)):
+            return [self(level) for level in configurations]
+        first = configurations[0]
+        if any(level.device != first.device or level.dtype != first.dtype
+               for level in configurations):
+            return [self(level) for level in configurations]
+        from .binary_pooling import binary_frequencies
+        frequencies = []
+        for level in configurations:
+            frequency, patterns = binary_frequencies(self.geometry.extract_patches(level),
+                validated_binary_inputs=validated_binary_inputs)
+            frequencies.append(frequency)
+        values = self.local_mlp(patterns)
+        encoded = self.head(torch.cat(frequencies, dim=0) @ values)
+        return list(encoded.split([len(level) for level in configurations], dim=0))
 
 
 class LocalNeuralAction(nn.Module):

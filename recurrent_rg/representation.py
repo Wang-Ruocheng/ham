@@ -54,6 +54,7 @@ def linear_distribution_reconstruction_loss(
     target: torch.Tensor,
     *,
     mode: str = "squared",
+    validate: bool = True,
 ) -> torch.Tensor:
     """Reconstruct a detached histogram through an affine latent decoder.
 
@@ -81,12 +82,16 @@ def linear_distribution_reconstruction_loss(
         raise ValueError("Decoder dimensions do not match theory and histogram")
 
     probabilities = target.detach()
-    with torch.no_grad():
-        if not torch.isfinite(probabilities).all() or (probabilities < 0).any():
-            raise ValueError("Target histograms must be finite and nonnegative")
-        total = probabilities.sum(dim=-1)
-        if not torch.allclose(total, torch.ones_like(total), atol=1e-5, rtol=1e-5):
-            raise ValueError("Target histograms must sum to one")
+    # Public calls validate strictly. The default CUDA trainer can waive only
+    # repeated numeric checks for its internally counted, normalized motifs;
+    # shape checks above and per-update finite-loss checks remain mandatory.
+    if validate:
+        with torch.no_grad():
+            if not torch.isfinite(probabilities).all() or (probabilities < 0).any():
+                raise ValueError("Target histograms must be finite and nonnegative")
+            total = probabilities.sum(dim=-1)
+            if not torch.allclose(total, torch.ones_like(total), atol=1e-5, rtol=1e-5):
+                raise ValueError("Target histograms must sum to one")
 
     prediction = decoder(theory)
     if mode == "squared":

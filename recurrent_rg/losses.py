@@ -337,7 +337,8 @@ def data_geometry_statistics_objective(model, first, second, pattern_first, patt
         if decoder is not None:
             if getattr(model.theory_encoder, 'distribution_reconstruction_mode', '') == 'affine_mse':
                 from .representation import linear_distribution_reconstruction_loss
-                term = linear_distribution_reconstruction_loss(decoder, direct[:, k], .5*(pa+pb), mode='squared')
+                term = linear_distribution_reconstruction_loss(decoder, direct[:, k], .5*(pa+pb), mode='squared',
+                    validate=not getattr(model, 'fast_validated_statistics', False))
                 metrics = {'reconstruction_mse': term}
             else:
                 term = distribution_reconstruction_loss(decoder, direct[:, k], .5*(pa+pb))
@@ -447,12 +448,20 @@ def qcr_objective(
     # Independent-component experiments may avoid the expensive input VJP of
     # Q's categorical lookup. Original levels still carry C variance gradients.
     encoder_levels=[level.detach() for level in levels] if getattr(model,'detach_kernel_representation',False) else levels
-    first = torch.stack(
-        [model.theory_encoder(level[:, :midpoint]) for level in encoder_levels], dim=1
-    )
-    second = torch.stack(
-        [model.theory_encoder(level[:, midpoint:]) for level in encoder_levels], dim=1
-    )
+    encoder = model.theory_encoder
+    if (getattr(model, 'share_binary_q_tables', False) and
+            getattr(model, 'detach_kernel_representation', False) and
+            getattr(encoder, 'binary_lookup', False) and
+            not getattr(encoder, 'categorical_states', 0)):
+        encoded = encoder.forward_many(
+            [level[:, :midpoint] for level in encoder_levels] +
+            [level[:, midpoint:] for level in encoder_levels],
+            validated_binary_inputs=getattr(model, 'fast_validated_statistics', False))
+        first = torch.stack(encoded[:len(levels)], dim=1)
+        second = torch.stack(encoded[len(levels):], dim=1)
+    else:
+        first = torch.stack([encoder(level[:, :midpoint]) for level in encoder_levels], dim=1)
+        second = torch.stack([encoder(level[:, midpoint:]) for level in encoder_levels], dim=1)
     total, terms = data_geometry_objective(model, levels, first, second, pattern_fn,
                                    weights, geometry_scale, noise_multiplier, rollout_weight,
                                    kernel_noncollapse_mode, kernel_variance_ratio, coordinate_reduction,

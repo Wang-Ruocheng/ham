@@ -83,3 +83,48 @@ checkpoints save CUDA RNG together with Adam and CPU selection RNG state;
 continuation must use the same device. CUDA atomic reductions can still be
 numerically nondeterministic. CPU evaluations preserve both CPU and CUDA
 training RNG streams instead of reseeding an active GPU.
+
+## Execution-only GPU accelerations
+
+Default CUDA execution now shares Q's learned binary pattern table across
+the detached inputs in each update. It recomputes the table after every update,
+never caches trainable outputs across updates, and retains C's cross-scale
+straight-through input gradients and independent Bernoulli draws. Small motif
+histograms use integer counts instead of allocating site-by-bin one-hot arrays.
+Public inputs remain strictly validated; only already-validated binary trainer
+inputs and internally normalized histograms skip repeated GPU value checks.
+No model, objective, precision, coupling supervision, or gradient routing changes.
+
+Small raw training caches can stay on GPU, bounded by one GiB and ten percent
+of currently free memory. Larger caches retain CPU batch selection followed by
+selected-batch transfer. CPU generators choose the same batch indices in either
+case. This optional residency fallback is not a CPU training fallback.
+
+Data-only empirical MI statistics are built on CPU once and saved beside the
+input cache in `.qcr_mi_cache/` (or `--mi-cache-dir /path`). Keys include the
+actual data SHA256, split, alphabet, dimensions, block, buffer, environment
+offsets, pooling, augmentation, dtype and implementation version. Treat input
+data caches as immutable while a run is starting. No C output/parameters are
+cached; cache hits primarily reduce startup time, not per-update MI work.
+Concurrent publication is atomic and corrupt files fail explicitly rather than
+being overwritten. Historical data/checkpoints/results are not modified.
+
+For a same-device, same-cache A/B audit, use separate fresh output directories:
+
+```bash
+python -m scripts.benchmark_qcr_device --cache /path/ensembles.pt \
+  --device cuda:0 --reference-execution --output /new/reference
+python -m scripts.benchmark_qcr_device --cache /path/ensembles.pt \
+  --device cuda:0 --output /new/optimized \
+  --compare-reference /new/reference/benchmark.json
+```
+
+The comparison validates execution flags, cache/config hashes, dtype, updates
+and timing warmup, and separates update, setup and report timing. An unchanged
+normal trainer does not add benchmark synchronization. Reduction order can
+change floating-point rounding; equivalence is tested with explicit tolerances,
+not a CPU/GPU bitwise promise. Exact CUDA resume must preserve the execution
+mode: pre-optimization CUDA checkpoints require `--reference-execution`.
+Categorical/historical paths without compatible binary lookup retain their
+existing Q/C operations; static statistics caching and bounded residency do not
+change their objectives. Optional legacy ablations remain guarded.

@@ -11,6 +11,7 @@ outputs/*
 logs/*
 !logs/README.md
 .mplconfig/
+.qcr_mi_cache/
 
 # IDE
 .vscode/
