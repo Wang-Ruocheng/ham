@@ -27,12 +27,26 @@ class EmpiricalBinaryMI:
 
     def __len__(self):return len(self.marginal)
 
+    def to(self, device, *, dtype=None, non_blocking=False):
+        """Move cached statistics once, preserving empirical counts and sparsity.
+
+        Histogram construction remains on CPU. The returned object can evaluate
+        the same differentiable kernel objective on the kernel's device without
+        repeatedly moving statistics inside the training loop.
+        """
+        move = lambda tensor: tensor.to(device=device, dtype=dtype,
+                                        non_blocking=non_blocking)
+        return EmpiricalBinaryMI(move(self.conditional), move(self.weights),
+                                 move(self.marginal), self.diagnostics)
+
     def information(self,table):
         if table.shape[1]!=2:
             hc=categorical_entropy(self.conditional@table)
             return categorical_entropy(self.marginal@table)-torch.sparse.mm(self.weights,hc[:,None]).squeeze(-1)
         positive=table[:,1]
-        conditional_entropy=binary_entropy(self.conditional@positive)
+        conditional_positive=(torch.sparse.mm(self.conditional,positive[:,None]).squeeze(-1)
+                              if self.conditional.is_sparse else self.conditional@positive)
+        conditional_entropy=binary_entropy(conditional_positive)
         return binary_entropy(self.marginal@positive)-torch.sparse.mm(self.weights,conditional_entropy[:,None]).squeeze(-1)
 
 
@@ -129,6 +143,10 @@ def lattice_mi_statistics(x,*,states,flip=False,buffer=1,shuffle_visible_seed=No
 class LocalPairMI:
     groups: list
     diagnostics: dict
+
+    def to(self, device, *, dtype=None, non_blocking=False):
+        return LocalPairMI([group.to(device, dtype=dtype, non_blocking=non_blocking)
+                            for group in self.groups], self.diagnostics)
 
     def information(self, table):
         return torch.stack([g.information(table) for g in self.groups]).mean(0)

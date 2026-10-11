@@ -1,10 +1,49 @@
 """One model builder and strict Q/C/R checkpoint loading for all consumers."""
 from dataclasses import asdict, dataclass
+from contextlib import contextmanager
 import json
 from pathlib import Path
 import torch
 from .config import ModelConfig
 from .model_nd import RecurrentRGNetwork1D, RecurrentRGNetwork2D, FixedDecimationCoarseGrainer
+
+
+def model_device(model):
+    return next(model.parameters()).device
+
+
+@contextmanager
+def isolated_rng(device, seed):
+    """Use reproducible diagnostic draws without changing training RNGs."""
+    device = torch.device(device)
+    if device.type not in ('cpu', 'cuda'):
+        raise ValueError('RNG isolation supports CPU or CUDA devices only')
+    index = (torch.cuda.current_device() if device.index is None else device.index) if device.type == 'cuda' else None
+    with torch.random.fork_rng(devices=[] if index is None else [index]):
+        # torch.manual_seed also seeds CUDA; CPU diagnostics must not do that.
+        torch.random.default_generator.manual_seed(seed)
+        if index is not None:
+            with torch.cuda.device(index):
+                torch.cuda.manual_seed(seed)
+        yield
+
+
+def restore_checkpoint_rng(payload, *, device='cpu'):
+    """Restore an exact same-device continuation; CPU reports never call this."""
+    device = torch.device(device)
+    if device.type not in ('cpu', 'cuda'):
+        raise ValueError('Checkpoint RNG restoration supports CPU or CUDA only')
+    if device.type == 'cuda':
+        if 'cuda_rng_state' not in payload or 'cuda_device_index' not in payload:
+            raise ValueError('Exact CUDA resume requires saved CUDA RNG state')
+        index = torch.cuda.current_device() if device.index is None else device.index
+        if payload['cuda_device_index'] != index:
+            raise ValueError('Exact CUDA resume requires the same CUDA device')
+    elif 'cuda_rng_state' in payload or 'cuda_device_index' in payload:
+        raise ValueError('A CUDA checkpoint cannot resume exactly on CPU')
+    torch.set_rng_state(payload['torch_rng_state'].cpu())
+    if device.type == 'cuda':
+        torch.cuda.set_rng_state(payload['cuda_rng_state'].cpu(), device=index)
 
 
 def attach_distribution_decoder(model, config):
@@ -111,6 +150,10 @@ def checkpoint_payload(model, optimizer, generator, epoch, *, metadata=None, his
     payload = dict(epoch=epoch, model=qcr_state_dict(model), optimizer=optimizer.state_dict(),
                 batch_generator_state=generator.get_state(), torch_rng_state=torch.get_rng_state(),
                 metadata=metadata or {}, history=history or [])
+    device = model_device(model)
+    if device.type == 'cuda':
+        payload.update(cuda_rng_state=torch.cuda.get_rng_state(device),
+                       cuda_device_index=device.index)
     if hasattr(model, 'balanced_reconstruction_metrics'):
         payload['balanced_reconstruction_metrics'] = [m.state_dict()
             for m in model.balanced_reconstruction_metrics]

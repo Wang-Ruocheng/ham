@@ -129,9 +129,13 @@ def sample_regions(x, systems, samples, generator, *, buffer=1, flip=False):
 
 def kernel_probabilities(kernel, visible):
     """Exact lookup, retaining gradients to the existing MLP C parameters."""
+    parameter = next(kernel.parameters())
+    if visible.device != parameter.device:
+        raise ValueError('Visible blocks and C must be on the same device')
     width = visible.shape[-1]
-    powers = 2**torch.arange(width)
-    patterns = (2*((torch.arange(2**width)[:, None]//powers) % 2)-1).double()
+    powers = 2**torch.arange(width, device=parameter.device)
+    patterns = (2*((torch.arange(2**width, device=parameter.device)[:, None]//powers)
+                   % 2)-1).to(dtype=parameter.dtype)
     logits = kernel.field_head.logits(kernel.local_encoder(patterns)).squeeze(-1)
     table = torch.sigmoid(2*logits)
     indices = ((visible > 0).long()*powers).sum(-1)

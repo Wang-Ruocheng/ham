@@ -7,6 +7,7 @@ from pathlib import Path
 import time
 import torch
 from recurrent_rg.checkpoints import build_model, checkpoint_payload, qcr_state_dict, load_run, load_model_state
+from recurrent_rg.checkpoints import isolated_rng, restore_checkpoint_rng
 from recurrent_rg.config import RunConfig
 from recurrent_rg.runner import prepared_data, file_fingerprint, evaluate_run
 from recurrent_rg.training import evaluate, separate_qc_r_gradients
@@ -70,6 +71,8 @@ def build_parser():
     source.add_argument('--source',type=Path)
     source.add_argument('--config',type=Path,help='Standalone configuration; initialize a fresh model')
     p.add_argument('--output',type=Path,required=True)
+    p.add_argument('--device',default='cpu',help='Explicit execution device; CPU remains the historical default')
+    p.add_argument('--benchmark-warmup',type=int,help='Measure real updates; omit this many first updates from steady timing, without adding extra training')
     p.add_argument('--theory-dim',type=int,help='Override latent dimension; all modules are newly initialized unless resuming')
     p.add_argument('--rsmi-weight',type=float,default=2.)
     p.add_argument('--estimator',choices=['infonce','histogram'],default='histogram')
@@ -134,6 +137,23 @@ def default_representation(cfg, raw_config, *, continuing=False):
 def main(argv=None):
     wall_started=time.perf_counter()
     args=build_parser().parse_args(argv)
+    device=torch.device(args.device)
+    if device.type not in ('cpu','cuda') or (device.type=='cpu' and device.index is not None):
+        raise ValueError('Supported execution devices are cpu and cuda:<index>')
+    if device.type=='cuda':
+        if not torch.cuda.is_available():raise RuntimeError('CUDA was explicitly requested but is unavailable')
+        device=torch.device('cuda',0 if device.index is None else device.index)
+        torch.cuda.set_device(device)
+        # Historical optional drivers have not been audited for device/RNG routing.
+        cuda_ablations=('source','allow_nondefault_recipe','mi_initialize','freeze_c_checkpoint',
+            'affine_pca_init','q_coupling_weight','q_only_weight_sweep','q_only_candidates',
+            'q_balanced_reconstruction','q_last_layer_audit','q_head_structure_audit',
+            'q_feature_bottleneck','q_original_plateau','q_initialization_pilot',
+            'q_unfolding','r_only_continue','r_only_refit','r_only_plateau','joint_train_plateau')
+        if any(getattr(args,key) for key in cuda_ablations) or args.estimator!='histogram' or not args.independent_c:
+            raise ValueError('CUDA execution currently supports fresh/default QCR or identical-device resume, not optional historical ablations')
+    if args.benchmark_warmup is not None and args.benchmark_warmup<0:
+        raise ValueError('benchmark-warmup must be nonnegative')
     if args.joint_train_plateau:
         joint_conflicts=('r_only_plateau','r_only_refit','r_only_continue',
             'q_only_weight_sweep','q_only_candidates','q_balanced_reconstruction',
@@ -301,7 +321,9 @@ def main(argv=None):
     if args.mi_initialize and not exact:raise ValueError('MI initialization requires histogram estimator')
     sparse=exact and cfg.model.dimension==2
     torch.set_num_threads(t.threads);torch.manual_seed(t.seed)
-    m=build_model(cfg.model,t.max_rg_steps);tx,vx=prepared_data(cfg);fn=pattern_function(cfg)
+    m=build_model(cfg.model,t.max_rg_steps).to(device);tx,vx=prepared_data(cfg);fn=pattern_function(cfg)
+    if device.type=='cuda' and cfg.loss.balanced_reconstruction_weight:
+        raise ValueError('Balanced historical ablation is not yet CUDA-adapted')
     m.detach_kernel_representation=args.independent_c
     frozen_source=None
     if args.freeze_c_checkpoint:
@@ -317,8 +339,8 @@ def main(argv=None):
         for parameter in m.rg_kernel.parameters():parameter.requires_grad_(False)
     _,env=region_offsets(cfg.model.dimension,block=block,buffer=1)
     # Extra critic initialization must not change QCR's sampling RNG stream.
-    with torch.random.fork_rng(devices=[]):
-        torch.manual_seed(t.seed+1);critic=EnvironmentCritic(len(env),64).double()
+    with isolated_rng('cpu',t.seed+1):
+        critic=EnvironmentCritic(len(env),64).double().to(device)
     qc=list(m.theory_encoder.parameters())+([] if frozen_source else list(m.rg_kernel.parameters()))
     r=list(m.theory_rg.parameters());cp=[] if exact else list(critic.parameters())
     opt=torch.optim.Adam(qc+r,lr=t.learning_rate);co=None if exact else torch.optim.Adam(cp,lr=t.learning_rate)
@@ -327,6 +349,10 @@ def main(argv=None):
     statistics_kwargs={'block':block} if sparse and args.environment=='full_shell' else {}
     histograms=({split:statistics(x,flip=cfg.data.spin_flip_augment,**statistics_kwargs)
                  for split,x in [('train',tx.configurations),('test',vx.configurations)]} if exact else None)
+    # Histogram construction/compression stays on CPU; only its existing tensors
+    # move once. No change to the empirical MI estimator or sampled ensembles.
+    if histograms is not None:
+        histograms={split:hist.to(device) for split,hist in histograms.items()}
     resume=torch.load(args.resume_checkpoint,map_location='cpu',weights_only=True) if args.resume_checkpoint else None
     if resume is not None and bool(resume['metadata'].get('joint_train_plateau'))!=args.joint_train_plateau:
         raise ValueError('Exact resume must preserve the joint TRAIN plateau stopping convention')
@@ -349,7 +375,7 @@ def main(argv=None):
         print('Data-driven MI initialization:',initialization,flush=True)
     visible_sites=block**cfg.model.dimension
     states=cfg.model.categorical_states or 2
-    codes=(torch.arange(states**visible_sites)[:,None]//(states**torch.arange(visible_sites)))%states
+    codes=(torch.arange(states**visible_sites,device=device)[:,None]//(states**torch.arange(visible_sites,device=device)))%states
     patterns=(torch.nn.functional.one_hot(codes,states).flatten(1).double() if categorical else (2*codes-1).double())[None]
     probabilities=categorical_kernel_probabilities if categorical else kernel_probabilities
     frozen_information=None
@@ -374,6 +400,9 @@ def main(argv=None):
     contract['environment_mode']=args.environment
     contract['data_driven_initialization']=initialization
     contract['independent_c']=args.independent_c
+    contract['execution_device']=str(device)
+    contract['precision']='torch.float64'
+    contract['device_note']='CPU histogram construction; model, selected batches, kernel table and MI tensor algebra on execution_device. Reports reload on CPU.'
     contract['kernel_auxiliaries']=f'Multiscale {cfg.loss.kernel_noncollapse_mode} weight={args.variance_weight}, ratio={args.variance_ratio}; uniform-color NLL weight={args.color_weight}; neutral/distinct disabled'
     if exact:
         contract.update(critic_hidden=None,gradient_critic=None,negatives=None,pairs=None,
@@ -407,20 +436,18 @@ def main(argv=None):
         pca_initialization=None
         if args.affine_pca_init:
             from recurrent_rg.representation import initialize_affine_decoder_pca_
-            with torch.random.fork_rng(devices=[]), torch.no_grad():
-                torch.manual_seed(t.seed+9000)
+            with isolated_rng(device,t.seed+9000), torch.no_grad():
                 hist=[]
                 for x in tx.configurations:
-                    hist.extend(fn(level) for level in m.coarse_grain(x[None].double()))
+                    hist.extend(fn(level) for level in m.coarse_grain(x[None].to(device=device,dtype=torch.float64)))
                 pca_initialization=initialize_affine_decoder_pca_(m.theory_encoder,torch.cat(hist))
                 pca_initialization.update(fitting_split='train',all_scales=True,sampling_seed=t.seed+9000)
             print('TRAIN-only affine PCA initialization:',pca_initialization,flush=True)
         elif resume is None and not frozen_source:
             # Only a bias calibration from TRAIN distributions at random C;
             # no kernel/encoder pretraining, labels, or change to training RNG.
-            with torch.random.fork_rng(devices=[]), torch.no_grad():
-                torch.manual_seed(t.seed+9000)
-                levels=m.coarse_grain(tx.configurations[:min(32,len(tx.configurations))].double())
+            with isolated_rng(device,t.seed+9000), torch.no_grad():
+                levels=m.coarse_grain(tx.configurations[:min(32,len(tx.configurations))].to(device=device,dtype=torch.float64))
                 center=torch.stack([fn(level).mean(0) for level in levels]).mean(0)
                 m.theory_encoder.distribution_decoder.bias.copy_(center)
         metadata['q_reconstruction']=dict(
@@ -484,7 +511,17 @@ def main(argv=None):
         raise ValueError('Missing joint plateau history in resume checkpoint')
     plateau_diagnostics=None
     if resume is not None:
-        gen.set_state(resume['batch_generator_state']);rg.set_state(resume['rsmi_generator_state']);torch.set_rng_state(resume['torch_rng_state'])
+        gen.set_state(resume['batch_generator_state']);rg.set_state(resume['rsmi_generator_state'])
+        restore_checkpoint_rng(resume,device=device)
+
+    def synchronize():
+        if device.type=='cuda':torch.cuda.synchronize(device)
+
+    timing_enabled=args.benchmark_warmup is not None
+    step_seconds=[];logging_seconds=0.;checkpoint_seconds=0.
+    if timing_enabled:synchronize()
+    setup_seconds=time.perf_counter()-wall_started
+    training_started=time.perf_counter()
 
     def save(step,name):
         state=checkpoint_payload(m,opt,gen,step,metadata=metadata,history=history)
@@ -507,10 +544,12 @@ def main(argv=None):
             (args.output/'balanced_metric_history.json').write_text(json.dumps(metric_history,indent=2)+'\n')
             print(f'Balanced metric refreshed at {step-1}; TRAIN ranks '+str([
                 metric.axes.shape[1] for metric in m.balanced_reconstruction_metrics]),flush=True)
+        if timing_enabled:synchronize()
+        update_started=time.perf_counter()
         m.train();critic.train()
         ids=torch.randperm(len(tx.configurations),generator=gen)[:t.system_batch]
         indices=torch.randperm(tx.configurations.shape[1],generator=gen)[:t.sample_batch]
-        selected=tx.configurations[ids][:,indices].double();half=t.sample_batch//2
+        selected=tx.configurations[ids][:,indices].to(device=device,dtype=torch.float64);half=t.sample_batch//2
         a,b=selected[:,:half],selected[:,half:]
         batch=torch.cat((a,-a,b,-b),1) if cfg.data.spin_flip_augment else selected
         opt.zero_grad(set_to_none=True)
@@ -544,9 +583,12 @@ def main(argv=None):
         from recurrent_rg.representation import normalize_affine_decoder_
         normalize_affine_decoder_(m.theory_encoder)
         if co is not None:co.step()
+        if timing_enabled:
+            synchronize();step_seconds.append(time.perf_counter()-update_started)
         completed_epoch=step
         stopped_by_wall_limit=args.max_wall_seconds is not None and time.perf_counter()-wall_started>=args.max_wall_seconds
         if step==1 or step%t.log_every==0 or step==t.epochs or stopped_by_wall_limit:
+            logging_started=time.perf_counter()
             row=dict(epoch=step)
             m.eval();critic.eval()
             for split,x,full in [('train',train_eval,tx.configurations),('test',test_eval,vx.configurations)]:
@@ -555,7 +597,7 @@ def main(argv=None):
                     ds=tx if split=='train' else vx
                     eval_ids=torch.linspace(0,len(ds.configurations)-1,min(e.systems,len(ds.configurations))).long()
                     with torch.no_grad():
-                        sup=float(microscopic_coupling_loss(m.theory_encoder,x[:,:e.samples].double(),ds.couplings[eval_ids]))
+                        sup=float(microscopic_coupling_loss(m.theory_encoder,x[:,:e.samples].to(device=device,dtype=torch.float64),ds.couplings[eval_ids]))
                     metrics['coupling_supervision']=sup
                     metrics['weighted_coupling_supervision']=args.q_coupling_weight*sup
                     metrics['total']+=args.q_coupling_weight*sup
@@ -589,24 +631,44 @@ def main(argv=None):
                     history=plateau_rows,diagnostics=plateau_diagnostics),indent=2)+'\n')
                 print('TRAIN components: '+str(component_row)+
                       '; plateau='+str(stopped_by_train_plateau),flush=True)
-        if step%t.checkpoint_every==0:save(step,f'training_step_{step}.pt')
+            if timing_enabled:synchronize()
+            logging_seconds+=time.perf_counter()-logging_started
+        if step%t.checkpoint_every==0:
+            checkpoint_started=time.perf_counter();save(step,f'training_step_{step}.pt')
+            checkpoint_seconds+=time.perf_counter()-checkpoint_started
         if stopped_by_train_plateau:
             print(f'Separate TRAIN Q/C/R objectives reached a local plateau at {step}; saving final endpoint.',flush=True)
             break
         if stopped_by_wall_limit:
             print(f'Wall limit reached after actual epoch {step}; saving completed training, not restarting.',flush=True)
             break
+    if timing_enabled:synchronize()
+    training_wall_seconds=time.perf_counter()-training_started
+    checkpoint_started=time.perf_counter()
     save(completed_epoch,'checkpoint_last.pt');torch.save(qcr_state_dict(m),args.output/'qcr_model.pt')
+    checkpoint_seconds+=time.perf_counter()-checkpoint_started
+    warmup=0 if args.benchmark_warmup is None else args.benchmark_warmup
+    timing=dict(device=str(device),precision='torch.float64',setup_seconds=setup_seconds,
+        training_wall_seconds=training_wall_seconds,updates=len(step_seconds),
+        warmup_updates=min(warmup,len(step_seconds)),measured_updates=max(0,len(step_seconds)-warmup),
+        step_seconds_all=step_seconds,steady_step_seconds=step_seconds[warmup:],
+        logging_seconds=logging_seconds,checkpoint_seconds=checkpoint_seconds,
+        includes_eval_in_step=False,enabled=timing_enabled)
     (args.output/'summary.json').write_text(json.dumps(dict(config=cfg.to_dict(),contract=contract,history=history,
         elapsed_seconds=time.perf_counter()-started,setup_and_training_seconds=time.perf_counter()-wall_started,
-        actual_epochs=completed_epoch,requested_epochs=t.epochs,stopped_by_wall_limit=stopped_by_wall_limit),indent=2)+'\n')
+        actual_epochs=completed_epoch,requested_epochs=t.epochs,stopped_by_wall_limit=stopped_by_wall_limit,
+        timing=timing),indent=2)+'\n')
     if args.joint_train_plateau:
         summary=json.loads((args.output/'summary.json').read_text())
         summary.update(stopped_by_train_plateau=stopped_by_train_plateau,
             stop_reason='train_plateau' if stopped_by_train_plateau else 'wall_limit' if stopped_by_wall_limit else 'update_limit',
             joint_plateau_diagnostics=plateau_diagnostics)
         (args.output/'summary.json').write_text(json.dumps(summary,indent=2)+'\n')
+    report_started=time.perf_counter()
     evaluate_run(args.output,output=args.output/'report')
+    summary=json.loads((args.output/'summary.json').read_text())
+    summary['timing']['report_seconds']=time.perf_counter()-report_started
+    (args.output/'summary.json').write_text(json.dumps(summary,indent=2)+'\n')
 
 
 if __name__=='__main__':main()

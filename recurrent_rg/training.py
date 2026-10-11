@@ -5,7 +5,7 @@ import torch
 from contextlib import nullcontext
 from .losses import qcr_objective
 from .data.views import ensemble_views
-from .checkpoints import checkpoint_payload, load_model_state, qcr_state_dict
+from .checkpoints import checkpoint_payload, load_model_state, qcr_state_dict, isolated_rng, model_device, restore_checkpoint_rng
 from .config import QCRWeights
 
 DTYPE = torch.float64
@@ -29,13 +29,12 @@ def evaluate(model, configurations, pattern_fn, samples: int, *, spin_flip_augme
              objective_kwargs=None) -> dict[str, float]:
     """Evaluate QCR objective on a subset."""
     model.eval()
-    subset = ensemble_views(configurations, samples, spin_flip_augment=spin_flip_augment)
+    device = model_device(model)
+    subset = ensemble_views(configurations, samples, spin_flip_augment=spin_flip_augment).to(device=device, dtype=DTYPE)
     stochastic = getattr(getattr(model.rg_kernel, 'field_head', None), 'sampling_mode', '') in ('bernoulli','categorical')
-    # CPU runner: common random numbers make logged evaluations comparable
+    # Common random numbers make logged evaluations comparable
     # without advancing the training sampling RNG.
-    with (torch.random.fork_rng(devices=[]) if stochastic else nullcontext()), torch.no_grad():
-        if stochastic:
-            torch.manual_seed(12345)
+    with (isolated_rng(device, 12345) if stochastic else nullcontext()), torch.no_grad():
         total, terms = qcr_objective(model, subset, pattern_fn=pattern_fn, **(objective_kwargs or {}))
     return {"total": float(total)} | {key: float(value) for key, value in terms.items()}
 
@@ -47,6 +46,8 @@ def train(model, train_x, test_x, *, pattern_fn, epochs: int, system_batch: int,
           initial_history=None, train_modules=('Q', 'C', 'R'), checkpoint_every=500,
           checkpoint_metadata=None, record_every=None, gradient_mode='joint') -> list[dict[str, float]]:
     """Joint QCR training."""
+    if model_device(model).type != 'cpu':
+        raise ValueError('The historical generic trainer remains CPU-only; use the default QCR driver for CUDA training')
     if progress_dir is not None:
         progress_dir = Path(progress_dir)
     if gradient_mode not in ('joint', 'qc_r_separate'):
@@ -80,7 +81,7 @@ def train(model, train_x, test_x, *, pattern_fn, epochs: int, system_batch: int,
         load_model_state(model, resume_state)
         optimizer.load_state_dict(resume_state['optimizer'])
         generator.set_state(resume_state['batch_generator_state'])
-        torch.set_rng_state(resume_state['torch_rng_state'])
+        restore_checkpoint_rng(resume_state, device='cpu')
         start_epoch = int(resume_state['epoch'])
         if epochs <= start_epoch:
             raise ValueError('Total epochs must exceed the resumed checkpoint epoch')

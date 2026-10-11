@@ -2,6 +2,7 @@
 import numpy as np
 import torch
 from contextlib import nullcontext
+from .checkpoints import isolated_rng
 from .data.views import balanced_views, ensemble_views
 from .metrics import rank_correlation
 
@@ -33,11 +34,9 @@ def collect_trajectories(model, configurations, *, samples, max_rg_steps=None,
     direct, rollout = [], []
     was_training = model.training
     stochastic = getattr(getattr(model.rg_kernel, 'field_head', None), 'sampling_mode', '') in ('bernoulli','categorical')
-    rng_context = torch.random.fork_rng(devices=[]) if stochastic else nullcontext()
+    rng_context = isolated_rng('cpu', sampling_seed) if stochastic else nullcontext()
     try:
         with rng_context:
-            if stochastic:
-                torch.manual_seed(sampling_seed)
             for chunk in configurations.split(chunk_size):
                 _, d, r, _ = trajectory_data(model, chunk, samples, max_rg_steps=max_rg_steps,
                                               spin_flip_augment=spin_flip_augment)
