@@ -2,8 +2,10 @@ from argparse import Namespace
 from copy import deepcopy
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+import torch
 
 from recurrent_rg.config import RunConfig
 from scripts.run_scalar_lr_sweep import build_plan, ensure_data_unchanged, main, make_configs
@@ -99,3 +101,34 @@ def test_pipeline_detects_cache_mutation_after_training_before_any_report(tmp_pa
         pipeline.main(['--cache', str(tmp_path / 'cache.pt'), '--output', str(out)])
     assert state['stages'] == ['training']
     assert json.loads((out / 'pipeline.json').read_text())['status'] == 'failed'
+
+
+@pytest.mark.parametrize('column_labels', [False, True])
+def test_actual_sampler_scalar_label_layout_passes_production_validation(
+        tmp_path, monkeypatch, column_labels):
+    """Production-sized metadata without allocating a 256-MiB spin tensor."""
+    from scripts import run_scalar_lr_sweep as pipeline
+    from scripts.prepare_ising2d_lr_data import coupling_knots
+    knots = coupling_knots().tolist()
+    train_k = [k for i, k in enumerate(knots) if i % 3 != 1]
+    test_k = [k for i, k in enumerate(knots) if i % 3 == 1]
+    ensembles = []
+    for count, values in ((129, train_k), (63, test_k)):
+        labels = torch.tensor([k for k in values for _ in range(3)], dtype=torch.float64)
+        if column_labels:
+            labels = labels[:, None]
+        ensembles.append(SimpleNamespace(
+            configurations=SimpleNamespace(shape=(count, 128, 36, 36, 1)), couplings=labels))
+    metadata = dict(sampling_options=dict(size=36, knots=64, samples=128, replicas=3,
+        equil=4096, gap_low=512, gap_high=128, pilot_samples=1024),
+        B=0., coupling_names=['K'], data_sha256='digest', train_K=train_k, test_K=test_k)
+    cache = tmp_path / 'cache.pt'
+    cache.with_suffix('.json').write_text(json.dumps(metadata))
+    monkeypatch.setattr(pipeline, 'file_fingerprint', lambda path: 'digest')
+    monkeypatch.setattr(pipeline, 'load_ensembles', lambda path: tuple(ensembles))
+    report = pipeline.check_data(cache)
+    assert report['train_shape'] == [129, 128, 36, 36, 1]
+    # Multiple K values per ensemble still fail closed.
+    ensembles[0].couplings = ensembles[0].couplings.flatten()[:, None].expand(-1, 2)
+    with pytest.raises(ValueError, match='K-only labels'):
+        pipeline.check_data(cache)

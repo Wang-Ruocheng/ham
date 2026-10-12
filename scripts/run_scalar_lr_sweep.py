@@ -76,7 +76,10 @@ def check_data(cache):
     for split, ensemble in (('train', train), ('test', test)):
         x, k = ensemble.configurations, ensemble.couplings
         expected_shape = (129 if split == 'train' else 63, 128, 36, 36, 1)
-        if tuple(x.shape) != expected_shape or k.shape[-1] != 1:
+        # Legacy tuple caches (including the production sampler above) store
+        # scalar K as [N]; [N,1] is equivalent metadata, not a second coupling.
+        if (tuple(x.shape) != expected_shape or
+                tuple(k.shape) not in ((expected_shape[0],), (expected_shape[0], 1))):
             raise ValueError(f'{split}: this production pilot requires shape {expected_shape} and K-only labels')
         if not ((k >= .2 - 1e-12) & (k <= .68 + 1e-12)).all():
             raise ValueError(f'{split}: K must be within the declared [.2,.68] zero-field scan')
