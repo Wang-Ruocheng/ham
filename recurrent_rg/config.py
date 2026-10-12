@@ -155,6 +155,15 @@ class TrainingConfig:
     checkpoint_every: int = 500
     log_every: int = 40
     gradient_mode: str = 'joint'
+    lr_schedule: str = 'constant'
+    lr_milestones: tuple[int, ...] = ()
+    lr_gamma: float = .5
+    lr_min_factor: float = .1
+    lr_cosine_updates: int = 0
+
+    def validate_learning_rate(self):
+        from .learning_rate import validate_learning_rate_config
+        validate_learning_rate_config(self)
 
 
 @dataclass(frozen=True)
@@ -201,9 +210,12 @@ class RunConfig:
             loss.setdefault('kernel_sign_weight', 0.1)
         if 'weights' in loss:
             loss['weights'] = QCRWeights(**(asdict(LossConfig().weights) | loss['weights']))
+        training = dict(values.get('training', {}))
+        if isinstance(training.get('lr_milestones'), (list, tuple)):
+            training['lr_milestones'] = tuple(training['lr_milestones'])
         return cls(data=DataConfig(**values['data']), model=ModelConfig(**model), schema_version=version,
                    loss=LossConfig(**loss),
-                   training=TrainingConfig(**values.get('training', {})),
+                   training=TrainingConfig(**training),
                    evaluation=EvaluationConfig(**values.get('evaluation', {})))
 
     @classmethod
@@ -219,6 +231,7 @@ class RunConfig:
 
     def validate(self):
         m, t, e = self.model, self.training, self.evaluation
+        t.validate_learning_rate()
         if self.loss.balanced_reconstruction_weight and not m.affine_reconstruction:
             raise ValueError('Balanced reconstruction requires the shared affine decoder')
         if not isinstance(m.affine_reconstruction, bool) or (m.affine_reconstruction and m.reconstruction_hidden):

@@ -309,6 +309,8 @@ def main(argv=None):
     if (cfg.model.categorical_states or 2)**(block**cfg.model.dimension)>262144:
         raise ValueError('Empirical MI kernel table exceeds 262144 input patterns')
     cfg.validate();t,e=cfg.training,cfg.evaluation
+    from recurrent_rg.learning_rate import LearningRatePolicy
+    lr_policy=LearningRatePolicy(t)
     plateau_settings=dict(minimum=4000,window=2000,confirmations=3,check_every=200,
                           rtol=.01,rebound_rtol=.05,loss_floor=1e-3)
     if args.joint_train_plateau:
@@ -409,6 +411,8 @@ def main(argv=None):
         if bool(initialization)!=args.mi_initialize:raise ValueError('Resume initialization flag mismatch')
         load_model_state(m,resume);opt.load_state_dict(resume['optimizer'])
         if co is not None:critic.load_state_dict(resume['critic']);co.load_state_dict(resume['critic_optimizer'])
+        lr_policy.validate_resume(resume,opt)
+        if co is not None:lr_policy.validate_resume(resume,co)
     elif args.mi_initialize:
         table,initialization=(optimize_categorical_rule(histograms['train'],cfg.model.categorical_states,seed=t.seed) if categorical else
             (best_deterministic_binary_rule if sparse else best_binary_pair_kernel)(histograms['train']))
@@ -444,6 +448,7 @@ def main(argv=None):
     contract['execution_device']=str(device)
     contract['precision']='torch.float64'
     contract['execution_optimizations']=execution
+    contract['learning_rate_policy']=lr_policy.description()
     contract['device_note']='CPU histogram construction; model, selected batches, kernel table and MI tensor algebra on execution_device. Reports reload on CPU.'
     contract['kernel_auxiliaries']=f'Multiscale {cfg.loss.kernel_noncollapse_mode} weight={args.variance_weight}, ratio={args.variance_ratio}; uniform-color NLL weight={args.color_weight}; neutral/distinct disabled'
     if exact:
@@ -470,7 +475,9 @@ def main(argv=None):
             stopping_split='TRAIN only; TEST and critical exponents not used',
             panel='Fixed evenly spaced TRAIN ensembles; fixed half-subsets; C sampling seed12345; full TRAIN empirical MI',
             objectives='Q: affine reconstruction+subset; C: -2 MI+2 variance+color; R: 5 one-step+5 all-horizon rollout',
-            optimizer='Original constant Adam learning rate; no scheduler, freezing or gradient changes',
+            optimizer=('Original constant Adam learning rate; no scheduler, freezing or gradient changes'
+                       if lr_policy.kind=='constant' else
+                       f'Original Adam parameters/moments with deterministic cumulative {lr_policy.kind} learning rates; no freezing or gradient changes'),
             interpretation='Operational local plateau, not global optimality or exact physical scaling')
         if resume is not None and resume['metadata'].get('joint_train_plateau')!=metadata['joint_train_plateau']:
             raise ValueError('Joint plateau exact resume requires identical stopping settings')
@@ -567,7 +574,8 @@ def main(argv=None):
 
     def save(step,name):
         state=checkpoint_payload(m,opt,gen,step,metadata=metadata,history=history)
-        state.update(rsmi_generator_state=rg.get_state())
+        state.update(rsmi_generator_state=rg.get_state(),
+                     lr_scheduler_state=lr_policy.checkpoint_state(step))
         if args.joint_train_plateau:
             state.update(joint_plateau_rows=plateau_rows,
                          joint_plateau_diagnostics=plateau_diagnostics)
@@ -588,6 +596,11 @@ def main(argv=None):
                 metric.axes.shape[1] for metric in m.balanced_reconstruction_metrics]),flush=True)
         if timing_enabled:synchronize()
         update_started=time.perf_counter()
+        # Constant uses the historical Adam path without even rewriting LR.
+        # Scheduling uses cumulative update numbers, not elapsed wall time.
+        if lr_policy.kind!='constant':
+            lr_policy.apply_update(opt,step)
+            if co is not None:lr_policy.apply_update(co,step)
         m.train();critic.train()
         ids=torch.randperm(len(tx.configurations),generator=gen)[:t.system_batch]
         indices=torch.randperm(tx.configurations.shape[1],generator=gen)[:t.sample_batch]
@@ -631,7 +644,7 @@ def main(argv=None):
         stopped_by_wall_limit=args.max_wall_seconds is not None and time.perf_counter()-wall_started>=args.max_wall_seconds
         if step==1 or step%t.log_every==0 or step==t.epochs or stopped_by_wall_limit:
             logging_started=time.perf_counter()
-            row=dict(epoch=step)
+            row=dict(epoch=step,learning_rate=opt.param_groups[0]['lr'])
             m.eval();critic.eval()
             for split,x,full in [('train',train_eval,tx.configurations),('test',test_eval,vx.configurations)]:
                 metrics=evaluate(m,x,fn,e.samples,spin_flip_augment=cfg.data.spin_flip_augment,objective_kwargs=cfg.loss.objective_kwargs())
@@ -699,7 +712,7 @@ def main(argv=None):
     (args.output/'summary.json').write_text(json.dumps(dict(config=cfg.to_dict(),contract=contract,history=history,
         elapsed_seconds=time.perf_counter()-started,setup_and_training_seconds=time.perf_counter()-wall_started,
         actual_epochs=completed_epoch,requested_epochs=t.epochs,stopped_by_wall_limit=stopped_by_wall_limit,
-        timing=timing),indent=2)+'\n')
+        timing=timing,lr_scheduler_state=lr_policy.checkpoint_state(completed_epoch)),indent=2)+'\n')
     if args.joint_train_plateau:
         summary=json.loads((args.output/'summary.json').read_text())
         summary.update(stopped_by_train_plateau=stopped_by_train_plateau,

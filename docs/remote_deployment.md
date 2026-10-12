@@ -71,6 +71,43 @@ and CPU reports are recorded separately; all R(g)-g, coupling and loss plots
 are retained. CPU/CUDA random draws and library versions can differ, so this
 is a performance comparison, not a bitwise physics reproduction.
 
+## Same-data learning-rate pilot
+
+For the positive-K, zero-field single-layer square Ising experiment, the
+detached job wrapper prepares an audited L36 cache and runs the existing
+three-arm comparison:
+
+```bash
+CUDA_VISIBLE_DEVICES=0 .env/bin/python -u -m scripts.run_scalar_lr_gpu_pipeline \
+  --cache /absolute/path/ising2d_positiveK_L36_b3_lr_seed91.pt \
+  --output /new/job --device cuda:0 --epochs 12000 \
+  --max-wall-seconds-per-run 2700
+```
+
+The only arm-dependent setting is the shared Adam learning-rate policy:
+constant 0.001; multistep reductions by 0.3 after 6000 and 9000 updates; or
+cosine decay from 0.001 to 0.00005 over 12000 updates. Each arm starts fresh
+with seed91 and exactly the same cache. The default probabilistic 3x3 C,
+36→12→4 scales, dimg1/hidden96, affine motif reconstruction, C auxiliaries,
+float64 and independent Q/C/R gradient routing are unchanged. This is not
+a reproduction of the historical L32/b2 experiment.
+
+Data use 64 K knots in [0.2, 0.68], three chains per K and 128 stored
+configurations per chain, with hot/cold and finite-chain autocorrelation/ESS
+diagnostics. Complete K points, including replicas, share a split. Known Kc
+and coupling labels are generation/evaluation metadata only.
+
+The top-level `job.json` tracks data preparation and the sweep; the nested
+`sweep/pipeline.json` tracks training and existing final reports. No failed
+stage is automatically retried, no existing result is overwritten, and all
+final roots/inverse-K branches are retained. For b3 the thermal reference is
+lambda=3 and nu=1. A supported positive relevant root gives only a conditional
+nu=ln(3)/ln(lambda); a low closure loss alone does not certify a physical
+exponent. Each 45-minute cap includes training setup, not data generation or
+reports. Compare actual update counts and whether decay was reached; neither
+the cap nor 12000 updates proves a loss platform, and this one-seed pilot is
+not a robustness claim. Do not choose checkpoints by proximity to theory.
+
 For a normal default run:
 
 ```bash

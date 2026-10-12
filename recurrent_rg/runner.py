@@ -45,6 +45,9 @@ def run_training(config: RunConfig, output, *, resume=None, initialize_from=None
         raise ValueError('This legacy runner omits empirical MI and independent C gradients. '
                          'Use python -m recurrent_rg train for the locked default recipe; '
                          'allow_legacy_training=True is only for explicitly requested legacy experiments.')
+    if config.training.lr_schedule != 'constant':
+        raise ValueError('The historical legacy runner supports only constant learning rates; '
+                         'use the locked default QCR driver for scheduled optimization.')
     if resume and initialize_from: raise ValueError('Resume and weight initialization are different operations')
     config=replace(config,data=replace(config.data,cache=str(Path(config.data.cache).resolve())))
     tx,vx=prepared_data(config)
@@ -73,6 +76,12 @@ def run_training(config: RunConfig, output, *, resume=None, initialize_from=None
         previous['loss'].setdefault('kernel_distinct_alpha', 0.0)
         previous['loss'].setdefault('kernel_distinct_margin', 0.8)
         previous['training'].setdefault('gradient_mode', 'joint')
+        # Historical checkpoints predate optional default-driver LR schedules.
+        # Canonical JSON defaults preserve exact constant-LR resume; do not
+        # infer missing fields from requested nondefault values.
+        for name, value in dict(lr_schedule='constant', lr_milestones=[],
+                lr_gamma=.5, lr_min_factor=.1, lr_cosine_updates=0).items():
+            previous['training'].setdefault(name, value)
         current=json.loads(json.dumps(config.to_dict()))
         previous['training']['epochs']=current['training']['epochs']
         if previous!=current or state['metadata']['data_sha256']!=metadata['data_sha256']:
