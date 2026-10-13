@@ -34,6 +34,26 @@ from .empirical_mi import EmpiricalBinaryMI, LocalPairMI
 MI_STATISTICS_CACHE_VERSION = 1
 
 
+def lattice_statistics_cache_key(config, data_sha256, split, configurations,
+                                 environment_offsets, statistics_name,
+                                 statistics_kwargs, *, environment='full_shell'):
+    """Shared identity for trainer and standalone data-only preprocessing.
+
+    Keep the original v1 key unchanged: execution-only support indices do not
+    alter empirical counts, the statistic, or its serialized payload.
+    """
+    return dict(data_sha256=data_sha256, split=split,
+                states=config.model.categorical_states or 2,
+                dimension=config.model.dimension, block=config.model.block_factor,
+                buffer=1, environment_offsets=environment_offsets.tolist(),
+                flip=config.data.spin_flip_augment,
+                pooling=(config.data.train_pool_replicas if split == 'train'
+                         else config.data.test_pool_replicas),
+                dtype=str(configurations.dtype), shape=list(configurations.shape),
+                environment=environment, statistics=statistics_name,
+                statistics_kwargs=statistics_kwargs)
+
+
 class MIStatisticsCacheError(RuntimeError):
     """An existing statistics cache cannot be safely or consistently reused."""
 

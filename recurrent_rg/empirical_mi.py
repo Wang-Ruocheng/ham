@@ -3,7 +3,7 @@
 No environment projection: merge E categories only if their empirical P(V|E)
 is identical. Keep ensemble-dependent weights and marginals separate.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 import numpy as np
 import torch
 from .rsmi import region_offsets
@@ -19,11 +19,39 @@ def categorical_entropy(p):
 
 
 @dataclass
+class _EmpiricalMISelection:
+    """CPU row maps and canonical tensors derived from the static histogram.
+
+    This is execution state, never part of the on-disk statistics cache. Sparse
+    rows are already sorted/coalesced, so selected batches need no coalescing
+    or device-to-host reads in the training loop.
+    """
+    weight_offsets: np.ndarray
+    weight_conditionals: np.ndarray
+    weights: torch.Tensor
+    conditional: torch.Tensor
+    conditional_offsets: np.ndarray | None = None
+    conditional_columns: np.ndarray | None = None
+
+
+def _selected_row_entries(offsets, rows):
+    """Vectorized positions in ragged rows, retaining the requested row order."""
+    lengths = offsets[rows + 1] - offsets[rows]
+    ends = np.cumsum(lengths)
+    starts = np.r_[0, ends[:-1]]
+    positions = (np.repeat(offsets[rows] - starts, lengths)
+                 + np.arange(int(ends[-1]) if len(ends) else 0))
+    return positions, np.repeat(np.arange(len(rows)), lengths)
+
+
+@dataclass
 class EmpiricalBinaryMI:
     conditional: torch.Tensor
     weights: torch.Tensor
     marginal: torch.Tensor
     diagnostics: dict
+    _selection: _EmpiricalMISelection | None = field(default=None, init=False,
+                                                    repr=False, compare=False)
 
     def __len__(self):return len(self.marginal)
 
@@ -36,8 +64,112 @@ class EmpiricalBinaryMI:
         """
         move = lambda tensor: tensor.to(device=device, dtype=dtype,
                                         non_blocking=non_blocking)
-        return EmpiricalBinaryMI(move(self.conditional), move(self.weights),
-                                 move(self.marginal), self.diagnostics)
+        result = EmpiricalBinaryMI(move(self.conditional), move(self.weights),
+                                   move(self.marginal), self.diagnostics)
+        if self._selection is not None:
+            selection = self._selection
+            # Coalesced inputs share their already-moved public tensors. Direct
+            # callers may have supplied uncoalesced tensors; retain the prepared
+            # canonical version without repeating coalescing inside each step.
+            result._selection = replace(selection,
+                weights=(result.weights if selection.weights is self.weights
+                         else move(selection.weights)),
+                conditional=(result.conditional if selection.conditional is self.conditional
+                             else move(selection.conditional)))
+        return result
+
+    def prepare_selection(self):
+        """Index ensemble supports once on CPU before moving statistics.
+
+        The original histogram tensors and historical cache payload are kept
+        intact. Only row pointers/columns are indexed; no kernel, randomness,
+        or ensemble weights enter this setup. Call ``information_for`` with
+        the existing CPU-generated ensemble IDs after ``to(device)``.
+        """
+        if self._selection is not None:
+            return self
+        if self.weights.device.type != 'cpu' or self.conditional.device.type != 'cpu':
+            raise ValueError('Prepare empirical MI selection on CPU before to(device)')
+        weights = self.weights.to_sparse_coo().coalesce()
+        weight_indices = weights.indices().numpy()
+        weight_offsets = np.r_[0, np.cumsum(np.bincount(
+            weight_indices[0], minlength=len(self)))]
+        conditional = self.conditional
+        conditional_offsets = conditional_columns = None
+        if conditional.layout != torch.strided:
+            conditional = conditional.to_sparse_coo().coalesce()
+            conditional_indices = conditional.indices().numpy()
+            conditional_offsets = np.r_[0, np.cumsum(np.bincount(
+                conditional_indices[0], minlength=conditional.shape[0]))]
+            # Own just the column map so moving the histogram can release its
+            # larger CPU COO index storage (including the redundant row map).
+            conditional_columns = conditional_indices[1].copy()
+        self._selection = _EmpiricalMISelection(
+            weight_offsets, weight_indices[1].copy(), weights, conditional,
+            conditional_offsets, conditional_columns)
+        return self
+
+    def information_for(self, table, indices):
+        """Exact MI for selected ensembles, in order and with repeats preserved.
+
+        CPU selection IDs avoid a CUDA synchronization. One batch evaluates
+        the union of active conditional rows and selected marginal rows, then
+        applies the original per-ensemble weights. Setup and evaluation consume
+        no random draws, and the support index is bounded by the histogram size.
+        """
+        if isinstance(indices, torch.Tensor):
+            if indices.device.type != 'cpu':
+                raise ValueError('Selected empirical MI indices must remain on CPU')
+            if indices.dtype not in (torch.int8, torch.int16, torch.int32, torch.int64,
+                                     torch.uint8):
+                raise TypeError('Selected empirical MI indices must be integers')
+            indices = indices.numpy()
+        ids = np.asarray(indices)
+        if ids.ndim != 1:
+            raise ValueError('Selected empirical MI indices must be one-dimensional')
+        if ids.size and not np.issubdtype(ids.dtype, np.integer):
+            raise TypeError('Selected empirical MI indices must be integers')
+        ids = ids.astype(np.int64, copy=False)
+        if np.any(ids < -len(self)) or np.any(ids >= len(self)):
+            raise IndexError('Selected empirical MI ensemble index is out of range')
+        ids = np.where(ids < 0, ids + len(self), ids)
+        if self._selection is None:
+            self.prepare_selection()
+        selection = self._selection
+        device = table.device
+        # Keep all host-generated index copies nonblocking on CUDA. Supplying
+        # device directly to as_tensor would use blocking copies by default.
+        index_tensor = lambda values: torch.as_tensor(values, dtype=torch.long).to(
+            device=device, non_blocking=True)
+        marginal = self.marginal.index_select(0, index_tensor(ids))
+        binary = table.shape[1] == 2
+        marginal_entropy = (binary_entropy(marginal @ table[:, 1]) if binary
+                            else categorical_entropy(marginal @ table))
+        if not len(ids):
+            return marginal_entropy
+
+        weight_positions, owners = _selected_row_entries(selection.weight_offsets, ids)
+        active, inverse = np.unique(selection.weight_conditionals[weight_positions],
+                                    return_inverse=True)
+        if selection.conditional_offsets is None:
+            conditional = selection.conditional.index_select(0, index_tensor(active))
+        else:
+            positions, rows = _selected_row_entries(selection.conditional_offsets, active)
+            conditional = torch.sparse_coo_tensor(
+                index_tensor(np.stack((rows, selection.conditional_columns[positions]))),
+                selection.conditional.values().index_select(0, index_tensor(positions)),
+                (len(active), selection.conditional.shape[1]), device=device,
+                is_coalesced=True)
+        probabilities = table[:, 1:2] if binary else table
+        conditional_probabilities = (torch.sparse.mm(conditional, probabilities)
+                                     if conditional.is_sparse else conditional @ probabilities)
+        conditional_entropy = (binary_entropy(conditional_probabilities[:, 0]) if binary
+                               else categorical_entropy(conditional_probabilities))
+        weights = torch.sparse_coo_tensor(
+            index_tensor(np.stack((owners, inverse))),
+            selection.weights.values().index_select(0, index_tensor(weight_positions)),
+            (len(ids), len(active)), device=device, is_coalesced=True)
+        return marginal_entropy - torch.sparse.mm(weights, conditional_entropy[:, None]).squeeze(-1)
 
     def information(self,table):
         if table.shape[1]!=2:
@@ -150,6 +282,14 @@ class LocalPairMI:
 
     def information(self, table):
         return torch.stack([g.information(table) for g in self.groups]).mean(0)
+
+    def prepare_selection(self):
+        for group in self.groups:
+            group.prepare_selection()
+        return self
+
+    def information_for(self, table, indices):
+        return torch.stack([g.information_for(table, indices) for g in self.groups]).mean(0)
 
 
 def categorical_local_pair_mi_statistics(x, *, flip=False, shuffle_visible_seed=None):

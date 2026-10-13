@@ -89,6 +89,7 @@ def build_parser():
     p.add_argument('--resume-checkpoint',type=Path,help='Resume this driver with identical objectives and RNG/Adam state')
     p.add_argument('--epochs',type=int,help='Total updates, including updates already completed when resuming')
     p.add_argument('--max-wall-seconds',type=float,help='Optional setup+training wall limit; finish the current step and save actual progress')
+    p.add_argument('--max-training-seconds',type=float,help='Optional training-only wall limit after completed setup; save actual progress, never reduce configured epochs')
     p.add_argument('--joint-train-plateau',action='store_true',
                    help='Stop complete default Q/C/R training on separate TRAIN-only objective plateaus; no LR or gradient changes')
     p.add_argument('--freeze-c-checkpoint',type=Path,help='Explicit ablation: warm-start Q/C/R weights and freeze this learned probabilistic C; reset Adam')
@@ -136,9 +137,31 @@ def default_representation(cfg, raw_config, *, continuing=False):
     return replace(cfg,model=replace(cfg.model,affine_reconstruction=True))
 
 
+def selected_mi_execution(execution, sparse, resume):
+    """Fresh optimized runs may select supports; exact old resumes stay old."""
+    if not execution['enabled'] or not sparse:
+        return False
+    if resume is None:
+        return True
+    return bool(resume.get('metadata',{}).get('execution_optimizations',{}).get(
+        'selected_empirical_mi',False))
+
+
+def validate_training_clock(args):
+    if args.max_training_seconds is None:
+        return
+    if not math.isfinite(args.max_training_seconds) or args.max_training_seconds<=0:
+        raise ValueError('max-training-seconds must be finite and positive')
+    if args.max_wall_seconds is not None:
+        raise ValueError('Choose either max-training-seconds or max-wall-seconds, not both')
+    if args.source is not None:
+        raise ValueError('Training-only clock requires a standalone default config')
+
+
 def main(argv=None):
     wall_started=time.perf_counter()
     args=build_parser().parse_args(argv)
+    validate_training_clock(args)
     device=torch.device(args.device)
     if device.type not in ('cpu','cuda') or (device.type=='cpu' and device.index is not None):
         raise ValueError('Supported execution devices are cpu and cuda:<index>')
@@ -362,19 +385,15 @@ def main(argv=None):
     statistics_kwargs={'block':block} if sparse and args.environment=='full_shell' else {}
     histograms=None
     execution['mi_statistics_cache']={}
+    resume=torch.load(args.resume_checkpoint,map_location='cpu',weights_only=True) if args.resume_checkpoint else None
     if exact:
         histograms={}
         for split,x in [('train',tx.configurations),('test',vx.configurations)]:
             build=lambda x=x:statistics(x,flip=cfg.data.spin_flip_augment,**statistics_kwargs)
             if execution['enabled']:
-                from recurrent_rg.mi_cache import load_or_build_mi_statistics
-                key_data=dict(data_sha256=data_sha256,split=split,
-                    states=cfg.model.categorical_states or 2,dimension=cfg.model.dimension,
-                    block=block,buffer=1,environment_offsets=env.tolist(),
-                    flip=cfg.data.spin_flip_augment,
-                    pooling=cfg.data.train_pool_replicas if split=='train' else cfg.data.test_pool_replicas,
-                    dtype=str(x.dtype),shape=list(x.shape),environment=args.environment,
-                    statistics=statistics.__name__,statistics_kwargs=statistics_kwargs)
+                from recurrent_rg.mi_cache import load_or_build_mi_statistics, lattice_statistics_cache_key
+                key_data=lattice_statistics_cache_key(cfg,data_sha256,split,x,env,
+                    statistics.__name__,statistics_kwargs,environment=args.environment)
                 cache_dir=args.mi_cache_dir or Path(cfg.data.cache).parent/'.qcr_mi_cache'
                 hist,cache_record=load_or_build_mi_statistics(cache_dir,key_data,build)
                 histograms[split]=hist
@@ -384,12 +403,14 @@ def main(argv=None):
                 histograms[split]=build()
     # Histogram construction/compression stays on CPU; only its existing tensors
     # move once. No change to the empirical MI estimator or sampled ensembles.
+    execution['selected_empirical_mi']=selected_mi_execution(execution,sparse,resume)
+    if histograms is not None and execution['selected_empirical_mi']:
+        histograms['train'].prepare_selection()
     if histograms is not None:
         histograms={split:hist.to(device) for split,hist in histograms.items()}
     train_configurations,residency=resident_training_data(tx.configurations,device,
                                                         enabled=execution['enabled'])
     execution['training_data']=residency
-    resume=torch.load(args.resume_checkpoint,map_location='cpu',weights_only=True) if args.resume_checkpoint else None
     if resume is not None and bool(resume['metadata'].get('joint_train_plateau'))!=args.joint_train_plateau:
         raise ValueError('Exact resume must preserve the joint TRAIN plateau stopping convention')
     initialization=None
@@ -568,7 +589,7 @@ def main(argv=None):
 
     timing_enabled=args.benchmark_warmup is not None
     step_seconds=[];logging_seconds=0.;checkpoint_seconds=0.
-    if timing_enabled:synchronize()
+    if timing_enabled or args.max_training_seconds is not None:synchronize()
     setup_seconds=time.perf_counter()-wall_started
     training_started=time.perf_counter()
 
@@ -584,6 +605,7 @@ def main(argv=None):
 
     completed_epoch=0 if resume is None else resume['epoch']
     stopped_by_wall_limit=False
+    stopped_by_training_limit=False
     stopped_by_train_plateau=False
     for step in range(1 if resume is None else resume['epoch']+1,t.epochs+1):
         if cfg.loss.balanced_reconstruction_weight and step>1 and (step-1)%t.checkpoint_every==0:
@@ -618,7 +640,9 @@ def main(argv=None):
         elif exact:
             selected_hist=torch.randperm(len(tx.configurations),generator=rg)[:systems]
             table=probabilities(m.rg_kernel,patterns)[0]
-            info=(histograms['train'].information(table)[selected_hist].mean() if sparse else
+            info=(histograms['train'].information_for(table,selected_hist).mean()
+                  if execution['selected_empirical_mi'] else
+                  histograms['train'].information(table)[selected_hist].mean() if sparse else
                   histogram_mutual_information(histograms['train'][selected_hist],table).mean())
         else:
             v,envs=sample_regions(tx.configurations,systems,pairs,rg,buffer=1,flip=cfg.data.spin_flip_augment)
@@ -642,7 +666,8 @@ def main(argv=None):
             synchronize();step_seconds.append(time.perf_counter()-update_started)
         completed_epoch=step
         stopped_by_wall_limit=args.max_wall_seconds is not None and time.perf_counter()-wall_started>=args.max_wall_seconds
-        if step==1 or step%t.log_every==0 or step==t.epochs or stopped_by_wall_limit:
+        stopped_by_training_limit=args.max_training_seconds is not None and time.perf_counter()-training_started>=args.max_training_seconds
+        if step==1 or step%t.log_every==0 or step==t.epochs or stopped_by_wall_limit or stopped_by_training_limit:
             logging_started=time.perf_counter()
             row=dict(epoch=step,learning_rate=opt.param_groups[0]['lr'])
             m.eval();critic.eval()
@@ -697,7 +722,10 @@ def main(argv=None):
         if stopped_by_wall_limit:
             print(f'Wall limit reached after actual epoch {step}; saving completed training, not restarting.',flush=True)
             break
-    if timing_enabled:synchronize()
+        if stopped_by_training_limit:
+            print(f'Training-only limit reached after actual epoch {step}; saving completed training, not restarting.',flush=True)
+            break
+    if timing_enabled or args.max_training_seconds is not None:synchronize()
     training_wall_seconds=time.perf_counter()-training_started
     checkpoint_started=time.perf_counter()
     save(completed_epoch,'checkpoint_last.pt');torch.save(qcr_state_dict(m),args.output/'qcr_model.pt')
@@ -712,11 +740,12 @@ def main(argv=None):
     (args.output/'summary.json').write_text(json.dumps(dict(config=cfg.to_dict(),contract=contract,history=history,
         elapsed_seconds=time.perf_counter()-started,setup_and_training_seconds=time.perf_counter()-wall_started,
         actual_epochs=completed_epoch,requested_epochs=t.epochs,stopped_by_wall_limit=stopped_by_wall_limit,
+        stopped_by_training_limit=stopped_by_training_limit,training_limit_seconds=args.max_training_seconds,
         timing=timing,lr_scheduler_state=lr_policy.checkpoint_state(completed_epoch)),indent=2)+'\n')
     if args.joint_train_plateau:
         summary=json.loads((args.output/'summary.json').read_text())
         summary.update(stopped_by_train_plateau=stopped_by_train_plateau,
-            stop_reason='train_plateau' if stopped_by_train_plateau else 'wall_limit' if stopped_by_wall_limit else 'update_limit',
+            stop_reason='train_plateau' if stopped_by_train_plateau else 'wall_limit' if stopped_by_wall_limit else 'training_limit' if stopped_by_training_limit else 'update_limit',
             joint_plateau_diagnostics=plateau_diagnostics)
         (args.output/'summary.json').write_text(json.dumps(summary,indent=2)+'\n')
     report_started=time.perf_counter()
