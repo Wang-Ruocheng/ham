@@ -1,0 +1,98 @@
+{
+  "data": {
+    "cache": "/mnt/nas-new/home/yange/ham/data/ising2d_positiveK_L36_b3_replicas12_seed91.pt",
+    "physical_model": "ising2d",
+    "coupling_names": [
+      "K"
+    ],
+    "spin_flip_augment": false,
+    "spin_flip_symmetric": true,
+    "train_pool_replicas": 1,
+    "test_pool_replicas": 1
+  },
+  "model": {
+    "categorical_states": 0,
+    "dimension": 2,
+    "theory_dim": 1,
+    "hidden": 96,
+    "width": 3,
+    "block_factor": 3,
+    "kernel_layout": "nonoverlapping",
+    "fixed_kernel": false,
+    "binary_lookup": true,
+    "kernel_initialization": "random",
+    "kernel_sampling": "bernoulli",
+    "kernel_temperature": 1,
+    "reconstruction_hidden": 0,
+    "affine_reconstruction": true,
+    "theory_head": "nonlinear"
+  },
+  "loss": {
+    "balanced_reconstruction_weight": 0,
+    "geometry_scale": 4,
+    "geometry_mode": "absolute",
+    "geometry_distance": "euclidean",
+    "geometry_bounds": "interval",
+    "geometry_relative_floor": 0.05,
+    "geometry_max_inverse_weight": 100,
+    "geometry_neighbors": 4,
+    "geometry_local_fraction": 0.5,
+    "geometry_tail_mix": 0,
+    "geometry_tail_add_weight": 0,
+    "geometry_tail_fraction": 0.1,
+    "geometry_tail_min_reliability": 0.5,
+    "noise_multiplier": 2,
+    "rollout_weight": 5,
+    "isotropy_weight": 0,
+    "tangent_weight": 0,
+    "orientation_weight": 0,
+    "orientation_radius": 0.02,
+    "kernel_sign_weight": 1,
+    "kernel_neutral_weight": 0,
+    "kernel_neutral_max_patterns": 65536,
+    "kernel_distinct_alpha": 0,
+    "kernel_distinct_margin": 0.8,
+    "closure_metric": "euclidean",
+    "coordinate_reduction": "sum",
+    "kernel_noncollapse_mode": "variance_floor_ensemble",
+    "kernel_variance_ratio": 1,
+    "weights": {
+      "anchor": 2,
+      "coarse_consistency": 5,
+      "kernel_noncollapse": 2,
+      "separation": 10,
+      "commutator": 5
+    }
+  },
+  "training": {
+    "max_rg_steps": 2,
+    "epochs": 12000,
+    "system_batch": 16,
+    "sample_batch": 128,
+    "learning_rate": 0.001,
+    "seed": 91,
+    "threads": 2,
+    "train_modules": [
+      "Q",
+      "C",
+      "R"
+    ],
+    "checkpoint_every": 1000,
+    "log_every": 200,
+    "gradient_mode": "qc_r_separate",
+    "lr_schedule": "multistep",
+    "lr_milestones": [
+      6000,
+      9000
+    ],
+    "lr_gamma": 0.3,
+    "lr_min_factor": 0.1,
+    "lr_cosine_updates": 0
+  },
+  "evaluation": {
+    "max_rg_steps": 2,
+    "samples": 128,
+    "systems": 24
+  },
+  "schema_version": 5
+}

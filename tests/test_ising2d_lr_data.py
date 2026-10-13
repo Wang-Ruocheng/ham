@@ -35,6 +35,26 @@ def test_production_defaults_and_complete_K_splits():
     assert {k: getattr(parsed, k) for k in options.__dataclass_fields__} == vars(options)
 
 
+def test_expanded_depth_metadata_and_sampling_are_explicit(tmp_path, monkeypatch):
+    monkeypatch.setattr(preparation, 'chain', fake_chain)
+    options = preparation.SamplingOptions(size=108, max_rg_steps=3).validate()
+    assert options.max_rg_steps == 3
+    report = preparation.prepare_data(tmp_path / 'expanded.pt', size=108, max_rg_steps=3,
+                                     **small_options())
+    assert report['lattice_sizes'] == [108, 36, 12, 4]
+    assert report['max_rg_steps'] == report['sampling_options']['max_rg_steps'] == 3
+    assert report['train_shape'] == [12, 8, 108, 108, 1]
+    parsed = preparation.build_parser().parse_args(['--output', 'cache.pt', '--size', '108',
+                                                   '--max-rg-steps', '3'])
+    assert parsed.size == 108 and parsed.max_rg_steps == 3
+
+
+@pytest.mark.parametrize('size,depth', [(36, 3), (72, 3), (108, 4), (100, 3), (108, 0)])
+def test_expanded_depth_rejects_divisibility_and_tiny_final_scale(size, depth):
+    with pytest.raises(ValueError):
+        preparation.SamplingOptions(size=size, max_rg_steps=depth).validate()
+
+
 @pytest.mark.parametrize('changes', [dict(size=32), dict(size=27), dict(size=40),
     dict(size=0), dict(seed=-1), dict(knots=5), dict(samples=7), dict(replicas=0),
     dict(equil=-1), dict(gap_low=0), dict(gap_high=0), dict(pilot_samples=7),

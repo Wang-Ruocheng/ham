@@ -63,10 +63,15 @@ def preview_stages(run, epoch, out, theory_dim, coupling_names=None, training_dr
             stages.append(('exponents', [sys.executable, '-m',
                 'scripts.report_ising_scalar_exponents', *base]))
     elif theory_dim == 2:
-        report = ('scripts.report_ising2d_KB_vector' if tuple(coupling_names or ()) == ('K', 'B')
+        single_k_ising = (tuple(coupling_names or ()) == ('K',) and not categorical_states
+                          and physical_model == 'ising2d')
+        report = ('scripts.report_ising2d_K_vector' if single_k_ising else
+                  'scripts.report_ising2d_KB_vector' if tuple(coupling_names or ()) == ('K', 'B')
                   else 'scripts.report_dual_ising_vector')
         stages = [('phase', [sys.executable, '-m', report,
                              *base, '--threads', '1'])]
+        if single_k_ising:
+            stages[0][1].extend(['--sampling-repeats', '0'])
     else:
         raise ValueError('Checkpoint previews support dim g = 1 or 2')
     loss_report = ('scripts.report_r_plateau_loss' if training_driver == 'frozen_qc_r_plateau'

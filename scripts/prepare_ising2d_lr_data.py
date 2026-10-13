@@ -32,6 +32,7 @@ GAP_BOUNDARY = .36
 @dataclass(frozen=True)
 class SamplingOptions:
     size: int = 36
+    max_rg_steps: int = 2
     seed: int = 91
     knots: int = 64
     samples: int = 128
@@ -42,7 +43,7 @@ class SamplingOptions:
     pilot_samples: int = 1024
 
     def validate(self):
-        minimums = dict(size=1, seed=0, knots=6, samples=8, replicas=1,
+        minimums = dict(size=1, max_rg_steps=1, seed=0, knots=6, samples=8, replicas=1,
                         equil=0, gap_low=1, gap_high=1, pilot_samples=8)
         for name, minimum in minimums.items():
             value = getattr(self, name)
@@ -51,7 +52,7 @@ class SamplingOptions:
         # The default model requires a final side of at least four, not a
         # rounded/cropped lattice.  In particular L32 and L72 with three RG
         # updates must not be mistaken for the 36 -> 12 -> 4 experiment.
-        ScaleConfig((self.size, self.size), max_rg_steps=2, block_factor=3).shapes()
+        ScaleConfig((self.size, self.size), max_rg_steps=self.max_rg_steps, block_factor=3).shapes()
         return self
 
 
@@ -109,7 +110,7 @@ def _checked_chain(k, options, draws, seed, cold=False):
     return configurations, gap
 
 
-def prepare_data(output, *, size=36, seed=91, knots=64, samples=128,
+def prepare_data(output, *, size=36, max_rg_steps=2, seed=91, knots=64, samples=128,
                  replicas=3, equil=4096, gap_low=512, gap_high=128,
                  pilot_samples=1024):
     """Write a new float64 tuple cache and return its sampling metadata.
@@ -120,7 +121,7 @@ def prepare_data(output, *, size=36, seed=91, knots=64, samples=128,
     targets; an interrupted publication must be inspected rather than silently
     overwritten or treated as a complete audit.
     """
-    options = SamplingOptions(size=size, seed=seed, knots=knots, samples=samples,
+    options = SamplingOptions(size=size, max_rg_steps=max_rg_steps, seed=seed, knots=knots, samples=samples,
                               replicas=replicas, equil=equil, gap_low=gap_low,
                               gap_high=gap_high, pilot_samples=pilot_samples).validate()
     output = Path(output)
@@ -143,9 +144,9 @@ def prepare_data(output, *, size=36, seed=91, knots=64, samples=128,
         sampler_implementation='Unchanged scripts.prepare_ising2d_qcr.chain/stats',
         physical_model='Single-layer square Ising, positive K, B=0',
         coupling_names=['K'], B=0., sites=options.size,
-        block_factor=3, max_rg_steps=2,
+        block_factor=3, max_rg_steps=options.max_rg_steps,
         lattice_sizes=[shape[0] for shape in ScaleConfig(
-            (options.size, options.size), 2, block_factor=3).shapes()],
+            (options.size, options.size), options.max_rg_steps, block_factor=3).shapes()],
         seed=seed, sampling_options=asdict(options),
         draws=options.samples, replicas=options.replicas,
         equilibration_cluster_updates=options.equil,
@@ -161,7 +162,7 @@ def prepare_data(output, *, size=36, seed=91, knots=64, samples=128,
                                 training_spin_flip_augment=False),
         seed_derivation='uint32 SeedSequence([seed, namespace, index]); 0=pilot, 1=chain, 2=global-sign draw',
         historical_reproduction=False,
-        historical_note='New L36/default-b3 cache with new namespaced seed streams, not the historical L32 fingerprint',
+        historical_note=f'New L{options.size}/default-b3 cache with new namespaced seed streams, not the historical L32 fingerprint',
         uncertainty_note='Autocorrelation, ESS and standard errors are finite-chain estimates, not proof of independent draws or equilibration',
         cache_format='float64 (train_X, train_K, test_X, test_K) tuple',
         pilot=[], ensembles=[])

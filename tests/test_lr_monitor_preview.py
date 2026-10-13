@@ -27,6 +27,18 @@ def test_default_lr_pilot_reports_scalar_exponents_and_loss_without_mi(tmp_path)
     assert all('experiments.rsmi_separate_qcr' not in command for _, command in stages)
 
 
+def test_single_K_vector_preview_routes_to_single_layer_report_without_extra_sampling(tmp_path):
+    stages = preview.preview_stages(tmp_path, 1000, tmp_path / 'out', 2,
+        coupling_names=['K'], physical_model='ising2d')
+    assert [name for name, _ in stages] == ['phase', 'loss']
+    assert 'scripts.report_ising2d_K_vector' in stages[0][1]
+    assert stages[0][1][-2:] == ['--sampling-repeats', '0']
+    assert 'scripts.report_dual_ising_vector' not in stages[0][1]
+    field_stages = preview.preview_stages(tmp_path, 1000, tmp_path / 'out', 2,
+        coupling_names=['K', 'B'], physical_model='ising2d')
+    assert 'scripts.report_ising2d_KB_vector' in field_stages[0][1]
+
+
 def test_complete_preview_is_reused_without_running_any_report(tmp_path, monkeypatch):
     checkpoint = tmp_path / 'training_step_1000.pt'
     checkpoint.write_bytes(b'checkpoint')
