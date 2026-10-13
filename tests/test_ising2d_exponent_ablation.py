@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import pytest
 import torch
 
+from recurrent_rg.config import RunConfig
 from scripts import run_ising2d_exponent_ablation as pipeline
 
 
@@ -107,6 +108,41 @@ def test_control_source_requires_exact_config_rng_adam_and_actual_updates(tmp_pa
     assert audit['actual_epochs'] == 9989
     assert all(path.read_bytes() == content for path, content in before.items())
     assert len(audit['files']) == 3
+
+
+@pytest.mark.parametrize('change_value', [False, True])
+def test_real_torch_checkpoint_dataclass_tuples_are_json_equivalent_only(tmp_path, change_value):
+    plan = pipeline.build_plan(arguments(tmp_path))
+    config = plan['arms'][0]['config']
+    source = Path(plan['baseline_run'])
+    source.mkdir(parents=True)
+    checkpoint_config = RunConfig.from_dict(config).to_dict()
+    assert isinstance(checkpoint_config['training']['lr_milestones'], tuple)
+    assert isinstance(config['training']['lr_milestones'], list)
+    assert checkpoint_config != config
+    assert json.loads(json.dumps(checkpoint_config)) == config
+    if change_value:
+        checkpoint_config['training']['lr_gamma'] = .4
+    checkpoint = dict(epoch=9989, metadata=dict(config=checkpoint_config,
+        data_sha256=pipeline.SOURCE_DATA_SHA256,
+        execution_optimizations=dict(selected_empirical_mi=True)), optimizer={},
+        batch_generator_state=torch.get_rng_state(), rsmi_generator_state=torch.get_rng_state(),
+        torch_rng_state=torch.get_rng_state(), cuda_rng_state=torch.get_rng_state(), cuda_device_index=0,
+        history=[], lr_scheduler_state=dict(completed_updates=9989))
+    (source / 'manifest.json').write_text(json.dumps(dict(config=config,
+        data_sha256=pipeline.SOURCE_DATA_SHA256, labels_used_in_training=False)))
+    (source / 'summary.json').write_text(json.dumps(dict(config=config,
+        actual_epochs=9989, requested_epochs=12000)))
+    path = source / 'checkpoint_last.pt'
+    torch.save(checkpoint, path)
+    before = path.read_bytes()
+    if change_value:
+        with pytest.raises(ValueError, match='metadata'):
+            pipeline.check_source(source, config)
+    else:
+        audit = pipeline.check_source(source, config)
+        assert audit['actual_epochs'] == 9989
+    assert path.read_bytes() == before
 
 
 @pytest.mark.parametrize('mutation,match', [

@@ -167,7 +167,11 @@ def check_source(source, config, *, device='cuda:0'):
             or checkpoint.get('epoch') != SOURCE_UPDATES):
         raise ValueError('Control must resume the actual 9989-update source into 12000 cumulative updates')
     metadata = checkpoint.get('metadata', {})
-    if metadata.get('config') != config or metadata.get('data_sha256') != SOURCE_DATA_SHA256:
+    # Torch preserves dataclass tuples (notably lr_milestones), whereas the
+    # manifest and preregistered plan have passed through JSON and contain lists.
+    # Compare the lossless JSON representation, retaining every config value.
+    checkpoint_config = json.loads(json.dumps(metadata.get('config'), allow_nan=False))
+    if checkpoint_config != config or metadata.get('data_sha256') != SOURCE_DATA_SHA256:
         raise ValueError('Source checkpoint metadata or original data fingerprint differs')
     required = ('optimizer', 'batch_generator_state', 'rsmi_generator_state', 'torch_rng_state',
                 'history', 'lr_scheduler_state')
