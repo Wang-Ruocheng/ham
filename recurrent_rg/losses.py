@@ -1,8 +1,9 @@
 """Shared QCR objective. Labels and physical sampling never enter this module."""
 import torch
 import torch.nn.functional as F
-from .config import QCRWeights
+from .config import QCRWeights, validate_closure_scale_weights, validate_closure_objective
 from .metrics import mean_pairwise_square
+from .encoding import split_theory_views
 
 def binary_kernel_noncollapse(levels: list[torch.Tensor]) -> torch.Tensor:
     """Keep both binary coarse states populated across a balanced batch.
@@ -175,14 +176,76 @@ def local_tangent_loss(source, predicted, target, pa, pb, neighbors=4, noise_mul
     return (residual.square().sum(-1)*inverse*reliability).sum()/reliability.sum().clamp_min(1e-12)
 
 
-def multistep_closure_loss(model, direct, coordinate_reduction='sum'):
+def closure_scale_mean(terms, closure_scale_weights=None):
+    """Normalized target-scale mean; a uniform choice preserves legacy math.
+
+    Rescale weights before tensor conversion so even large finite entries do
+    not overflow in lower-precision objectives. No labels or batch statistics
+    enter the fixed scale weights.
+    """
+    values = torch.stack(terms)
+    scale_weights = validate_closure_scale_weights(closure_scale_weights, len(terms))
+    if scale_weights is None or len(set(scale_weights)) == 1:
+        return values.mean()
+    largest = max(scale_weights)
+    weights = values.new_tensor([value/largest for value in scale_weights])
+    return (values * (weights/weights.sum())).sum()
+
+
+def one_step_closure_loss(predicted, target, coordinate_reduction='sum',
+                          closure_scale_weights=None):
+    """One-step closure weighted by target k, retaining legacy raw metrics."""
+    scale_weights = validate_closure_scale_weights(closure_scale_weights, target.shape[1])
+    unweighted = latent_squared_error(predicted, target, coordinate_reduction)
+    errors = [latent_squared_error(predicted[:, k], target[:, k], coordinate_reduction)
+              for k in range(target.shape[1])]
+    # The vectorized legacy reduction may differ at roundoff from a mean of
+    # per-scale means. Keep it exactly for None and every uniform weighting.
+    loss = (unweighted if scale_weights is None or len(set(scale_weights)) == 1
+            else closure_scale_mean(errors, scale_weights))
+    return loss, errors, unweighted
+
+
+def multistep_closure_loss(model, direct, coordinate_reduction='sum',
+                           closure_scale_weights=None):
     """Autonomous rollout from g0; retain gradients through every R call."""
     predicted = direct[:, 0]
     errors = []
     for k in range(1, direct.shape[1]):
         predicted = model.advance_theory(predicted)
         errors.append(latent_squared_error(predicted, direct[:, k], coordinate_reduction))
-    return torch.stack(errors).mean(), errors
+    return closure_scale_mean(errors, closure_scale_weights), errors
+
+
+def all_start_anchor_closure_loss(model, direct, coordinate_reduction='sum',
+                                  closure_scale_weights=None):
+    """Match every earlier start to each directly encoded target scale.
+
+    Average starts within each target, then average target scales uniformly.
+    Every recurrent R call stays in the graph. The supplied encodings and C
+    trajectory are reused; no physical labels, additional sampling or Q calls
+    enter this loss. Gradient routing to R alone is the trainer's responsibility.
+
+    Return the normalized loss, per-target means and raw (start, target) errors.
+    """
+    if direct.ndim != 3 or min(direct.shape) < 1 or direct.shape[1] < 2:
+        raise ValueError('all_start_anchor needs nonempty [batch, scales>=2, coordinates] encodings')
+    if coordinate_reduction not in ('sum', 'mean'):
+        raise ValueError('coordinate_reduction must be mean or sum')
+    steps = direct.shape[1] - 1
+    scale_weights = validate_closure_scale_weights(closure_scale_weights, steps)
+    if scale_weights is not None and len(set(scale_weights)) != 1:
+        raise ValueError('all_start_anchor requires uniform closure_scale_weights')
+    pairs = {}
+    for start in range(steps):
+        recurrent = direct[:, start]
+        for target in range(start + 1, steps + 1):
+            recurrent = model.advance_theory(recurrent)
+            pairs[start, target] = latent_squared_error(
+                recurrent, direct[:, target], coordinate_reduction)
+    targets = [torch.stack([pairs[start, target] for start in range(target)]).mean()
+               for target in range(1, steps + 1)]
+    return torch.stack(targets).mean(), targets, pairs
 
 
 def binary_kernel_sign_loss(kernel):
@@ -286,7 +349,8 @@ def data_geometry_objective(model, levels, first, second, pattern_fn, weights,
                             geometry_scale, noise_multiplier, rollout_weight=5.0,
                             kernel_noncollapse_mode='balance', kernel_variance_ratio=0.25,
                             coordinate_reduction='sum', geometry_options=None,
-                            balanced_reconstruction_weight=0.):
+                            balanced_reconstruction_weight=0., closure_scale_weights=None,
+                            closure_objective='one_step_and_rollout'):
     """Equal-scale distribution geometry replaces anchor spread + hinge floor."""
     midpoint = levels[0].shape[1] // 2
     pa = [pattern_fn(level[:, :midpoint]) for level in levels]
@@ -303,7 +367,10 @@ def data_geometry_objective(model, levels, first, second, pattern_fn, weights,
     return data_geometry_statistics_objective(model, first, second, pa, pb, kernel,
                   weights, geometry_scale, noise_multiplier, rollout_weight, coordinate_reduction,
                   geometry_options=geometry_options,
-                  balanced_reconstruction_weight=balanced_reconstruction_weight)
+                  balanced_reconstruction_weight=balanced_reconstruction_weight,
+                  closure_scale_weights=closure_scale_weights,
+                  **({'closure_objective': closure_objective}
+                     if closure_objective != 'one_step_and_rollout' else {}))
 
 
 def distribution_reconstruction_loss(decoder, theory, target):
@@ -321,8 +388,11 @@ def distribution_reconstruction_loss(decoder, theory, target):
 def data_geometry_statistics_objective(model, first, second, pattern_first, pattern_second,
                                        kernel, weights, geometry_scale, noise_multiplier,
                                        rollout_weight=5.0, coordinate_reduction='sum', geometry_options=None,
-                                       balanced_reconstruction_weight=0.):
+                                       balanced_reconstruction_weight=0., closure_scale_weights=None,
+                                       closure_objective='one_step_and_rollout'):
     """Shared objective algebra, also usable with exact fixed-C sufficient statistics."""
+    validate_closure_objective(closure_objective, weights, rollout_weight,
+        closure_scale_weights=closure_scale_weights)
     direct = .5 * (first + second)
     geometry, extra, balanced = [], {}, []
     if balanced_reconstruction_weight:
@@ -334,11 +404,17 @@ def data_geometry_statistics_objective(model, first, second, pattern_first, patt
             raise ValueError('Balanced objective requires an affine probability decoder')
     for k, (pa, pb) in enumerate(zip(pattern_first, pattern_second)):
         decoder = getattr(model.theory_encoder, 'distribution_decoder', None)
-        if decoder is not None:
+        if getattr(model.theory_encoder, 'distribution_reconstruction_mode', '') == 'ensemble_vae_cross_subset':
+            term, metrics = model.theory_encoder.cross_subset_objective(pa, pb, scale_index=k)
+        elif decoder is not None:
             if getattr(model.theory_encoder, 'distribution_reconstruction_mode', '') == 'affine_mse':
                 from .representation import linear_distribution_reconstruction_loss
                 term = linear_distribution_reconstruction_loss(decoder, direct[:, k], .5*(pa+pb), mode='squared',
                     validate=not getattr(model, 'fast_validated_statistics', False))
+                metrics = {'reconstruction_mse': term}
+            elif getattr(model.theory_encoder, 'distribution_reconstruction_mode', '') == 'probability_mse':
+                from .representation import probability_distribution_reconstruction_loss
+                term = probability_distribution_reconstruction_loss(decoder, direct[:, k], .5*(pa+pb))
                 metrics = {'reconstruction_mse': term}
             else:
                 term = distribution_reconstruction_loss(decoder, direct[:, k], .5*(pa+pb))
@@ -361,14 +437,42 @@ def data_geometry_statistics_objective(model, first, second, pattern_first, patt
     consistency = latent_squared_error(first[:, 1:], second[:, 1:], coordinate_reduction)
     separation = torch.stack(geometry).mean()
     predicted = model.advance_theory(direct[:, :-1])
-    commutator = latent_squared_error(predicted, direct[:, 1:], coordinate_reduction)
-    rollout, rollout_levels = multistep_closure_loss(model, direct, coordinate_reduction)
+    commutator, step_levels, unweighted_step = one_step_closure_loss(
+        predicted, direct[:, 1:], coordinate_reduction, closure_scale_weights)
+    rollout, rollout_levels = multistep_closure_loss(
+        model, direct, coordinate_reduction, closure_scale_weights)
+    extra['unweighted_commutator'] = unweighted_step
+    extra['unweighted_rollout'] = torch.stack(rollout_levels).mean()
+    extra['weighted_commutator'] = commutator
+    extra['weighted_rollout'] = rollout
     extra['rollout'] = rollout
+    for k, term in enumerate(step_levels, start=1):
+        extra[f'one_step_level_{k}'] = term
     for k, term in enumerate(rollout_levels, start=1):
         extra[f'rollout_level_{k}'] = term
-    total = (weights.anchor * anchor + weights.coarse_consistency * consistency
-             + weights.kernel_noncollapse * kernel + weights.separation * separation
-             + weights.commutator * commutator + rollout_weight * rollout)
+    scale_weights = validate_closure_scale_weights(closure_scale_weights, len(step_levels))
+    if scale_weights is not None:
+        largest = max(scale_weights)
+        total_weight = sum(value/largest for value in scale_weights)
+        for k, value in enumerate(scale_weights, start=1):
+            extra[f'closure_scale_weight_{k}'] = direct.new_tensor((value/largest)/total_weight)
+    if closure_objective == 'one_step_and_rollout':
+        # Do not regroup arithmetic on the historical/default execution path.
+        total = (weights.anchor * anchor + weights.coarse_consistency * consistency
+                 + weights.kernel_noncollapse * kernel + weights.separation * separation
+                 + weights.commutator * commutator + rollout_weight * rollout)
+    else:
+        all_start, target_errors, pair_errors = all_start_anchor_closure_loss(
+            model, direct, coordinate_reduction, closure_scale_weights)
+        extra['all_start_anchor'] = all_start
+        extra['closure_total'] = (weights.commutator + rollout_weight) * all_start
+        extra.update({f'all_start_target_{target}': error
+                      for target, error in enumerate(target_errors, start=1)})
+        extra.update({f'all_start_pair_{start}_{target}': error
+                      for (start, target), error in pair_errors.items()})
+        total = (weights.anchor * anchor + weights.coarse_consistency * consistency
+                 + weights.kernel_noncollapse * kernel + weights.separation * separation
+                 + extra['closure_total'])
     if balanced_reconstruction_weight:
         extra['balanced_reconstruction'] = torch.stack(balanced).mean()
         total = total + balanced_reconstruction_weight * extra['balanced_reconstruction']
@@ -387,6 +491,8 @@ def qcr_objective(
     geometry_scale: float = 4.0,
     noise_multiplier: float = 2.0,
     rollout_weight: float = 5.0,
+    closure_scale_weights: tuple[float, ...] | None = None,
+    closure_objective: str = 'one_step_and_rollout',
     isotropy_weight: float = 0.0,
     tangent_weight: float = 0.0,
     orientation_weight: float = 0.0,
@@ -394,8 +500,6 @@ def qcr_objective(
     kernel_sign_weight: float = 0.0,
     kernel_neutral_weight: float = 0.0,
     kernel_neutral_max_patterns: int = 65536,
-    kernel_distinct_alpha: float = 0.0,
-    kernel_distinct_margin: float = 0.8,
     closure_metric: str = 'euclidean',
     kernel_noncollapse_mode: str = 'balance',
     kernel_variance_ratio: float = 0.25,
@@ -412,12 +516,17 @@ def qcr_objective(
     geometry_tail_fraction: float = .1,
     geometry_tail_min_reliability: float = .5,
     balanced_reconstruction_weight: float = 0.,
+    levels_sink: list[torch.Tensor] | None = None,
+    closure_targets_sink: list[torch.Tensor] | None = None,
 ) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
     """Joint all-scale distribution geometry and single/multistep closure."""
     if objective_mode != "data_geometry":
         raise ValueError("Legacy loss moved to archive.qcr_ablations.legacy_objective")
     if coordinate_reduction not in ('mean', 'sum'):
         raise ValueError('coordinate_reduction must be mean or sum')
+    validate_closure_scale_weights(closure_scale_weights)
+    validate_closure_objective(closure_objective, weights, rollout_weight,
+        closure_metric, closure_scale_weights)
     if rollout_weight < 0:
         raise ValueError('rollout_weight must be nonnegative')
     if isotropy_weight < 0:
@@ -425,8 +534,6 @@ def qcr_objective(
     import math
     if not math.isfinite(balanced_reconstruction_weight) or balanced_reconstruction_weight < 0:
         raise ValueError('Invalid balanced reconstruction weight')
-    if not math.isfinite(kernel_distinct_alpha) or kernel_distinct_alpha < 0 or not math.isfinite(kernel_distinct_margin) or not 0 < kernel_distinct_margin <= 1:
-        raise ValueError('Invalid kernel distinct settings')
     if not math.isfinite(kernel_sign_weight) or kernel_sign_weight < 0:
         raise ValueError('Invalid kernel sign weight')
     if not math.isfinite(kernel_neutral_weight) or kernel_neutral_weight < 0:
@@ -445,23 +552,17 @@ def qcr_objective(
         raise ValueError("QCR batches need an even number of samples")
 
     levels = model.coarse_grain(microscopic)
-    # Independent-component experiments may avoid the expensive input VJP of
-    # Q's categorical lookup. Original levels still carry C variance gradients.
-    encoder_levels=[level.detach() for level in levels] if getattr(model,'detach_kernel_representation',False) else levels
-    encoder = model.theory_encoder
-    if (getattr(model, 'share_binary_q_tables', False) and
-            getattr(model, 'detach_kernel_representation', False) and
-            getattr(encoder, 'binary_lookup', False) and
-            not getattr(encoder, 'categorical_states', 0)):
-        encoded = encoder.forward_many(
-            [level[:, :midpoint] for level in encoder_levels] +
-            [level[:, midpoint:] for level in encoder_levels],
-            validated_binary_inputs=getattr(model, 'fast_validated_statistics', False))
-        first = torch.stack(encoded[:len(levels)], dim=1)
-        second = torch.stack(encoded[len(levels):], dim=1)
-    else:
-        first = torch.stack([encoder(level[:, :midpoint]) for level in encoder_levels], dim=1)
-        second = torch.stack([encoder(level[:, midpoint:]) for level in encoder_levels], dim=1)
+    if levels_sink is not None:
+        # Opt-in auxiliary objectives reuse this exact C trajectory/RNG draw.
+        # They must detach it before constructing their independent Q graph.
+        levels_sink.extend(levels)
+    # Share the estimator with evaluation; original levels still carry C's
+    # variance gradients, while the independent Q route detaches C inputs.
+    first, second = split_theory_views(model, levels)
+    if closure_targets_sink is not None:
+        # Snapshot this batch's exact estimator, before any Q/C/R update.
+        # No second Q/C forward, RNG draw, labels, or cross-batch cache.
+        closure_targets_sink.append((.5 * (first + second)).detach())
     total, terms = data_geometry_objective(model, levels, first, second, pattern_fn,
                                    weights, geometry_scale, noise_multiplier, rollout_weight,
                                    kernel_noncollapse_mode, kernel_variance_ratio, coordinate_reduction,
@@ -470,7 +571,11 @@ def qcr_objective(
                                        local_fraction=geometry_local_fraction,tail_mix=geometry_tail_mix,
                                        tail_add_weight=geometry_tail_add_weight,
                                        tail_fraction=geometry_tail_fraction,tail_min_reliability=geometry_tail_min_reliability),
-                                   balanced_reconstruction_weight=balanced_reconstruction_weight)
+                                   balanced_reconstruction_weight=balanced_reconstruction_weight,
+                                   **({'closure_objective': closure_objective}
+                                      if closure_objective != 'one_step_and_rollout' else {}),
+                                   **({'closure_scale_weights': closure_scale_weights}
+                                      if closure_scale_weights is not None else {}))
     if tangent_weight or closure_metric != 'euclidean':
         direct = .5*(first+second)
         predicted = model.advance_theory(direct[:,:-1])
@@ -492,22 +597,25 @@ def qcr_objective(
                 step_terms.append(metric_error(predicted[:,k-1],direct[:,k],precision,coordinate_reduction))
                 recurrent = model.advance_theory(recurrent)
                 rollout_terms.append(metric_error(recurrent,direct[:,k],precision,coordinate_reduction))
-            step = torch.stack(step_terms).mean()
-            rollout = torch.stack(rollout_terms).mean()
+            step = closure_scale_mean(step_terms, closure_scale_weights)
+            rollout = closure_scale_mean(rollout_terms, closure_scale_weights)
             total = total+weights.commutator*(step-terms['commutator'])+rollout_weight*(rollout-terms['rollout'])
             terms['euclidean_commutator'] = terms['commutator']
             terms['euclidean_rollout'] = terms['rollout']
             terms['commutator'],terms['rollout'] = step,rollout
+            terms['weighted_commutator'], terms['weighted_rollout'] = step, rollout
+            terms['unweighted_commutator'] = torch.stack(step_terms).mean()
+            terms['unweighted_rollout'] = torch.stack(rollout_terms).mean()
+            # Existing rollout_level_k metrics remain the raw Euclidean
+            # quantities. Explicit metric-prefixed fields avoid changing them.
+            for k, (step_term, rollout_term) in enumerate(zip(step_terms, rollout_terms), start=1):
+                terms[f'noise_aware_one_step_level_{k}'] = step_term
+                terms[f'noise_aware_rollout_level_{k}'] = rollout_term
     if kernel_neutral_weight:
         from .kernel_regularizers import kernel_neutral_loss
         neutral = kernel_neutral_loss(model.rg_kernel, max_patterns=kernel_neutral_max_patterns)
         total = total+kernel_neutral_weight*neutral
         terms['kernel_neutral'] = neutral
-    if kernel_distinct_alpha:
-        from .kernel_regularizers import kernel_distinct_loss
-        distinct = kernel_distinct_loss(model.rg_kernel, margin=kernel_distinct_margin)
-        total = total + weights.kernel_noncollapse*kernel_distinct_alpha*distinct
-        terms['kernel_distinct'] = distinct
     if kernel_sign_weight:
         from .adapters import CategoricalFieldHead
         sign = (categorical_kernel_preserve_loss(model.rg_kernel)

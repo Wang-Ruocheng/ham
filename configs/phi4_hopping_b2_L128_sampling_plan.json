@@ -1,0 +1,41 @@
+{
+  "schema_version": 5,
+  "status": "planned_not_executed",
+  "scope": "Explicit b2 L128→64→32→16 geometry ablation, independent data and fresh QCR; budget gates precede production.",
+  "sampler_entrypoint": "scripts.prepare_phi4_hopping_b2_large",
+  "options": {
+    "sizes": [128],
+    "dimension": 2,
+    "kappa_values": [0.32, 0.5, 0.53, 0.56, 0.59, 0.62, 0.65, 0.6799999999999999, 0.71, 0.74, 0.77, 0.8, 0.83, 0.86, 1.04],
+    "quartic_lambda": 1.0,
+    "h": 0.0,
+    "chains": 4,
+    "samples": 128,
+    "burn_in": 1024,
+    "spacing": 8,
+    "step_size": 0.04,
+    "leapfrog_steps": 24,
+    "seed": 20261101,
+    "test_every": 3,
+    "test_offset": 1,
+    "cluster_probability": 0.5,
+    "max_trajectories": 200000,
+    "max_force_site_evaluations": 51000000000,
+    "max_cluster_updates": 2000000,
+    "max_cluster_neighbor_visits": 8100000000,
+    "max_output_bytes": 1073741824,
+    "max_memory_bytes": 536870912
+  },
+  "design": {
+    "sizes_are_one_coarse_graining_trajectory": [128, 64, 32, 16],
+    "physical_sampling_size": 128,
+    "all_finer_to_coarser_pairs_in_R_objective": true,
+    "closure_scale_weights": null,
+    "no_original_results_overwritten": true,
+    "no_new_loss_or_coupling_supervision": true,
+    "preserve_sample_and_optimizer_counts": true,
+    "short_pilot_does_not_certify_equilibrium": true,
+    "simultaneous_changes": ["block size", "microscopic size", "smallest size", "depth"],
+    "single_factor_causal_attribution": false
+  }
+}

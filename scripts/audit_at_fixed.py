@@ -1,5 +1,6 @@
 """Post-hoc fixed-decimation AT curve projection and local closure diagnostics."""
 import json
+import argparse
 from pathlib import Path
 import numpy as np
 import torch
@@ -14,7 +15,9 @@ from recurrent_rg.data.ashkin_teller import observables
 
 def main():
     torch.set_num_threads(2)
-    folder=Path('results/ashkin_teller2d_g2_fixed_decimation_1200_seed91')
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--run',type=Path,default=Path('results/ashkin_teller2d_g2_fixed_decimation_1200_seed91'))
+    folder=parser.parse_args().run
     run=load_run(folder);m=run.model;m.eval()
     tr,te=load_ensembles(run.config['data']['cache'])
     x=torch.cat([tr.configurations,te.configurations]);ks=torch.cat([tr.couplings,te.couplings])[:,0].numpy()

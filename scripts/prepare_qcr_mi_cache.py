@@ -1,4 +1,4 @@
-"""Prepare default binary 2D full-shell MI caches before the training clock.
+"""Prepare default binary 2D/3D full-shell MI caches before the training clock.
 
 This CPU-only stage constructs the exact same data-only v1 statistics/key used
 by the trainer. It initializes no model or optimizer, draws no random samples,
@@ -28,15 +28,15 @@ def prepare(config_path, output, *, cache_dir=None):
     cfg.validate()
     args = training_parser().parse_args(['--config', str(config_path), '--output', str(output)])
     validate_recipe(args, cfg)
-    if (cfg.model.dimension != 2 or cfg.model.categorical_states or
+    if (cfg.model.dimension not in (2, 3) or cfg.model.categorical_states or
             cfg.model.kernel_layout != 'nonoverlapping' or
             cfg.model.kernel_sampling != 'bernoulli'):
-        raise ValueError('Preprocessing supports default binary 2D full-shell probabilistic C only')
+        raise ValueError('Preprocessing supports default binary 2D/3D full-shell probabilistic C only')
     torch.set_num_threads(cfg.training.threads)
     started = time.perf_counter()
     digest = file_fingerprint(cfg.data.cache)
     train, test = prepared_data(cfg)
-    _, environment = region_offsets(2, block=cfg.model.block_factor, buffer=1)
+    _, environment = region_offsets(cfg.model.dimension, block=cfg.model.block_factor, buffer=1)
     directory = Path(cache_dir) if cache_dir else Path(cfg.data.cache).parent / '.qcr_mi_cache'
     report = dict(status='complete', config=str(config_path),
                   config_sha256=file_fingerprint(config_path), data_sha256=digest,

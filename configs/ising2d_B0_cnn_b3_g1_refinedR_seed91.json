@@ -1,0 +1,29 @@
+{
+  "schema_version": 5,
+  "data": {
+    "cache": "/mnt/nas-new/home/yange/ham/data/ising2d_positiveK_L36_b3_lr_seed91.pt",
+    "physical_model": "ising2d", "coupling_names": ["K"],
+    "spin_flip_augment": false, "spin_flip_symmetric": true
+  },
+  "model": {
+    "q_encoder": "configuration_cnn", "dimension": 2, "theory_dim": 1,
+    "hidden": 96, "width": 3, "block_factor": 3,
+    "binary_lookup": true, "kernel_layout": "nonoverlapping", "fixed_kernel": false,
+    "kernel_initialization": "random", "kernel_sampling": "bernoulli", "kernel_temperature": 1.0,
+    "affine_reconstruction": true, "theory_head": "nonlinear", "local_features": 12
+  },
+  "loss": {
+    "closure_objective": "all_start_anchor", "closure_scale_weights": null,
+    "rollout_weight": 5, "kernel_sign_weight": 1,
+    "kernel_noncollapse_mode": "variance_floor_ensemble", "kernel_variance_ratio": 1,
+    "weights": {"anchor": 2, "coarse_consistency": 5, "kernel_noncollapse": 2,
+                "separation": 10, "commutator": 5}
+  },
+  "training": {
+    "epochs": 3000, "max_rg_steps": 2, "system_batch": 32, "sample_batch": 64,
+    "learning_rate": 0.001, "seed": 91, "threads": 1, "train_modules": ["Q", "C", "R"],
+    "gradient_mode": "qc_r_separate", "lr_schedule": "constant", "log_every": 25, "checkpoint_every": 100,
+    "r_updates_per_batch": 10
+  },
+  "evaluation": {"max_rg_steps": 2, "samples": 128, "systems": 192}
+}

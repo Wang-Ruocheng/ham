@@ -1,0 +1,84 @@
+{
+  "data": {
+    "cache": "/Users/ruochengwang/ham/data_cache/spin1_positiveK_delta0_L36_n64_seed91/ensembles.pt",
+    "physical_model": "Square spin-1 Ising, strictly positive K, zero crystal and longitudinal fields",
+    "coupling_names": [
+      "K"
+    ],
+    "spin_flip_augment": false,
+    "spin_flip_symmetric": false,
+    "train_pool_replicas": 1,
+    "test_pool_replicas": 1
+  },
+  "model": {
+    "categorical_states": 3,
+    "dimension": 2,
+    "theory_dim": 1,
+    "hidden": 96,
+    "width": 3,
+    "block_factor": 3,
+    "kernel_layout": "nonoverlapping",
+    "fixed_kernel": false,
+    "binary_lookup": true,
+    "kernel_initialization": "random",
+    "kernel_sampling": "categorical",
+    "kernel_temperature": 1.0
+  },
+  "loss": {
+    "geometry_scale": 4.0,
+    "geometry_mode": "relative_local",
+    "geometry_relative_floor": 0.05,
+    "geometry_max_inverse_weight": 100.0,
+    "geometry_neighbors": 4,
+    "geometry_local_fraction": 0.5,
+    "geometry_tail_mix": 0.0,
+    "geometry_tail_add_weight": 0.0,
+    "geometry_tail_fraction": 0.1,
+    "geometry_tail_min_reliability": 0.5,
+    "noise_multiplier": 2.0,
+    "rollout_weight": 5,
+    "isotropy_weight": 0.0,
+    "tangent_weight": 0.0,
+    "orientation_weight": 0.0,
+    "orientation_radius": 0.02,
+    "kernel_sign_weight": 1,
+    "kernel_neutral_weight": 0.0,
+    "kernel_neutral_max_patterns": 65536,
+    "kernel_distinct_alpha": 0.0,
+    "kernel_distinct_margin": 0.8,
+    "closure_metric": "euclidean",
+    "coordinate_reduction": "sum",
+    "kernel_noncollapse_mode": "variance_floor_ensemble",
+    "kernel_variance_ratio": 1.0,
+    "weights": {
+      "anchor": 2,
+      "coarse_consistency": 5,
+      "kernel_noncollapse": 2,
+      "separation": 10,
+      "commutator": 5
+    }
+  },
+  "training": {
+    "max_rg_steps": 2,
+    "epochs": 3000,
+    "system_batch": 32,
+    "sample_batch": 64,
+    "learning_rate": 0.001,
+    "seed": 91,
+    "threads": 2,
+    "train_modules": [
+      "Q",
+      "C",
+      "R"
+    ],
+    "checkpoint_every": 400,
+    "log_every": 100,
+    "gradient_mode": "qc_r_separate"
+  },
+  "evaluation": {
+    "max_rg_steps": 2,
+    "samples": 64,
+    "systems": 32
+  },
+  "schema_version": 5
+}

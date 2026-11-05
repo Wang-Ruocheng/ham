@@ -1,0 +1,53 @@
+{
+  "schema_version": 5,
+  "status": "planned_not_executed",
+  "scope": "Extend the physical kappa domain; no training or model changes are authorized by this plan file.",
+  "source_data_plan": "results/phi4_hopping_b3_g1_aligned_seed91_vm225_20261031_monitor/hmc004_budget4h_gpu3/complete/data/plan.json",
+  "sampler_entrypoint": "scripts.prepare_phi4_hopping_refined",
+  "options": {
+    "sizes": [36],
+    "dimension": 2,
+    "kappa_values": [0.32, 0.5, 0.53, 0.56, 0.59, 0.62, 0.65, 0.6799999999999999, 0.71, 0.74, 0.77, 0.8, 0.83, 0.86, 1.04],
+    "quartic_lambda": 1.0,
+    "h": 0.0,
+    "chains": 4,
+    "samples": 128,
+    "burn_in": 1024,
+    "spacing": 8,
+    "step_size": 0.04,
+    "leapfrog_steps": 24,
+    "seed": 20261031,
+    "test_every": 3,
+    "test_offset": 1,
+    "cluster_probability": 0.5,
+    "max_trajectories": 200000,
+    "max_force_site_evaluations": 4000000000,
+    "max_cluster_updates": 2000000,
+    "max_cluster_neighbor_visits": 1000000000,
+    "max_output_bytes": 1073741824,
+    "max_memory_bytes": 536870912
+  },
+  "design": {
+    "grid": "nonuniform: all thirteen original kappa values plus two wider endpoints",
+    "new_kappa_values": [0.32, 1.04],
+    "original_float_encodings_and_parameter_keyed_chain_seeds_preserved": true,
+    "original_condition_train_test_membership_preserved": true,
+    "test_offset_reason": "Adding one value before the old list shifts all original cell indices by one; offset=1 preserves the old physical condition split.",
+    "original_results_overwrite": false,
+    "existing_shards_are_not_loaded_or_copied_by_this_planning_file": true,
+    "requires_fresh_output_and_endpoint_hot_cold_pilot_before_production": true,
+    "pilot_acceptance_does_not_certify_equilibrium": true
+  },
+  "expected_full_dataset_projection": {
+    "conditions": 15,
+    "configurations": 7680,
+    "total_hmc_trajectories": 122880,
+    "total_force_site_evaluations": 3981312000,
+    "maximum_cluster_neighbor_visits": 637009920,
+    "work_ratio_to_original_13_conditions": 1.1538461538461537,
+    "work_counts_are_not_wall_time_guarantees": true
+  },
+  "execution_requested": false,
+  "training_requested": false,
+  "qualification": "Range extension alone is not evidence that one-dimensional scale closure or fixed-point recovery will improve. Original data and formal runs remain immutable."
+}

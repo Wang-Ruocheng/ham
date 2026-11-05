@@ -1,0 +1,40 @@
+{
+  "schema_version": 5,
+  "recipe": "phi4_hopping_raw_patch_joint625_v1",
+  "data": "data/phi4_hopping_L36_lambda1_seed20261031",
+  "output": "results/phi4_hopping_b3_g1_aligned_seed91",
+  "model": {
+    "hidden": 96,
+    "theory_dim": 1,
+    "local_features": 12,
+    "patch_chunk_size": 4096,
+    "block_size": 3,
+    "stride": 3
+  },
+  "loss": {
+    "closure_objective": "all_start_anchor",
+    "closure_scale_weights": null,
+    "commutator": 5,
+    "rollout_weight": 5,
+    "q_reconstruction": 10,
+    "q_subset_micro": 20,
+    "q_subset_coarse": 5,
+    "c_information": -2,
+    "c_variance": 2,
+    "c_uniform": 1
+  },
+  "training": {
+    "device": "cuda:2",
+    "steps": 3000,
+    "system_batch": 32,
+    "sample_batch": 64,
+    "seed": 91,
+    "threads": 1,
+    "log_every": 100,
+    "checkpoint_every": 1000,
+    "information_pairs": 128,
+    "max_training_seconds": 14400,
+    "max_cuda_bytes": 8589934592,
+    "expected_gpu_uuid": null
+  }
+}

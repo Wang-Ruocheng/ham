@@ -1,0 +1,31 @@
+{
+  "schema_version": 5,
+  "recipe": "ising2d_KB_local_motif_frozen_QC_fullbatch_R_v1",
+  "source": "/mnt/nas-new/home/yange/ham/results/ising2d_KB_local_motif_supervised_matched1250_seed91_gpu3_vm225_20261104_v1",
+  "source_sha256": {
+    "training_step_1250.pt": "7d67cd7e992a928c64f928d58ea5de7e6ff1be3ae33f2cc8a63d918deb422fc3",
+    "manifest.json": "a03341b8ff9b90bac4088769ac4496bba83426c8eaad1ad8756a6fdaa1b5ec72",
+    "summary.json": "98be2cd53ba20bba10c90799106837956810774b3f8f63d1013b3c43fd9248be",
+    "evaluation_arrays.npz": "50dcade2b022e996a6721db4ac65e110e153a45c354a5df1215e902de34bead0",
+    "roots.json": "111b79ec3ef73d852d6d5021fa81159f065445ad47203eb8e9f818fb14a92a40",
+    "status.json": "623776e444384f94ac9fb0e3e886a1eed3ca19588126f26bb421e62e75e9cb2f"
+  },
+  "source_joint_updates": 1250,
+  "learning_rate": 0.003,
+  "max_extra_R_updates": 60000,
+  "evaluate_every": 1000,
+  "minimum_updates": 10000,
+  "plateau_window": 5000,
+  "plateau_rtol": 0.01,
+  "plateau_confirmations": 3,
+  "stability_rtol": 0.05,
+  "hard_seconds": 1200,
+  "training_seconds": 1020,
+  "train_chains": 474,
+  "test_chains": 240,
+  "target_policy": "saved_half_subset_direct_g_full_TRAIN",
+  "labels_used_in_training": false,
+  "closure_objective": "all_start_anchor",
+  "closure_scale_weights": null,
+  "final_root_search": "original bounded 7x7 starts plus each original root and four fixed offsets; never used to stop training"
+}

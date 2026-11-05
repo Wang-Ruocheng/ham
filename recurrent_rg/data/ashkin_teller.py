@@ -49,6 +49,38 @@ def sample_ashkin_teller(K, length, samples, seed, ratio=2., burn=512, spacing=8
     return _sample(K, ratio, length, samples, seed, burn, spacing, ordered)
 
 
+@njit(cache=True)
+def _sample_couplings(J, U, length, samples, seed, burn, spacing, ordered):
+    np.random.seed(seed)
+    n=length*length
+    sigma=np.ones(n,np.int64) if ordered else 2*np.random.randint(0,2,n)-1
+    other=np.ones(n,np.int64) if ordered else 2*np.random.randint(0,2,n)-1
+    result=np.empty((samples,length,length),np.int8)
+    for step in range(burn+samples*spacing):
+        if U>=J:
+            # other = sigma*tau; both conditional bond families nonnegative.
+            _conditional(sigma,other,length,J,J)
+            _conditional(other,sigma,length,U,J)
+            tau=other*sigma
+        else:
+            # other = tau; J+U*s_i*s_j >= 0 in this region.
+            _conditional(sigma,other,length,J,U)
+            _conditional(other,sigma,length,J,U)
+            tau=other
+        if step>=burn and (step-burn+1)%spacing==0:
+            result[(step-burn)//spacing]=((sigma+1)//2*2+(tau+1)//2).reshape(length,length)
+    return result
+
+
+def sample_ashkin_teller_couplings(J,U,length,samples,seed,burn=1024,spacing=16,ordered=False):
+    """Independent dimensionless J/T,U/T >=0, with valid conditional SW updates."""
+    if not np.isfinite(J) or not np.isfinite(U) or J<0 or U<0:
+        raise ValueError('Require finite nonnegative dimensionless J and U')
+    if length<2 or samples<1 or burn<0 or spacing<1:
+        raise ValueError('Invalid lattice or sampling settings')
+    return _sample_couplings(J,U,length,samples,seed,burn,spacing,ordered)
+
+
 def observables(x, ratio=2.):
     sigma, tau = 2*(x//2)-1, 2*(x%2)-1
     product = sigma*tau

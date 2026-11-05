@@ -8,7 +8,7 @@ import torch
 from torch import nn
 
 from .adapters import BinaryFieldHead, FieldHead
-from .geometry import LatticeGeometry, chain_geometry, square_geometry
+from .geometry import LatticeGeometry, anchored_cubic_geometry, chain_geometry, square_geometry
 
 
 @dataclass
@@ -244,6 +244,8 @@ class RecurrentRGNetwork(nn.Module):
         super().__init__()
         if levels < 2 or theory_dim < 1:
             raise ValueError("levels must be >=2 and theory_dim must be positive")
+        if type(local_features) is not int or local_features < 1:
+            raise ValueError("local_features must be a positive integer")
         self.geometry = geometry
         self.levels = levels
         self.theory_dim = theory_dim
@@ -310,6 +312,7 @@ class RecurrentRGNetwork1D(RecurrentRGNetwork):
         block_factor: int = 2,
         learnable_kernel: bool = True,
         kernel_layout: str = "nonoverlapping",
+        local_features: int = 12,
     ) -> None:
         geometry = chain_geometry(width, block_factor)
         super().__init__(
@@ -319,6 +322,7 @@ class RecurrentRGNetwork1D(RecurrentRGNetwork):
             levels=levels,
             theory_dim=theory_dim,
             hidden=hidden,
+            local_features=local_features,
             learnable_kernel=learnable_kernel,
             kernel_layout=kernel_layout,
         )
@@ -336,6 +340,7 @@ class RecurrentRGNetwork2D(RecurrentRGNetwork):
         block_factor: int = 2,
         kernel_layout: str = "nonoverlapping",
         learnable_kernel: bool = True,
+        local_features: int = 12,
     ) -> None:
         geometry = square_geometry(width, block_factor)
         super().__init__(
@@ -345,6 +350,37 @@ class RecurrentRGNetwork2D(RecurrentRGNetwork):
             levels=levels,
             theory_dim=theory_dim,
             hidden=hidden,
+            local_features=local_features,
+            kernel_layout=kernel_layout,
+            learnable_kernel=learnable_kernel,
+        )
+
+
+class RecurrentRGNetwork3D(RecurrentRGNetwork):
+    """Binary cubic model with an explicit anchored eight-spin Q window."""
+
+    def __init__(
+        self,
+        levels: int = 3,
+        width: int = 2,
+        hidden: int = 96,
+        theory_dim: int = 1,
+        block_factor: int = 2,
+        kernel_layout: str = "nonoverlapping",
+        learnable_kernel: bool = True,
+        local_features: int = 12,
+    ) -> None:
+        if width != 2:
+            raise ValueError("3D binary model requires the explicit anchored width-2 window")
+        geometry = anchored_cubic_geometry(block_factor)
+        super().__init__(
+            geometry,
+            BinaryFieldHead(hidden),
+            input_channels=1,
+            levels=levels,
+            theory_dim=theory_dim,
+            hidden=hidden,
+            local_features=local_features,
             kernel_layout=kernel_layout,
             learnable_kernel=learnable_kernel,
         )

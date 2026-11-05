@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 import torch
 from .config import ModelConfig
-from .model_nd import RecurrentRGNetwork1D, RecurrentRGNetwork2D, FixedDecimationCoarseGrainer
+from .model_nd import RecurrentRGNetwork1D, RecurrentRGNetwork2D, RecurrentRGNetwork3D, FixedDecimationCoarseGrainer
 
 
 def model_device(model):
@@ -48,6 +48,15 @@ def restore_checkpoint_rng(payload, *, device='cpu'):
 
 def attach_distribution_decoder(model, config):
     """Optional Q-only ablation; preserve Q/C/R initialization and sampling RNG."""
+    if config.q_encoder == 'ensemble_vae':
+        from .ensemble_vae import EnsembleVAEQ
+        with torch.random.fork_rng(devices=[]):
+            model.theory_encoder = EnsembleVAEQ(config.theory_dim, config.categorical_states)
+        return model
+    if config.q_encoder == 'configuration_cnn':
+        from .ising_cnn import IsingConfigurationCNN
+        with torch.random.fork_rng(devices=[]):
+            model.theory_encoder = IsingConfigurationCNN(model.geometry, theory_dim=config.theory_dim)
     if config.theory_head not in ('nonlinear', 'linear'):
         raise ValueError('Unknown Q theory head')
     if config.theory_head == 'linear':
@@ -66,7 +75,7 @@ def attach_distribution_decoder(model, config):
         if config.reconstruction_hidden:
             raise ValueError('Affine reconstruction cannot also use a nonlinear decoder')
         states = config.categorical_states or 2
-        outputs = states ** (4 if config.dimension == 2 else 2)
+        outputs = states ** {1: 2, 2: 4, 3: 8}[config.dimension]
         with torch.random.fork_rng(devices=[]):
             model.theory_encoder.distribution_decoder = torch.nn.Linear(config.theory_dim, outputs).double()
         model.theory_encoder.distribution_reconstruction_mode = 'affine_mse'
@@ -74,16 +83,23 @@ def attach_distribution_decoder(model, config):
         normalize_affine_decoder_(model.theory_encoder)
     if config.reconstruction_hidden:
         states = config.categorical_states or 2
-        outputs = states ** (4 if config.dimension == 2 else 2)
+        outputs = states ** {1: 2, 2: 4, 3: 8}[config.dimension]
         with torch.random.fork_rng(devices=[]):
-            model.theory_encoder.distribution_decoder = torch.nn.Sequential(
-                torch.nn.Linear(config.theory_dim, config.reconstruction_hidden),
-                torch.nn.Tanh(), torch.nn.Linear(config.reconstruction_hidden, outputs)).double()
+            layers = [torch.nn.Linear(config.theory_dim, config.reconstruction_hidden), torch.nn.Tanh()]
+            for _ in range(config.reconstruction_hidden_layers-1):
+                layers.extend([torch.nn.Linear(config.reconstruction_hidden, config.reconstruction_hidden), torch.nn.Tanh()])
+            layers.append(torch.nn.Linear(config.reconstruction_hidden, outputs))
+            model.theory_encoder.distribution_decoder = torch.nn.Sequential(*layers).double()
+        if config.reconstruction_probability_loss == 'squared':
+            model.theory_encoder.distribution_reconstruction_mode = 'probability_mse'
+        model.theory_encoder.distribution_decoder_spectral_bound = config.reconstruction_spectral_bound
+        from .representation import project_probability_decoder_
+        project_probability_decoder_(model.theory_encoder)
     return model
 
 
 def build_model(config: ModelConfig, max_rg_steps: int):
-    if config.dimension not in (1, 2) or max_rg_steps < 1:
+    if config.dimension not in (1, 2, 3) or max_rg_steps < 1:
         raise ValueError('Unsupported dimension or depth')
     if config.kernel_sampling not in ('deterministic', 'bernoulli', 'categorical') or not 0 < config.kernel_temperature < float('inf'):
         raise ValueError('Invalid kernel sampling or relaxation temperature')
@@ -100,7 +116,8 @@ def build_model(config: ModelConfig, max_rg_steps: int):
         head.sampling_mode = 'categorical'
         model = RecurrentRGNetwork(square_geometry(config.width, config.block_factor), head,
             input_channels=config.categorical_states, levels=max_rg_steps+1,
-            theory_dim=config.theory_dim, hidden=config.hidden, kernel_layout=config.kernel_layout).double()
+            theory_dim=config.theory_dim, hidden=config.hidden, local_features=config.local_features,
+            kernel_layout=config.kernel_layout).double()
         model.theory_encoder.categorical_states = config.categorical_states if config.binary_lookup else 0
         model.rg_kernel.categorical_states = config.categorical_states if config.binary_lookup else 0
         if config.fixed_kernel:
@@ -108,11 +125,11 @@ def build_model(config: ModelConfig, max_rg_steps: int):
             # Downsample the entire one-hot vector, retaining both AT spins together.
             model.rg_kernel = FixedDecimationCoarseGrainer(model.geometry)
         return attach_distribution_decoder(model, config)
-    cls = RecurrentRGNetwork1D if config.dimension == 1 else RecurrentRGNetwork2D
+    cls = {1: RecurrentRGNetwork1D, 2: RecurrentRGNetwork2D, 3: RecurrentRGNetwork3D}[config.dimension]
     # Preserve paired Q/R initialization: construct C, then replace if fixed.
     model = cls(levels=max_rg_steps+1, hidden=config.hidden, theory_dim=config.theory_dim,
                 width=config.width, block_factor=config.block_factor,
-                kernel_layout=config.kernel_layout).double()
+                kernel_layout=config.kernel_layout, local_features=config.local_features).double()
     if config.fixed_kernel:
         model.rg_kernel = FixedDecimationCoarseGrainer(model.geometry)
     if config.kernel_initialization == 'positive_decimation':
@@ -178,6 +195,15 @@ def load_run(path, checkpoint=None, *, overrides=None):
     Explicit overrides are useful for old weights without configuration files.
     """
     path = Path(path)
+    if path.is_dir() and checkpoint is None and (path/'pipeline.json').exists():
+        pipeline = json.loads((path/'pipeline.json').read_text())
+        if pipeline.get('schema') == 'qcr_joint_then_terminal_r_v1':
+            if not pipeline.get('model_complete'):
+                raise ValueError('Terminal R pipeline is incomplete; request the preserved joint checkpoint explicitly')
+            final = (path/pipeline['final_checkpoint']).resolve()
+            if not final.is_relative_to(path.resolve()) or not final.is_file():
+                raise ValueError('Invalid terminal pipeline checkpoint path')
+            path = final
     directory = path if path.is_dir() else path.parent
     if path.is_file() and checkpoint is not None:
         raise ValueError('Specify a checkpoint file OR a run plus checkpoint selector')
@@ -230,6 +256,7 @@ def load_run(path, checkpoint=None, *, overrides=None):
         model_values = dict(dimension=dimension, width=width, block_factor=factor,
                             theory_dim=cfg.get('theory_dim',state['theory_rg.0.weight'].shape[1]),
                             hidden=cfg.get('hidden',state['theory_rg.0.weight'].shape[0]),
+                            local_features=cfg.get('local_features', state['theory_encoder.local_mlp.2.weight'].shape[0]),
                             fixed_kernel=fixed, kernel_layout=layout,
                             binary_lookup=cfg.get('binary_lookup',False))
         if 'levels' not in cfg:

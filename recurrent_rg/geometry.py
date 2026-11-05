@@ -151,3 +151,32 @@ def chain_geometry(width: int = 3, block_factor: int = 2) -> LatticeGeometry:
 
 def cubic_geometry(width: int = 3, block_factor: int = 2) -> LatticeGeometry:
     return LatticeGeometry(3, width, block_factor)
+
+
+@dataclass(frozen=True)
+class AnchoredCubicGeometry(LatticeGeometry):
+    """Explicit three-dimensional 2x2x2 Q window anchored at each site.
+
+    This is a new representation, not a reinterpretation of the historical
+    odd-width centered windows. Blocking remains the usual nonoverlapping
+    tiling and is independent of the overlapping Q motif window.
+    """
+
+    def __post_init__(self) -> None:
+        if self.dimensions != 3 or self.widths != (2, 2, 2):
+            raise ValueError("anchored cubic geometry requires dimension=3 and width=2")
+        if any(factor < 1 for factor in self.factors):
+            raise ValueError("block factors must be positive")
+        if not self.periodic:
+            raise NotImplementedError("only periodic boundaries are implemented")
+
+    def patch_offsets(self) -> tuple[tuple[int, ...], ...]:
+        return tuple(product(range(2), repeat=3))
+
+    def extract_patches(self, configurations: torch.Tensor) -> torch.Tensor:
+        """Return the anchored cube, lexicographic axes and channels last."""
+        return super().extract_patches(configurations)
+
+
+def anchored_cubic_geometry(block_factor: int = 2) -> AnchoredCubicGeometry:
+    return AnchoredCubicGeometry(3, 2, block_factor)

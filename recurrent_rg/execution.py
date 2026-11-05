@@ -1,4 +1,5 @@
 """Execution-only accelerations; no changes to QCR parameters or objectives."""
+from itertools import product
 import torch
 import torch.nn.functional as F
 
@@ -10,8 +11,13 @@ def reference_binary_pattern_distribution(configurations):
     if dimensions == 1:
         pattern = 2 * bits + torch.roll(bits, -1, dims=2)
         return F.one_hot(pattern, 4).to(configurations.dtype).mean(dim=(1, 2))
+    if dimensions == 3:
+        pattern = torch.zeros_like(bits)
+        for offset in product(range(2), repeat=3):
+            pattern = 2 * pattern + torch.roll(bits, shifts=tuple(-i for i in offset), dims=(2, 3, 4))
+        return F.one_hot(pattern, 256).to(configurations.dtype).mean(dim=(1, 2, 3, 4))
     if dimensions != 2:
-        raise ValueError('Reference motifs support one- or two-dimensional fields')
+        raise ValueError('Reference motifs support one-, two-, or three-dimensional fields')
     pattern = (8 * bits + 4 * torch.roll(bits, -1, dims=2)
                + 2 * torch.roll(bits, -1, dims=3)
                + torch.roll(torch.roll(bits, -1, dims=2), -1, dims=3))
@@ -78,9 +84,45 @@ def resident_training_data(configurations, device, *, enabled, max_bytes=1 << 30
     return resident, metadata
 
 
-def select_training_batch(configurations, ids, indices, device):
-    """Preserve historical two-stage indexing and the original CPU RNG order."""
+def low_ram_execution_policy(*, reference=False):
+    """Version storage/selection execution without changing the QCR recipe.
+
+    This record does not claim cross-device bitwise determinism. The reference
+    branch remains available for same-device, same-index regression checks.
+    """
+    enabled = not reference
+    return dict(version=1, enabled=enabled,
+        physical_cache_mmap=enabled,
+        physical_validation='all_elements_in_bounded_chunks',
+        batch_selection='joint_ensemble_sample_gather' if enabled else 'historical_two_stage',
+        evaluation_panels='indices_only_materialized_at_log' if enabled else 'eager_full_panels',
+        mi_cache_mmap=enabled,
+        mi_split_loading='load_prepare_place_release_each_split' if enabled else 'load_all_then_place',
+        source_dtype_unchanged=True, computation_dtype='torch.float64',
+        CPU_index_generator_order_unchanged=True, C_sampling_order_unchanged=True,
+        pin_memory=False, asynchronous_prefetch=False)
+
+
+def select_training_batch(configurations, ids, indices, device, *, reference=False):
+    """Gather the exact ordered ensemble/sample Cartesian product once.
+
+    CPU-generated IDs, duplicates, negative indices, raw storage dtype and
+    final float64 transfer are unchanged. No RNG, pinning, prefetching,
+    residency decision or arithmetic enters this selection. The historical
+    two-stage path can still be requested for execution-equivalence audits.
+    """
     if configurations.device.type == 'cuda':
         ids = ids.to(configurations.device)
         indices = indices.to(configurations.device)
-    return configurations[ids][:, indices].to(device=device, dtype=torch.float64)
+    if reference:
+        selected = configurations[ids][:, indices]
+    elif (isinstance(ids, torch.Tensor) and isinstance(indices, torch.Tensor)
+          and ids.ndim == indices.ndim == 1
+          and ids.dtype in (torch.int32, torch.int64)
+          and indices.dtype in (torch.int32, torch.int64)):
+        selected = configurations[ids[:, None], indices[None, :]]
+    else:
+        # Preserve less-common historical mask/list indexing semantics rather
+        # than silently interpreting a boolean mask as integer IDs.
+        selected = configurations[ids][:, indices]
+    return selected.to(device=device, dtype=torch.float64)

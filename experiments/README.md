@@ -1,5 +1,9 @@
 # Auxiliary experiments
 
+[二维 XY 模型](../docs/xy_bkt.md)：连续角度、BKT 单参数扫描的当前 QCR 圆周适配试验，含反射团簇采样、连续小系统积分验证及物理诊断；不以孤立排斥子认证 BKT。
+
+[二维六态时钟模型](../docs/clock.md)：单耦合、两次 BKT 转变的 dim_g=1 首轮实验，含反射团簇采样、小系统精确枚举验证和独立梯度训练命令。
+
 公共训练、loss、数据组织、检查点和评估已迁至 `recurrent_rg/`。
 通用实验使用 `python -m recurrent_rg` 和 `configs/` 中的配置，当前独立梯度 MI 配方使用 `python -m experiments.rsmi_separate_qcr`；二者训练目标不同，不可直接互换。详见
 [开发指南](../docs/development.md)。以下特定实验脚本保留作为历史配方，
@@ -18,7 +22,7 @@
 最终临界插值K≈.9938，偏差约1.12%；保留外推吸引子等限制。
 
 主训练与最新 loss 以根目录 [README](../README.md) 为准：
-当前精选配方为随机概率 C、经验 RSMI、逐系综 ratio=1 方差下限，以及 Q/C/R 独立梯度同步更新；Q 使用 relative_local 分布几何，R 使用一步与全尺度多步闭环。坐标平方误差求和，微观子集一致性有效权重为20（配置anchor=2，内部再乘10）。保色是否启用按实验明确标注。
+当前默认为随机概率 C、经验 RSMI、逐系综 ratio=1 方差下限、保色权重1，以及 Q/C/R 独立梯度同步更新；Q 使用共享仿射分布重构（权重10）和子集一致性，R 使用 `all_start_anchor`：目标尺度等权、同一终点内全部早期起点等权，总权重10，仅更新R，不加预测—预测项或旧 `L_future`。坐标平方误差求和，微观子集一致性有效权重为20（配置anchor=2，内部再乘10）。历史缺省闭合模式的加载仍为 `one_step_and_rollout`；标准入口从头训练的缺省值升级，精确复现需在新配置显式固定旧模式。历史 relative_local 几何实验及各自保色设置保留，不把它们当作新重构配方的复现结果。
 旧固定分离目标不再提供主 CLI 选项，历史协方差满秩、磁化特征和 Q 结构消融已移入
 [archive/qcr_ablations](../archive/qcr_ablations/README.md)。下列旧实验说明是历史记录，
 不是当前默认配置；重现旧向量 mean-loss 需显式传入 coordinate_reduction='mean'。

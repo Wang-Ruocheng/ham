@@ -1,5 +1,6 @@
 """Binary local distribution descriptors, separate from the QCR objective."""
 from math import prod
+from itertools import product
 
 import torch
 
@@ -58,3 +59,19 @@ def plaquette_distribution(configurations: torch.Tensor) -> torch.Tensor:
         + torch.roll(torch.roll(bits, -1, dims=2), -1, dims=3)
     )
     return _binary_pattern_frequencies(pattern, 16, configurations.dtype, 2)
+
+
+def cube_distribution(configurations: torch.Tensor) -> torch.Tensor:
+    """3D: all 256 oriented anchored 2x2x2 motif probabilities per ensemble.
+
+    Sites are ordered lexicographically (000,001,...,111), most significant
+    bit first, matching the new anchored cubic Q geometry. Average over every
+    sample and periodic translation; no rotation or spin-flip identification.
+    """
+    if configurations.ndim != 6 or configurations.shape[-1] != 1:
+        raise ValueError('Expected binary 3D fields [systems,samples,Lx,Ly,Lz,1]')
+    bits = (configurations.squeeze(-1) > 0).long()
+    pattern = torch.zeros_like(bits)
+    for offset in product(range(2), repeat=3):
+        pattern = 2 * pattern + torch.roll(bits, shifts=tuple(-i for i in offset), dims=(2, 3, 4))
+    return _binary_pattern_frequencies(pattern, 256, configurations.dtype, 3)

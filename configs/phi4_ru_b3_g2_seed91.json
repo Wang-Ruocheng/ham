@@ -1,0 +1,83 @@
+{
+  "schema_version": 5,
+  "experiment": "phi4_ru_b3_g2_seed91",
+  "recipe": "phi4_continuous_gaussian_soft_statistics_v1",
+  "data": {
+    "sizes": [
+      36
+    ],
+    "dimension": 2,
+    "r_values": [
+      -1.55,
+      -1.41875,
+      -1.2875,
+      -1.15625,
+      -1.025,
+      -0.89375,
+      -0.7625,
+      -0.63125,
+      -0.5
+    ],
+    "u_values": [
+      0.5,
+      0.625,
+      0.75,
+      0.875,
+      1
+    ],
+    "h": 0,
+    "chains": 4,
+    "samples": 128,
+    "burn_in": 1024,
+    "spacing": 8,
+    "step_size": 0.08,
+    "leapfrog_steps": 12,
+    "seed": 20261029,
+    "test_every": 4,
+    "test_offset": 1,
+    "cluster_probability": 0.5
+  },
+  "training": {
+    "steps": 3000,
+    "seed": 91,
+    "system_batch": 8,
+    "sample_batch": 64,
+    "information_pairs": 128,
+    "q_initialization": "train_mean_bias",
+    "learning_rate": 0.001,
+    "threads": 1,
+    "log_every": 100,
+    "checkpoint_every": 1000
+  },
+  "model": {
+    "block_size": 3,
+    "stride": 3,
+    "d_g": 2,
+    "lattice_sizes": [
+      36,
+      12,
+      4
+    ],
+    "hidden": 96,
+    "decoder": "shared_affine",
+    "C": "random_trainable_probabilistic_gaussian",
+    "dtype": "float64"
+  },
+  "loss": {
+    "closure_objective": "all_start_anchor",
+    "closure_scale_weights": null,
+    "commutator": 5,
+    "rollout_weight": 5,
+    "Q_reconstruction_weight": 10,
+    "Q_subset_weights": [
+      20,
+      5
+    ],
+    "continuous_C_information": "Gaussian-kernel-smoothed buffered full-shell proxy, not discrete empirical-histogram MI",
+    "continuous_C_uniform_preservation": "uniform-amplitude MSE, not discrete color NLL",
+    "gradient_routing": "simultaneous independent Q-only/C-only/R-only",
+    "future_observable_loss": false,
+    "prediction_prediction_loss": false,
+    "coupling_supervision": false
+  }
+}

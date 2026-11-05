@@ -75,6 +75,24 @@ def observable_series(x,delta=1.,exchange=1.):
                 abs_magnetization=np.abs(m),occupancy=rho,magnetization_squared=m*m)
 
 
+def sample_signed_spin1(coupling,length,samples,seed,*,burn=2048,spacing=16,start='random'):
+    """Zero crystal/longitudinal field, P(s) proportional to exp(K sum s_i s_j).
+
+    On an even periodic square lattice a checkerboard gauge transforms the
+    ferromagnetic sampler into an exact antiferromagnetic sampler. This is a
+    data-generation transformation only, never a constraint on learned C.
+    Start conventions refer to the ferromagnetic gauge frame.
+    """
+    if not np.isfinite(coupling) or not isinstance(length,(int,np.integer)) or length % 2:
+        raise ValueError('Finite coupling and even periodic lattice required')
+    x=sample_blume_capel(1.,length,samples,seed,delta=0.,exchange=abs(coupling),
+                        burn=burn,spacing=spacing,start=start)
+    if coupling<0:
+        rows,cols=np.indices((length,length))
+        x=x*(1-2*((rows+cols)%2)).astype(np.int8)
+    return x
+
+
 def sampling_observables(x,delta=1.):
     result={}
     for name,v in observable_series(x,delta).items():

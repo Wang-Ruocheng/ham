@@ -108,7 +108,7 @@ def train(model, train_x, test_x, *, pattern_fn, epochs: int, system_batch: int,
         if not torch.isfinite(loss):
             raise FloatingPointError(f'Nonfinite QCR loss at update {epoch+1}')
         if gradient_mode == 'qc_r_separate':
-            closure = options.get('weights', QCRWeights()).commutator*terms['commutator'] + options.get('rollout_weight',5.0)*terms['rollout']
+            closure = terms.get('closure_total', options.get('weights', QCRWeights()).commutator*terms['commutator'] + options.get('rollout_weight',5.0)*terms['rollout'])
             separate_qc_r_gradients(loss, closure,
                 [p for p in list(model.theory_encoder.parameters())+list(model.rg_kernel.parameters()) if p.requires_grad],
                 list(model.theory_rg.parameters()))

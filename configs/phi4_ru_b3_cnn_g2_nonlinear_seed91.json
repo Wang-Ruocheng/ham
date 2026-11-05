@@ -1,0 +1,102 @@
+{
+  "schema_version": 5,
+  "recipe": "phi4_ru_b3_cnn_g2_Rlr003_nonlinear_decoder_v1",
+  "data_root": "/mnt/nas-new/home/yange/ham/results/phi4_ru_cnn_saddle_seed91_gpu3_vm225_20261103_v1/data",
+  "data_manifest_sha256": "586f9865c6afc206bf8c8a712ccde5cf84371775f3b336099e07e9fbe88db205",
+  "seed": 91,
+  "theory_dim": 2,
+  "lattice_sizes": [
+    36,
+    12,
+    4
+  ],
+  "block_size": 3,
+  "stride": 3,
+  "steps": 6000,
+  "system_batch": 32,
+  "sample_batch": 64,
+  "information_pairs": 128,
+  "learning_rates": {
+    "Q": 0.001,
+    "C": 0.001,
+    "R": 0.003
+  },
+  "r_updates_per_batch": 1,
+  "log_every": 50,
+  "probe_every": 250,
+  "checkpoint_every": 1000,
+  "hard_seconds": 7200,
+  "max_cuda_bytes": 8589934592,
+  "max_output_bytes": 2147483648,
+  "loss": {
+    "closure_objective": "all_start_anchor",
+    "closure_scale_weights": null,
+    "commutator": 5,
+    "rollout_weight": 5,
+    "q_reconstruction": 10,
+    "q_subset_micro": 20,
+    "q_subset_coarse": 5,
+    "c_information": -2,
+    "c_variance": 2,
+    "c_uniform": 1
+  },
+  "early_stopping": false,
+  "model_selection": false,
+  "physical_options": {
+    "sizes": [
+      36
+    ],
+    "dimension": 2,
+    "r_values": [
+      -2.8,
+      -2.5125,
+      -2.225,
+      -1.9375,
+      -1.65,
+      -1.3625,
+      -1.075,
+      -0.7875,
+      -0.5
+    ],
+    "u_values": [
+      0.5,
+      1.125,
+      1.75,
+      2.375,
+      3.0
+    ],
+    "h": 0.0,
+    "chains": 4,
+    "samples": 128,
+    "burn_in": 1024,
+    "spacing": 8,
+    "step_size": 0.08,
+    "leapfrog_steps": 12,
+    "seed": 20261029,
+    "test_every": 4,
+    "test_offset": 1,
+    "max_trajectories": 500000,
+    "max_force_site_evaluations": 7000000000,
+    "max_output_bytes": 1073741824,
+    "max_memory_bytes": 536870912,
+    "cluster_probability": 0.5,
+    "max_cluster_updates": 500000,
+    "max_cluster_neighbor_visits": 2000000000
+  },
+  "decoder": {
+    "kind": "affine_plus_centered_residual",
+    "hidden": [
+      32,
+      32
+    ],
+    "activation": "tanh",
+    "residual_seed": 9103,
+    "residual_last_weight_initialization": "zero",
+    "affine_column_norm": 1.0,
+    "residual_layer_spectral_norm_max": 2.0,
+    "output": "625 soft-plaquette descriptor components; unconstrained reconstruction",
+    "direction_balancing": false
+  },
+  "gpu_index": 2,
+  "gpu_uuid": "GPU-713b07d0-118c-f939-c0a8-565390215e01"
+}

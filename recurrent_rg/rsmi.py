@@ -86,7 +86,7 @@ def categorical_kernel_probabilities(kernel,visible):
 
 
 def region_offsets(dimension, block=2, buffer=1):
-    if dimension not in (1, 2) or block < 1 or buffer < 0:
+    if dimension not in (1, 2, 3) or block < 1 or buffer < 0:
         raise ValueError('Invalid RSMI region')
     visible = list(product(range(block), repeat=dimension))
     low, high = -buffer-1, block+buffer

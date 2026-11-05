@@ -15,6 +15,29 @@ def normalize_affine_decoder_(encoder):
 
 
 @torch.no_grad()
+def project_probability_decoder_(encoder):
+    """Opt-in exact spectral-norm cap; no power-iteration buffers or eval mutation.
+
+    Tanh layers are 1-Lipschitz and softmax is at most 1/2-Lipschitz
+    in Euclidean norm. With m affine layers the probability decoder's
+    global Lipschitz bound is therefore 0.5 * bound**m. This prevents
+    unlimited decoder amplification; it does not impose latent rank.
+    """
+    bound = getattr(encoder, 'distribution_decoder_spectral_bound', 0.)
+    if not bound:
+        return
+    for layer in encoder.distribution_decoder.modules():
+        if isinstance(layer, nn.Linear):
+            norm = torch.linalg.matrix_norm(layer.weight, ord=2)
+            layer.weight.div_((norm / bound).clamp_min(1.))
+
+
+def probability_distribution_reconstruction_loss(decoder, theory, target):
+    """Sum-bin probability MSE, same reduction as the affine baseline."""
+    return (decoder(theory).softmax(-1)-target.detach()).square().sum(-1).mean()
+
+
+@torch.no_grad()
 def initialize_affine_decoder_pca_(encoder, train_histograms):
     """Explicit ablation: initialize a scalar reconstruction axis from TRAIN only.
 

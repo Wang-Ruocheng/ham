@@ -11,13 +11,14 @@ from recurrent_rg.checkpoints import load_run
 from recurrent_rg.runner import prepared_data, evaluate_run
 from recurrent_rg.config import RunConfig
 from recurrent_rg.evaluation import collect_trajectories, closure_metrics, scalar_flow
-from recurrent_rg.kernel_regularizers import uniform_block_probabilities, kernel_distinct_loss
+from recurrent_rg.kernel_regularizers import uniform_block_probabilities
+from archive.qcr_ablations.kernel_distinct import kernel_distinct_loss
 
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--separate',action='store_true',help='Include simultaneous separated-gradient training')
-    parser.add_argument('--distinct',action='store_true',help='Compare joint, separate and separate+uniform-distinct')
+    parser.add_argument('--distinct',action='store_true',help='Read-only comparison of historical distinct-loss runs; no training')
     parser.add_argument('--rsmi',action='store_true',help='Compare joint, separate and RSMI separate')
     parser.add_argument('--fixed',action='store_true',help='1D comparison: joint, learned-RSMI C, fixed positive decimation')
     args=parser.parse_args()

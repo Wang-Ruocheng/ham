@@ -1,7 +1,7 @@
 """Data/label boundary, grouped splits, and explicit replica pooling."""
 from dataclasses import dataclass
-from pathlib import Path
 import torch
+from ..tensor_io import all_finite, load_cpu_tensors
 
 
 @dataclass
@@ -25,7 +25,7 @@ class EnsembleDataset:
                 raise ValueError('Metadata must match ensemble count')
         if len(x) < 2 or x.shape[1] < 2 or any(n < 1 for n in x.shape[2:]):
             raise ValueError('Dataset is empty or too small')
-        if not torch.isfinite(x).all() or any(v is not None and not torch.isfinite(v).all() for v in (y,self.group_ids)):
+        if not all_finite(x) or any(v is not None and not all_finite(v) for v in (y,self.group_ids)):
             raise ValueError('Dataset contains nonfinite values')
         return self
 
@@ -63,9 +63,64 @@ def grouped_split(dataset, *, test_every=3, test_offset=1):
                  for mask in (~test, test))
 
 
-def load_ensembles(path):
-    """Read legacy tuple caches; retain labels outside model/loss batches."""
-    payload = torch.load(Path(path), map_location='cpu', weights_only=True)
+def _validate_temperature_supervised_disorder_split(train, test, contract):
+    """Allow repeated T targets only for an explicitly verified whole-J split.
+
+    Temperature is the supervised target, not the physical-source identity in
+    this protocol.  All legacy caches retain the stricter label-disjoint rule.
+    This receipt does not certify equilibration or independent replica samples.
+    """
+    if (not isinstance(contract, dict)
+            or contract.get('kind') != 'whole_disorder_temperature_supervision'
+            or contract.get('group_columns') != ['disorder_id', 'temperature_index']
+            or contract.get('supervision_columns') != ['T']):
+        raise ValueError('Invalid whole-disorder temperature-supervision split contract')
+    bond_mapping = contract.get('bond_sha256_by_disorder')
+    if not isinstance(bond_mapping, dict):
+        raise ValueError('Temperature-supervision split requires disorder bond fingerprints')
+
+    integer_dtypes = (torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64)
+    used_disorders, split_disorders, temperature_by_index = set(), [], {}
+    for dataset in (train, test):
+        groups, temperatures = dataset.group_ids, dataset.couplings
+        if (groups is None or groups.shape != (len(dataset.configurations), 2)
+                or groups.dtype not in integer_dtypes or torch.any(groups < 0)):
+            raise ValueError('Temperature-supervision groups must be nonnegative integer [J,T_index] rows')
+        if (temperatures is None or temperatures.shape != (len(dataset.configurations), 1)
+                or temperatures.dtype == torch.bool or temperatures.is_complex()
+                or not torch.isfinite(temperatures).all() or torch.any(temperatures <= 0)):
+            raise ValueError('Temperature supervision requires exactly one positive finite T column')
+        cells, disorders = set(), set()
+        for (disorder, index), (temperature,) in zip(groups.tolist(), temperatures.tolist()):
+            if (disorder, index) in cells:
+                raise ValueError('Duplicate disorder-temperature cell in supervised split')
+            cells.add((disorder, index))
+            disorders.add(disorder)
+            if index in temperature_by_index and temperature_by_index[index] != temperature:
+                raise ValueError('Temperature index has inconsistent T targets across disorders')
+            temperature_by_index[index] = temperature
+        used_disorders.update(disorders)
+        split_disorders.append(disorders)
+    if split_disorders[0] & split_disorders[1]:
+        raise ValueError('Temperature supervision must hold out whole disjoint disorders')
+    if set(bond_mapping) != {str(disorder) for disorder in used_disorders}:
+        raise ValueError('Bond fingerprints must cover exactly the supervised disorder identities')
+    fingerprints = list(bond_mapping.values())
+    if any(not isinstance(value, str) or len(value) != 64
+           or any(character not in '0123456789abcdef' for character in value)
+           for value in fingerprints):
+        raise ValueError('Require valid lowercase SHA256 fingerprints for supervised disorder bonds')
+    if len(set(fingerprints)) != len(fingerprints):
+        raise ValueError('Identical bonds cannot be assigned different supervised disorder identities')
+
+
+def load_ensembles(path, *, mmap=False):
+    """Read tuple/versioned caches; retain labels outside model/loss batches.
+
+    mmap is execution-only and opt-in for other historical pipeline callers.
+    Callers must not mutate a mapped cache; training selects independent copies.
+    """
+    payload = load_cpu_tensors(path, mmap=mmap)
     if isinstance(payload,dict) and payload.get('schema_version')==1:
         train=EnsembleDataset(**payload['train']).validate()
         test=EnsembleDataset(**payload['test']).validate()
@@ -74,13 +129,17 @@ def load_ensembles(path):
         train, test = EnsembleDataset(tx, ty).validate(), EnsembleDataset(vx, vy).validate()
     else:
         raise ValueError('Expected (train_X, train_labels, test_X, test_labels) cache')
+    split_contract = payload.get('split_contract') if isinstance(payload, dict) else None
+    shared_temperature_targets = split_contract is not None
+    if shared_temperature_targets:
+        _validate_temperature_supervised_disorder_split(train, test, split_contract)
     if (train.group_ids is None)!=(test.group_ids is None):
         raise ValueError('Both splits must use the same group-ID convention')
     a = {tuple(row) for row in train.groups().tolist()}
     b = {tuple(row) for row in test.groups().tolist()}
     if a & b:
         raise ValueError('Train/test parameter cells overlap')
-    if train.couplings is not None and test.couplings is not None:
+    if train.couplings is not None and test.couplings is not None and not shared_temperature_targets:
         a={tuple(row) for row in train.couplings.reshape(len(train.configurations),-1).tolist()}
         b={tuple(row) for row in test.couplings.reshape(len(test.configurations),-1).tolist()}
         if a & b: raise ValueError('Train/test parameter cells overlap despite different group IDs')

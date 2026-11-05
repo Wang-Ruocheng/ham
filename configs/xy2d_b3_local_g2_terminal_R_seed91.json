@@ -1,0 +1,20 @@
+{
+  "schema_version": 5,
+  "recipe": "xy2d_b3_local_g2_terminal_fixed_QC_R_v1",
+  "source": "/mnt/nas-new/home/yange/ham/results/xy2d_b3_local_g2_matched1250_seed91_gpu3_vm225_20261105_v1",
+  "source_joint_steps": 1250,
+  "source_checkpoint_sha256": "10282611271d4709b39169479e364af72a360577342f2ff953f57557364cc589",
+  "data_sha256": "2ec7177aa8c7e617f2889483841764c96cbe978a2bb459e16f095657b9e7bad1",
+  "max_extra_R_updates": 10000,
+  "cache_repeats": 8,
+  "cache_seed": 91915,
+  "samples": 32,
+  "systems": 16,
+  "learning_rate_R": 0.003,
+  "closure_objective": "all_start_anchor",
+  "closure_scale_weights": null,
+  "stopping": "TRAIN only: <1% best-loss improvement over2000 updates; current within5% of best; 3 checks every500 after>=3000",
+  "hard_seconds": 1200,
+  "max_cuda_bytes": 8589934592,
+  "max_output_bytes": 2147483648
+}

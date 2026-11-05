@@ -1,10 +1,12 @@
+"""Historical diagnostic fidelity and retirement from active training."""
+import inspect
 import pytest
 import torch
 from recurrent_rg.checkpoints import build_model
-from recurrent_rg.config import ModelConfig, QCRWeights
-from recurrent_rg.kernel_regularizers import uniform_block_probabilities, kernel_distinct_loss
+from recurrent_rg.config import DataConfig, LossConfig, ModelConfig, RunConfig
+from recurrent_rg.kernel_regularizers import uniform_block_probabilities
+from archive.qcr_ablations.kernel_distinct import kernel_distinct_loss
 from recurrent_rg.losses import qcr_objective
-from recurrent_rg.data.statistics import two_spin_distribution
 
 
 def test_positive_and_negative_decimation_and_constant():
@@ -40,17 +42,46 @@ def test_probabilities_gradient_and_output_permutation(dimension,q):
     torch.testing.assert_close(a,kernel_distinct_loss(c))
 
 
-def test_objective_accounting_and_same_random_draws():
-    torch.manual_seed(3)
-    m=build_model(ModelConfig(hidden=5),2)
-    x=(2*torch.randint(2,(4,8,16,1))-1).double()
-    rng=torch.get_rng_state()
-    base,_=qcr_objective(m,x,pattern_fn=two_spin_distribution)
-    after=torch.get_rng_state()
-    torch.set_rng_state(rng)
-    augmented,terms=qcr_objective(m,x,pattern_fn=two_spin_distribution,kernel_distinct_alpha=1.)
-    torch.testing.assert_close(augmented,base+2*terms['kernel_distinct'])
-    assert torch.equal(after,torch.get_rng_state())
+def test_retired_loss_is_absent_from_active_objective():
+    from recurrent_rg import kernel_regularizers
+    assert not hasattr(kernel_regularizers, 'kernel_distinct_loss')
+    assert 'kernel_distinct_alpha' not in inspect.signature(qcr_objective).parameters
+    assert 'kernel_distinct_margin' not in inspect.signature(qcr_objective).parameters
+    with pytest.raises(TypeError, match='kernel_distinct_alpha'):
+        qcr_objective(None, None, pattern_fn=None, kernel_distinct_alpha=1.)
+
+
+def test_zero_legacy_fields_do_not_reach_active_objective():
+    kwargs = LossConfig(kernel_distinct_alpha=0., kernel_distinct_margin=.65).objective_kwargs()
+    assert 'kernel_distinct_alpha' not in kwargs
+    assert 'kernel_distinct_margin' not in kwargs
+    assert set(kwargs) <= set(inspect.signature(qcr_objective).parameters)
+
+
+def test_historical_nonzero_manifest_remains_readable_but_cannot_train(tmp_path):
+    from recurrent_rg.runner import run_training
+    cfg = RunConfig(data=DataConfig(cache=str(tmp_path/'missing.pt'), physical_model='ising1d'),
+                    loss=LossConfig(kernel_distinct_alpha=1., kernel_distinct_margin=.8))
+    historical = cfg.to_dict()
+    loaded = RunConfig.from_dict(historical)
+    loaded.validate()  # Report/config readers preserve the historical objective.
+    assert loaded.to_dict() == historical
+    with pytest.raises(ValueError, match='has been retired'):
+        loaded.loss.objective_kwargs()
+    with pytest.raises(ValueError, match='has been retired'):
+        run_training(loaded, tmp_path/'not-created', allow_legacy_training=True)
+    assert not (tmp_path/'not-created').exists()
+
+
+@pytest.mark.parametrize('settings',[
+    {'kernel_distinct_alpha': -1.},
+    {'kernel_distinct_alpha': float('nan')},
+    {'kernel_distinct_margin': 0.},
+    {'kernel_distinct_margin': 1.1},
+])
+def test_invalid_historical_metadata_is_not_silently_accepted(settings):
+    with pytest.raises(ValueError, match='Invalid kernel distinct settings'):
+        LossConfig(**settings).objective_kwargs(historical_metadata=True)
 
 
 @pytest.mark.parametrize('margin',[-1,0,1.1,float('nan')])

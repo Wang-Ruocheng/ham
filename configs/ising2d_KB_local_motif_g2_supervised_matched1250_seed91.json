@@ -1,0 +1,44 @@
+{
+  "schema_version": 5,
+  "recipe": "ising2d_KB_local_motif_g2_supervision10_matched1250_seed91_v1",
+  "seed": 91,
+  "theory_dim": 2,
+  "data_cache": "/mnt/nas-new/home/yange/ham/data/ising2d_Kfocused_Buniform0p01_L36_n64_seed91/ensembles.pt",
+  "data_sha256": "ffc776bf6c456610e3176dfe4b328b5a4cbcd6dcb5b90f900399d591d44b5c13",
+  "data_audit": "/mnt/nas-new/home/yange/ham/data/ising2d_Kfocused_Buniform0p01_L36_n64_seed91/sampling_audit.json",
+  "data_audit_sha256": "b84d29686acaba81040325a053c67ad81851d7b421212071991a29a8244a5aaa",
+  "mi_cache_dir": "/mnt/nas-new/home/yange/ham/results/ising2d_KB_b3_highdim_seed91_vm225_20261022/mi_cache",
+  "lattice_sizes": [
+    36,
+    12,
+    4
+  ],
+  "block_size": 3,
+  "system_batch": 32,
+  "sample_batch": 64,
+  "learning_rates": {
+    "Q": 0.001,
+    "C": 0.001,
+    "R": 0.003
+  },
+  "r_updates_per_batch": 1,
+  "supervision_weight": 10.0,
+  "supervision": "Q(full microscopic ensemble) -> TRAIN-standardized [K,B]; no coarse labels",
+  "target_seconds": 1080,
+  "hard_seconds": 1200,
+  "pilot_steps": 10,
+  "log_every": 50,
+  "probe_every": 250,
+  "checkpoint_every": 500,
+  "max_cuda_bytes": 8589934592,
+  "max_output_bytes": 2147483648,
+  "q_encoder": "local_motif",
+  "decoder_column_constraint": "free_after_initialization",
+  "steps": 1250,
+  "baseline_root": "/mnt/nas-new/home/yange/ham/results/ising2d_KB_cnn_supervision10_free_decoder_matched1250_seed91_gpu3_vm225_20261104_v1",
+  "baseline_json_sha256": {
+    "manifest": "28d9f7dff47d71885e71e5ee09148d4d16dd668b73207f5faf8bccb46422fffb",
+    "summary": "5243bf443e4d0b5220d552446b8075f23472ef3f189dedecda104802d5b032bb",
+    "evaluation_arrays": "7a524c5c57613a7e782cf86d9195d24909f255d30a46c200c3ba449337fc0506"
+  }
+}

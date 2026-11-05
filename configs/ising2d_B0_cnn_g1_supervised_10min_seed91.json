@@ -1,0 +1,38 @@
+{
+  "schema_version": 5,
+  "recipe": "ising2d_B0_cnn_g1_supervision10_free_decoder_10min_seed91_v1",
+  "seed": 91,
+  "data_cache": "/mnt/nas-new/home/yange/ham/data/ising2d_positiveK_L36_b3_lr_seed91.pt",
+  "data_sha256": "ac04dfbf2cea6dfcbd7b0cee062efd80e89cb4cf79cdd420b96c51a6fef2d040",
+  "dimension": 2,
+  "theory_dim": 1,
+  "B": 0,
+  "lattice_sizes": [
+    36,
+    12,
+    4
+  ],
+  "block_size": 3,
+  "supervision_weight": 10.0,
+  "supervision_scale": 0,
+  "coarse_supervision": false,
+  "decoder_column_constraint": "free_after_initialization",
+  "learning_rates": {
+    "Q": 0.001,
+    "C": 0.001,
+    "R": 0.003
+  },
+  "system_batch": 32,
+  "sample_batch": 64,
+  "r_updates_per_batch": 1,
+  "closure_objective": "all_start_anchor",
+  "closure_scale_weights": null,
+  "target_seconds": 540,
+  "hard_seconds": 600,
+  "pilot_steps": 10,
+  "minimum_steps": 200,
+  "maximum_steps": 1500,
+  "log_every": 50,
+  "probe_every": 250,
+  "checkpoint_every": 500
+}

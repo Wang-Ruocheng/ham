@@ -1,0 +1,35 @@
+{
+  "schema_version": 5,
+  "data": {
+    "cache": "../results/spin_glass3d_b2_overlap_g1_seed91/data/ensembles.pt",
+    "physical_model": "三维零场 EA ±J；PT 全温度及低温 ICM 的四真实副本组，仅预先固定副本 0/1 重叠场，无温度或随机键监督标签",
+    "coupling_names": [],
+    "spin_flip_augment": false,
+    "spin_flip_symmetric": true,
+    "train_pool_replicas": 1,
+    "test_pool_replicas": 1
+  },
+  "model": {
+    "dimension": 3, "theory_dim": 1, "hidden": 96, "width": 2,
+    "block_factor": 2, "kernel_layout": "nonoverlapping", "fixed_kernel": false,
+    "binary_lookup": true, "kernel_initialization": "random",
+    "kernel_sampling": "bernoulli", "kernel_temperature": 1.0,
+    "reconstruction_hidden": 0, "affine_reconstruction": true,
+    "theory_head": "nonlinear"
+  },
+  "loss": {
+    "weights": {"anchor": 2.0, "coarse_consistency": 5.0,
+      "kernel_noncollapse": 2.0, "separation": 10.0, "commutator": 5.0},
+    "rollout_weight": 5.0, "closure_scale_weights": null,
+    "kernel_sign_weight": 1.0, "kernel_noncollapse_mode": "variance_floor_ensemble",
+    "kernel_variance_ratio": 1.0, "closure_metric": "euclidean",
+    "coordinate_reduction": "sum"
+  },
+  "training": {
+    "max_rg_steps": 2, "epochs": 6000, "system_batch": 16, "sample_batch": 64,
+    "learning_rate": 0.001, "seed": 91, "threads": 1,
+    "train_modules": ["Q", "C", "R"], "checkpoint_every": 1000,
+    "log_every": 200, "gradient_mode": "qc_r_separate", "lr_schedule": "constant"
+  },
+  "evaluation": {"max_rg_steps": 2, "samples": 64, "systems": 60}
+}

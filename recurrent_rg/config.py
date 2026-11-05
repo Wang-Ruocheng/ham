@@ -3,6 +3,51 @@ from dataclasses import asdict, dataclass, field, replace
 import json
 from pathlib import Path
 
+
+def validate_closure_scale_weights(weights, max_rg_steps=None):
+    """Validate optional target-scale weights without changing their ratios.
+
+    Entries correspond to target scales k=1..max_rg_steps for both the
+    one-step and microscopic-start rollout closure objectives.
+    """
+    import math
+    from numbers import Real
+    if weights is None:
+        return None
+    if not isinstance(weights, (list, tuple)) or not weights:
+        raise ValueError('closure_scale_weights must be a nonempty list or tuple')
+    if any(isinstance(value, bool) or not isinstance(value, Real)
+           or not math.isfinite(value) or value < 0 for value in weights):
+        raise ValueError('closure_scale_weights must contain finite nonnegative numbers')
+    values = tuple(float(value) for value in weights)
+    if not any(value > 0 for value in values):
+        raise ValueError('closure_scale_weights must have positive total weight')
+    if max_rg_steps is not None and len(values) != max_rg_steps:
+        raise ValueError('closure_scale_weights length must match max_rg_steps')
+    return values
+
+
+def validate_closure_objective(objective, weights, rollout_weight,
+                               closure_metric='euclidean', closure_scale_weights=None):
+    """Validate closure selection without relaxing historical objective rules."""
+    import math
+    from numbers import Real
+    if objective not in ('one_step_and_rollout', 'all_start_anchor'):
+        raise ValueError('Unknown closure_objective')
+    if objective == 'one_step_and_rollout':
+        return
+    scale_weights = validate_closure_scale_weights(closure_scale_weights)
+    if closure_metric != 'euclidean':
+        raise ValueError('all_start_anchor requires the euclidean closure metric')
+    if scale_weights is not None and len(set(scale_weights)) != 1:
+        raise ValueError('all_start_anchor requires uniform closure_scale_weights')
+    coefficients = (weights.commutator, rollout_weight)
+    if (any(isinstance(value, bool) or not isinstance(value, Real) for value in coefficients)
+            or not math.isfinite(weights.commutator) or not math.isfinite(rollout_weight)
+            or weights.commutator <= 0 or weights.commutator != rollout_weight):
+        raise ValueError('all_start_anchor requires equal positive commutator and rollout weights')
+
+
 @dataclass(frozen=True)
 class QCRWeights:
     """Loss weights for the QCR (Q-C-R) joint training objective.
@@ -60,10 +105,39 @@ class ModelConfig:
     kernel_sampling: str = 'bernoulli'
     kernel_temperature: float = 1.0
     reconstruction_hidden: int = 0
+    reconstruction_hidden_layers: int = 1
+    reconstruction_spectral_bound: float = 0.0
+    reconstruction_probability_loss: str = 'js'
     affine_reconstruction: bool = True
     theory_head: str = 'nonlinear'
+    # Pooled learned local Q features, independent of the output theory_dim.
+    # Historical architectures used 12; omitted configuration fields retain it.
+    local_features: int = 12
+    q_encoder: str = 'local_motif'
 
     def __post_init__(self):
+        import math
+        if type(self.reconstruction_hidden_layers) is not int or self.reconstruction_hidden_layers < 1:
+            raise ValueError('reconstruction_hidden_layers must be positive')
+        if not math.isfinite(self.reconstruction_spectral_bound) or self.reconstruction_spectral_bound < 0:
+            raise ValueError('Invalid reconstruction spectral bound')
+        if self.reconstruction_probability_loss not in ('js', 'squared'):
+            raise ValueError('Unknown probability reconstruction loss')
+        if (self.reconstruction_spectral_bound or self.reconstruction_probability_loss != 'js'
+                or self.reconstruction_hidden_layers != 1) and (not self.reconstruction_hidden or self.affine_reconstruction):
+            raise ValueError('Nonlinear decoder options require a nonlinear probability decoder')
+        if self.q_encoder not in ('local_motif', 'configuration_cnn', 'ensemble_vae'):
+            raise ValueError('Unknown Q encoder architecture')
+        if self.q_encoder == 'ensemble_vae' and (self.dimension != 2 or self.categorical_states != 4
+                or self.affine_reconstruction or self.reconstruction_hidden
+                or self.theory_head != 'nonlinear'):
+            raise ValueError('Ensemble VAE currently requires 2D four-state fields and its own decoder')
+        if self.q_encoder == 'configuration_cnn' and (self.dimension != 2 or self.categorical_states
+                or type(self.theory_dim) is not int or self.theory_dim < 1
+                or not self.affine_reconstruction or self.theory_head != 'nonlinear'):
+            raise ValueError('Configuration CNN requires binary 2D positive-dimensional affine Q')
+        if type(self.local_features) is not int or self.local_features < 1:
+            raise ValueError('local_features must be a positive integer')
         if self.block_factor is None:
             object.__setattr__(self, 'block_factor', 3 if self.dimension == 2 else 2)
 
@@ -96,6 +170,11 @@ class LossConfig:
     geometry_tail_min_reliability: float = .5
     noise_multiplier: float = 2.0
     rollout_weight: float = 5.0
+    closure_scale_weights: tuple[float, ...] | None = None
+    # Fresh runs use uniform-target, all-start anchored consistency. Serialized
+    # configurations with this field omitted retain the historical formula in
+    # RunConfig.from_dict, independently of their schema version.
+    closure_objective: str = 'all_start_anchor'
     isotropy_weight: float = 0.0
     tangent_weight: float = 0.0
     orientation_weight: float = 0.0
@@ -103,6 +182,8 @@ class LossConfig:
     kernel_sign_weight: float = 0.0
     kernel_neutral_weight: float = 0.0
     kernel_neutral_max_patterns: int = 65536
+    # Read-only compatibility with historical manifests/checkpoints. These are
+    # never forwarded to an active objective; nonzero alpha cannot train.
     kernel_distinct_alpha: float = 0.0
     kernel_distinct_margin: float = 0.8
     closure_metric: str = 'euclidean'
@@ -111,8 +192,16 @@ class LossConfig:
     kernel_variance_ratio: float = .25
     weights: QCRWeights = field(default_factory=lambda: QCRWeights(anchor=2., separation=10.))
 
-    def objective_kwargs(self):
+    def objective_kwargs(self, *, historical_metadata=False):
+        """Active objective arguments, or validation-only historical metadata.
+
+        Historical nonzero distinct loss remains readable by report loaders,
+        but no trainer may silently continue with that retired term omitted.
+        """
         import math
+        validate_closure_scale_weights(self.closure_scale_weights)
+        validate_closure_objective(self.closure_objective, self.weights,
+            self.rollout_weight, self.closure_metric, self.closure_scale_weights)
         if not math.isfinite(self.balanced_reconstruction_weight) or self.balanced_reconstruction_weight < 0:
             raise ValueError('Invalid balanced reconstruction weight')
         if self.geometry_bounds not in ('interval', 'lower_only'):
@@ -127,6 +216,10 @@ class LossConfig:
             raise ValueError('Geometry tail requires relative_local')
         if not math.isfinite(self.kernel_distinct_alpha) or self.kernel_distinct_alpha < 0 or not math.isfinite(self.kernel_distinct_margin) or not 0 < self.kernel_distinct_margin <= 1:
             raise ValueError('Invalid kernel distinct settings')
+        if self.kernel_distinct_alpha and not historical_metadata:
+            raise ValueError('kernel_distinct_loss has been retired; historical configurations '
+                             'remain readable but cannot be used for active training. '
+                             'Use a new explicit configuration with kernel_distinct_alpha=0.')
         if not math.isfinite(self.kernel_sign_weight) or self.kernel_sign_weight < 0:
             raise ValueError('Invalid kernel sign weight')
         if not math.isfinite(self.kernel_neutral_weight) or self.kernel_neutral_weight < 0:
@@ -138,6 +231,13 @@ class LossConfig:
         if self.tangent_weight < 0 or self.closure_metric not in ('euclidean', 'noise_aware'):
             raise ValueError('Invalid tangent weight or closure metric')
         values = asdict(self)
+        values.pop('kernel_distinct_alpha')
+        values.pop('kernel_distinct_margin')
+        # Preserve legacy objective signatures and frozen execution manifests.
+        # The new default is forwarded explicitly; omitted low-level arguments
+        # continue to mean the historical objective for direct-call compatibility.
+        if self.closure_objective == 'one_step_and_rollout':
+            values.pop('closure_objective')
         values['weights'] = self.weights
         return values
 
@@ -160,6 +260,13 @@ class TrainingConfig:
     lr_gamma: float = .5
     lr_min_factor: float = .1
     lr_cosine_updates: int = 0
+    # Total R Adam updates per online Q/C batch (including the joint update).
+    # Missing in historical configurations means exactly the old 1:1 path.
+    r_updates_per_batch: int = 1
+    # Current fresh pipelines end with a fixed-Q/C fit; old serialized runs do not.
+    terminal_r_fit: bool = True
+    terminal_r_max_steps: int = 10000
+    terminal_r_cache_repeats: int = 8
 
     def validate_learning_rate(self):
         from .learning_rate import validate_learning_rate_config
@@ -202,6 +309,12 @@ class RunConfig:
         if version == 1 or model.get('fixed_kernel', False):
             model.setdefault('kernel_sampling', 'deterministic')
         loss = dict(values.get('loss', {}))
+        # Missing is historical, not an instruction to adopt today's default.
+        # Schema 5 predates all-start closure too, and report/resume loaders must
+        # never reinterpret its saved loss or gradient routing on reload.
+        loss.setdefault('closure_objective', 'one_step_and_rollout')
+        if isinstance(loss.get('closure_scale_weights'), (list, tuple)):
+            loss['closure_scale_weights'] = tuple(loss['closure_scale_weights'])
         # Preserve historical objectives; the sign NLL only applies to
         # learnable probabilistic kernels in new configurations.
         if version < 3 or model.get('fixed_kernel', False) or model.get('kernel_sampling') == 'deterministic':
@@ -211,6 +324,7 @@ class RunConfig:
         if 'weights' in loss:
             loss['weights'] = QCRWeights(**(asdict(LossConfig().weights) | loss['weights']))
         training = dict(values.get('training', {}))
+        training.setdefault('terminal_r_fit', False)
         if isinstance(training.get('lr_milestones'), (list, tuple)):
             training['lr_milestones'] = tuple(training['lr_milestones'])
         return cls(data=DataConfig(**values['data']), model=ModelConfig(**model), schema_version=version,
@@ -232,14 +346,24 @@ class RunConfig:
     def validate(self):
         m, t, e = self.model, self.training, self.evaluation
         t.validate_learning_rate()
+        if m.q_encoder == 'ensemble_vae' and (self.loss.weights.anchor != 0
+                or self.loss.weights.coarse_consistency != 0 or self.loss.weights.separation != 1
+                or self.loss.balanced_reconstruction_weight or self.loss.isotropy_weight
+                or self.loss.tangent_weight or self.loss.orientation_weight):
+            raise ValueError('Ensemble VAE replaces the Q objective with unit-weight cross-subset CE + weak KL')
         if self.loss.balanced_reconstruction_weight and not m.affine_reconstruction:
             raise ValueError('Balanced reconstruction requires the shared affine decoder')
         if not isinstance(m.affine_reconstruction, bool) or (m.affine_reconstruction and m.reconstruction_hidden):
             raise ValueError('Affine and nonlinear distribution decoders are mutually exclusive')
-        if m.dimension not in (1, 2) or min(m.theory_dim, m.hidden, m.width) < 1:
-            raise ValueError('Current runner supports binary 1D/2D models with positive dimensions')
-        if m.width % 2 != 1 or m.block_factor < 2:
-            raise ValueError('Need odd patch width and block_factor >= 2')
+        if m.dimension not in (1, 2, 3) or min(m.theory_dim, m.hidden, m.width) < 1:
+            raise ValueError('Current runner supports binary 1D/2D/3D models with positive dimensions')
+        if m.dimension == 3:
+            if m.width != 2:
+                raise ValueError('3D models require the explicit anchored width-2 cube window')
+        elif m.width % 2 != 1:
+            raise ValueError('Need odd centered patch width in 1D/2D')
+        if m.block_factor < 2:
+            raise ValueError('Need block_factor >= 2')
         if m.kernel_layout not in ('nonoverlapping', 'overlapping'):
             raise ValueError('Unknown kernel layout')
         if m.kernel_initialization not in ('random', 'positive_decimation'):
@@ -268,6 +392,17 @@ class RunConfig:
             raise ValueError('train_modules must be a nonempty, unique subset of Q,C,R')
         if t.gradient_mode not in ('joint', 'qc_r_separate'):
             raise ValueError('Unknown gradient mode')
+        if type(t.r_updates_per_batch) is not int or not 1 <= t.r_updates_per_batch <= 32:
+            raise ValueError('r_updates_per_batch must be an integer in [1, 32]')
+        if type(t.terminal_r_fit) is not bool:
+            raise ValueError('terminal_r_fit must be boolean')
+        if (type(t.terminal_r_max_steps) is not int or not 1 <= t.terminal_r_max_steps <= 100000
+                or type(t.terminal_r_cache_repeats) is not int or not 1 <= t.terminal_r_cache_repeats <= 64):
+            raise ValueError('Invalid terminal R update/cache limits')
+        if t.r_updates_per_batch > 1 and (
+                t.gradient_mode != 'qc_r_separate' or 'R' not in t.train_modules
+                or self.loss.closure_objective != 'all_start_anchor'):
+            raise ValueError('R inner updates require separate gradients and all_start_anchor closure')
         if t.gradient_mode == 'qc_r_separate' and (set(t.train_modules) not in ({'Q','C','R'},{'Q','R'},{'R'}) or self.loss.tangent_weight or self.loss.orientation_weight):
             raise ValueError('Separate gradients require Q/R with optional C, or explicit R-only continuation, and no tangent/orientation terms')
         if self.data.spin_flip_augment and not self.data.spin_flip_symmetric:
@@ -275,9 +410,11 @@ class RunConfig:
         if min(self.data.train_pool_replicas,self.data.test_pool_replicas) < 1:
             raise ValueError('Pooling factors must be positive')
         l = self.loss
-        l.objective_kwargs()
-        if l.kernel_distinct_alpha and (m.fixed_kernel or m.kernel_sampling == 'deterministic'):
-            raise ValueError('Distinct loss requires a learnable probabilistic kernel')
+        # Structural validation is also used by historical report readers.
+        # Training obtains objective_kwargs() separately and rejects retired
+        # nonzero objectives before executing any optimizer updates.
+        l.objective_kwargs(historical_metadata=True)
+        validate_closure_scale_weights(l.closure_scale_weights, t.max_rg_steps)
         if l.kernel_neutral_weight:
             if m.fixed_kernel or m.kernel_sampling == 'deterministic':
                 raise ValueError('Neutral loss requires a learnable probabilistic kernel')

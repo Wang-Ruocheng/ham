@@ -75,7 +75,7 @@ def main():
         batch=tx.configurations[systems][:,samples].double()
         opt.zero_grad(set_to_none=True)
         total,terms=qcr_objective(m,batch,pattern_fn=categorical_plaquette_distribution,**cfg.loss.objective_kwargs())
-        closure=cfg.loss.weights.commutator*terms['commutator']+cfg.loss.rollout_weight*terms['rollout']
+        closure=terms.get('closure_total',cfg.loss.weights.commutator*terms['commutator']+cfg.loss.rollout_weight*terms['rollout'])
         if not torch.isfinite(total):raise FloatingPointError(f'Nonfinite at {step}')
         assign_gradients(total,closure,qc,r,mult);opt.step()
         if step%100==0:

@@ -1,0 +1,44 @@
+{
+  "schema_version": 5,
+  "recipe": "ising2d_B0_local_motif_g1_supervision10_matched550_seed91_v1",
+  "seed": 91,
+  "data_cache": "/mnt/nas-new/home/yange/ham/data/ising2d_positiveK_L36_b3_lr_seed91.pt",
+  "data_sha256": "ac04dfbf2cea6dfcbd7b0cee062efd80e89cb4cf79cdd420b96c51a6fef2d040",
+  "dimension": 2,
+  "theory_dim": 1,
+  "B": 0,
+  "lattice_sizes": [
+    36,
+    12,
+    4
+  ],
+  "block_size": 3,
+  "supervision_weight": 10.0,
+  "supervision_scale": 0,
+  "coarse_supervision": false,
+  "decoder_column_constraint": "free_after_initialization",
+  "learning_rates": {
+    "Q": 0.001,
+    "C": 0.001,
+    "R": 0.003
+  },
+  "system_batch": 32,
+  "sample_batch": 64,
+  "r_updates_per_batch": 1,
+  "closure_objective": "all_start_anchor",
+  "closure_scale_weights": null,
+  "target_seconds": 540,
+  "hard_seconds": 600,
+  "pilot_steps": 10,
+  "log_every": 50,
+  "probe_every": 250,
+  "checkpoint_every": 500,
+  "q_encoder": "local_motif",
+  "formal_steps": 550,
+  "baseline": "/mnt/nas-new/home/yange/ham/results/ising2d_B0_cnn_g1_supervised10min_seed91_gpu3_vm225_20261104_v1",
+  "baseline_pins": {
+    "manifest": "5207cbc4e4c27a1bf35211040bc982db5b1830658321e41425364ff0f1e7f913",
+    "summary": "3c0847489a982aafaf547be576f910884cde4e149476324f56836186df208121",
+    "evaluation_arrays": "d3c1dcab861e6af0b81309c8b5d71ba7aaa1df87c5ba22dc195485f1aaf3c0a9"
+  }
+}

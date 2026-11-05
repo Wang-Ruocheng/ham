@@ -27,6 +27,7 @@ from typing import Callable, Mapping
 import torch
 
 from .empirical_mi import EmpiricalBinaryMI, LocalPairMI
+from .tensor_io import all_finite, load_cpu_tensors, tensor_chunks
 
 
 # Bump when the statistics implementation or serialization convention changes.
@@ -148,7 +149,8 @@ def _tensor_from_payload(payload):
                 any(isinstance(n, bool) or not isinstance(n, int) or n < 0 for n in size)
                 or indices.shape != (len(size), len(values))):
             raise ValueError("Invalid sparse empirical MI cache tensor")
-        if any(bool(((indices[axis] < 0) | (indices[axis] >= width)).any())
+        if any(any(bool(((part < 0) | (part >= width)).any())
+                   for part in tensor_chunks(indices[axis]))
                for axis, width in enumerate(size)):
             raise ValueError("Sparse empirical MI cache indices exceed tensor dimensions")
         tensor = torch.sparse_coo_tensor(indices, values, tuple(size)).coalesce()
@@ -157,7 +159,7 @@ def _tensor_from_payload(payload):
     if tensor.device.type != "cpu" or tensor.requires_grad:
         raise ValueError("Empirical MI cache tensors must be static CPU tensors")
     values = tensor.values() if tensor.layout == torch.sparse_coo else tensor
-    if not bool(torch.isfinite(values).all()):
+    if not all_finite(values):
         raise ValueError("Empirical MI cache contains non-finite tensor values")
     return tensor
 
@@ -215,9 +217,9 @@ def _statistics_from_payload(payload):
     raise ValueError("Invalid empirical MI cache statistics kind or fields")
 
 
-def _load_cache(path, identity, key):
+def _load_cache(path, identity, key, *, mmap=False):
     try:
-        payload = torch.load(path, map_location="cpu", weights_only=True)
+        payload = load_cpu_tensors(path, mmap=mmap)
         if (not isinstance(payload, dict) or set(payload) != {"identity", "key", "statistics"}
                 or payload["identity"] != identity or payload["key"] != key):
             raise ValueError("Cache identity does not match the requested data/region conventions")
@@ -228,7 +230,7 @@ def _load_cache(path, identity, key):
             "The existing file was not modified; choose a new cache directory or inspect it explicitly.") from error
 
 
-def load_or_build_mi_statistics(cache_dir, key_data, build: Callable):
+def load_or_build_mi_statistics(cache_dir, key_data, build: Callable, *, mmap=False):
     """Return ``(statistics, metadata)`` without changing the MI definition.
 
     Required ``key_data`` fields: ``data_sha256``, ``split``, ``states``,
@@ -240,6 +242,11 @@ def load_or_build_mi_statistics(cache_dir, key_data, build: Callable):
 
     ``build`` must return static CPU statistics; cache hits never call it.  This
     helper itself neither reads nor changes torch/NumPy/Python RNG states.
+
+    ``mmap`` is an explicit execution-only opt-in. Modern archives are mapped
+    privately and legacy serialization retains eager compatibility; malformed
+    archives do not silently fall back or rebuild. The key, on-disk format,
+    sparse coalescing and all statistic validations are unchanged.
     """
     identity, key = _cache_identity(key_data)
     directory = Path(cache_dir)
@@ -247,7 +254,7 @@ def load_or_build_mi_statistics(cache_dir, key_data, build: Callable):
     path = directory / f"mi-v{MI_STATISTICS_CACHE_VERSION}-{key}.pt"
     started = time.perf_counter()
     if path.exists():
-        statistics = _load_cache(path, identity, key)
+        statistics = _load_cache(path, identity, key, mmap=mmap)
         return statistics, {"hit": True, "path": str(path), "key": key,
                             "cache_version": MI_STATISTICS_CACHE_VERSION,
                             "build_seconds": 0.0, "load_seconds": time.perf_counter() - started,
@@ -273,7 +280,7 @@ def load_or_build_mi_statistics(cache_dir, key_data, build: Callable):
             os.link(temporary, path)
         except FileExistsError:
             race = True
-            statistics = _load_cache(path, identity, key)
+            statistics = _load_cache(path, identity, key, mmap=mmap)
     finally:
         temporary.unlink(missing_ok=True)
     return statistics, {"hit": race, "path": str(path), "key": key,

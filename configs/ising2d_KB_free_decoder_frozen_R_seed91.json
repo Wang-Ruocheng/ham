@@ -1,0 +1,30 @@
+{
+  "schema_version": 5,
+  "recipe": "ising2d_KB_free_decoder_frozen_QC_fullbatch_R_v1",
+  "source": "/mnt/nas-new/home/yange/ham/results/ising2d_KB_cnn_supervision10_free_decoder_matched1250_seed91_gpu3_vm225_20261104_v1",
+  "source_sha256": {
+    "training_step_1250.pt": "bffb4a41ff9f5a3d04c000a86f87f2353bafd48d2083579eed9ca70d6b0cd03b",
+    "manifest.json": "28d9f7dff47d71885e71e5ee09148d4d16dd668b73207f5faf8bccb46422fffb",
+    "summary.json": "5243bf443e4d0b5220d552446b8075f23472ef3f189dedecda104802d5b032bb",
+    "evaluation_arrays.npz": "7a524c5c57613a7e782cf86d9195d24909f255d30a46c200c3ba449337fc0506",
+    "roots.json": "134cfd4eafcce2a3ad00d7b53b6217cdf10a73e3933aec5a83eb83b9086bd9c2",
+    "status.json": "ff1b902ad5c64c496f5d372f3e4ab27e1fa5977b85554a6221bc7bd140f8ffa1"
+  },
+  "source_joint_updates": 1250,
+  "learning_rate": 0.003,
+  "max_extra_R_updates": 60000,
+  "evaluate_every": 1000,
+  "minimum_updates": 10000,
+  "plateau_window": 5000,
+  "plateau_rtol": 0.01,
+  "plateau_confirmations": 3,
+  "stability_rtol": 0.05,
+  "hard_seconds": 1200,
+  "training_seconds": 1020,
+  "train_chains": 474,
+  "test_chains": 240,
+  "target_policy": "saved_half_subset_direct_g_full_TRAIN",
+  "labels_used_in_training": false,
+  "closure_objective": "all_start_anchor",
+  "closure_scale_weights": null
+}

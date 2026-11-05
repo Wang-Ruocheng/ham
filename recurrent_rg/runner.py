@@ -8,6 +8,7 @@ import torch
 from .config import RunConfig, ScaleConfig
 from .checkpoints import build_model, load_run, load_model_state, qcr_state_dict
 from .data.ensembles import load_ensembles
+from .tensor_io import tensor_chunks
 from .data.statistics import two_spin_distribution, plaquette_distribution, categorical_plaquette_distribution
 from .training import train
 from .evaluation import collect_trajectories, closure_metrics
@@ -20,18 +21,25 @@ def file_fingerprint(path):
     return digest.hexdigest()
 
 
-def prepared_data(config):
+def prepared_data(config, *, mmap=True):
     config.validate()
-    tx,vx=load_ensembles(config.data.cache)
+    tx,vx=load_ensembles(config.data.cache, mmap=mmap)
     if config.data.train_pool_replicas!=1: tx=tx.pool(config.data.train_pool_replicas)
     if config.data.test_pool_replicas!=1: vx=vx.pool(config.data.test_pool_replicas)
     for ds in (tx,vx):
         x=ds.configurations
         if config.model.categorical_states:
-            if x.ndim!=config.model.dimension+3 or x.shape[-1]!=config.model.categorical_states or not torch.all((x==0)|(x==1)) or not torch.all(x.sum(-1)==1):
+            if x.ndim!=config.model.dimension+3 or x.shape[-1]!=config.model.categorical_states:
                 raise ValueError('Expected one-hot categorical configurations')
-        elif x.ndim!=config.model.dimension+3 or x.shape[-1]!=1 or not torch.all((x==1)|(x==-1)):
-            raise ValueError('Expected binary single-channel configurations')
+            # Keep the channel axis intact so every one-hot sum is checked.
+            for chunk in tensor_chunks(x, keep_last_dim=True):
+                if not torch.all((chunk==0)|(chunk==1)) or not torch.all(chunk.sum(-1)==1):
+                    raise ValueError('Expected one-hot categorical configurations')
+        else:
+            if x.ndim!=config.model.dimension+3 or x.shape[-1]!=1:
+                raise ValueError('Expected binary single-channel configurations')
+            if not all(bool(((chunk==1)|(chunk==-1)).all()) for chunk in tensor_chunks(x)):
+                raise ValueError('Expected binary single-channel configurations')
         if config.data.coupling_names and (ds.couplings is None or ds.couplings.reshape(len(x),-1).shape[1]!=len(config.data.coupling_names)):
             raise ValueError('Coupling names do not match label columns')
         if config.evaluation.samples>x.shape[1]: raise ValueError('Not enough evaluation samples')
@@ -48,6 +56,10 @@ def run_training(config: RunConfig, output, *, resume=None, initialize_from=None
     if config.training.lr_schedule != 'constant':
         raise ValueError('The historical legacy runner supports only constant learning rates; '
                          'use the locked default QCR driver for scheduled optimization.')
+    if config.training.r_updates_per_batch != 1:
+        raise ValueError('R inner updates require the default independent-QCR driver, not the legacy runner')
+    # Reject retired nonzero objectives before reading data or creating output.
+    objective_kwargs = config.loss.objective_kwargs()
     if resume and initialize_from: raise ValueError('Resume and weight initialization are different operations')
     config=replace(config,data=replace(config.data,cache=str(Path(config.data.cache).resolve())))
     tx,vx=prepared_data(config)
@@ -68,7 +80,10 @@ def run_training(config: RunConfig, output, *, resume=None, initialize_from=None
         previous['model'].setdefault('kernel_sampling', 'deterministic')
         previous['model'].setdefault('kernel_temperature', 1.0)
         previous['model'].setdefault('affine_reconstruction', False)
+        previous['model'].setdefault('local_features', 12)
         previous['loss'].setdefault('orientation_weight', 0.0)
+        previous['loss'].setdefault('closure_objective', 'one_step_and_rollout')
+        previous['training'].setdefault('r_updates_per_batch', 1)
         previous['loss'].setdefault('orientation_radius', 0.02)
         previous['loss'].setdefault('kernel_sign_weight', 0.0)
         previous['loss'].setdefault('kernel_neutral_weight', 0.0)
@@ -98,12 +113,16 @@ def run_training(config: RunConfig, output, *, resume=None, initialize_from=None
                   resume=str(resume) if resume else None,initialize_from=str(initialize_from) if initialize_from else None)
     (out/'manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
     t,e=config.training,config.evaluation
+    pattern_fn=(categorical_plaquette_distribution if config.model.categorical_states else
+                two_spin_distribution if config.model.dimension==1 else plaquette_distribution)
+    if config.model.dimension == 3:
+        from .data.statistics import cube_distribution
+        pattern_fn=cube_distribution
     history=train(model,tx.configurations,vx.configurations,
-        pattern_fn=(categorical_plaquette_distribution if config.model.categorical_states else
-                    two_spin_distribution if config.model.dimension==1 else plaquette_distribution),
+        pattern_fn=pattern_fn,
         epochs=t.epochs,system_batch=t.system_batch,sample_batch=t.sample_batch,
         eval_samples=e.samples,eval_systems=e.systems,learning_rate=t.learning_rate,seed=t.seed,
-        progress_dir=out,spin_flip_augment=config.data.spin_flip_augment,objective_kwargs=config.loss.objective_kwargs(),
+        progress_dir=out,spin_flip_augment=config.data.spin_flip_augment,objective_kwargs=objective_kwargs,
         resume_state=state,initial_history=history,train_modules=t.train_modules,
         checkpoint_every=t.checkpoint_every,checkpoint_metadata=metadata,record_every=t.log_every,
         gradient_mode=t.gradient_mode)

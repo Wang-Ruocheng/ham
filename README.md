@@ -1,19 +1,31 @@
 # Recurrent RG Network：从构型系综学习 QCR
 
-更新：2026-10-09。输入为无耦合标签的构型系综，学习局域粗粒化 C、系综坐标 Q 和共享尺度映射 R：
+更新：2026-11-05。默认输入为无耦合标签的构型系综，学习局域粗粒化 C、系综坐标 Q 和共享尺度映射 R：
 
 $$
 \mathcal D_k=C^k\mathcal D_0,\qquad g_k=Q(\mathcal D_k),\qquad R(g)=g+F(g).
 $$
 
-当前默认训练使用**随机初始化的可训练概率 C、经验 RSMI、逐系综方差下限及保色；Q 使用共享仿射分布重构，Q/C/R 同步更新但独立传递梯度**。不穷举选择核，不预训练 C，不使用耦合或相标签监督。真实耦合用于采样和事后物理诊断；采样区间的选择仍包含实验设计知识。历史实验及用户授权的冻结/PCA诊断单独标明，不等同于当前默认配方。
+当前默认训练使用**随机初始化的可训练概率 C、经验 RSMI、逐系综方差下限及保色；Q 使用共享仿射分布重构，Q/C/R 同步更新但独立传递梯度**。不穷举选择核，不预训练 C，不使用耦合或相标签监督。真实耦合用于采样和事后物理诊断；采样区间的选择仍包含实验设计知识。历史实验及用户授权的冻结/PCA诊断、耦合监督消融单独标明，不等同于当前默认配方。
 
-**最新进展：**三值自旋 Ising 的微观正负 K 编码不再 U 形折叠；冻结已展开的 Q/C 后继续拟合 R，得到两个独立排斥子及“吸引—排斥—吸引—排斥—吸引”结构。微观插值 K≈−0.56159、+0.56266，测试两步闭环 NRMSE≈2.06%。详见[三值自旋实验](#二维三值自旋-ising两个对称相变点)；这不是默认从头联合训练已完成的成功复现。
+**末尾拟合默认（2026-11-05）：**联合训练后固定最终 Q/C，单独继续训练同一个 R。
+标准新训练默认 `training.terminal_r_fit=true`，每条 TRAIN 物理链固定8组构型子集/C随机抽样，
+编码仍为两个半系综 Q 输出的均值；全缓存等权拟合原 all-start 闭环目标，保留 R Adam 和末端学习率。
+默认最多追加10,000步，每500步检查 TRAIN：至少3000步后，过去2000步的最佳损失改善不足1%、
+当前损失距最佳不超过5%，连续三次满足才称操作性平台。到上限不称收敛，TEST/标签/根不选终点。
+联合 checkpoint 和指标留在根目录，R-only 在 `r_only/`；`pipeline.json` 指向最终 checkpoint，
+默认 `load_run(运行目录)` 和正式报告使用末尾模型，显式指定旧 checkpoint 仍读联合模型。
+报告区分 Q/C 联合更新数和 R 总更新数。重复 C 抽样不是新独立物理链；不新增物理采样或 MI 训练。
+资源预算须覆盖整个两阶段流程，预算用尽会保留联合结果并标记末尾阶段未完成。
+历史加载/续训缺字段仍保持原流程；精确复现或联合训练单独消融须显式设置 false，历史结果不改写。
+
+**最新进展：**二维 Ising K–B 扫描的逐构型 CNN 配对实验已完成监督权重 0、1、10 三组各 1250 步，以及权重 10、仅放开仿射解码器列范数的第四组。放开增益后，微观图案重构 MSE 从 0.02596 降至 0.00328，K 的留出仿射读出 R² 从 0.925 升至 0.974，但有限搜索仍未找到排斥子；尺度适配改善不等于临界结构恢复。详见[监督强度对照](#二维-ising-kb-扫描监督强度对照)及[解码增益消融](#放开解码增益的配对实验)。较早的三值自旋双相变结果保留在[历史实验记录](#二维三值自旋-ising两个对称相变点)。
 
 这是有限尺度统计与潜空间动力学的研究原型，不能自动视为精确、闭合的物理 RG。
 
 - [当前模型与训练](#模型与训练)
 - [Loss 组成和目的](#loss-组成和目的)
+- [近期二维 Ising K–B 监督强度对照](#二维-ising-kb-扫描监督强度对照)
 - [精选实验及复现](#精选实验)
 - [开发指南](docs/development.md)、[完整实验索引](experiments/README.md)
 - [旧版 README 与历史 TFIM / Ising 记录](README.history.md)
@@ -38,7 +50,7 @@ Q 先对每个有序局域窗口提取特征，再对系综样本和格点平移
 
 - Q 只优化表示目标；其粗粒化输入不向 C 反传 Q loss。
 - C 只优化 MI、防塌缩及保色目标。
-- R 只优化一步和多步闭环；目标和初始 Q 坐标均停止梯度，但 R 的递推保留梯度。
+- R 只优化全起点、同终点锚定闭环；各目标尺度等权、每个终点内的全部早期起点等权。Q/C 不接收闭环梯度，R 的全部递推保留梯度。
 
 因此它既不是 Q→C→R 逐个训练，也不是所有 loss 对三个模块全反传。**固定默认：Q 用共享仿射分布重构；随机概率 C，histogram MI 权重 2，逐系综 variance floor 权重 2 / ratio 1，保色权重 1，Q/C/R 独立梯度；未经用户明确要求不得改变。**缓冲区宽度 1，MI 使用微观尺度的完整环境壳层。
 
@@ -52,7 +64,7 @@ Q编码器结构不变，新增共享仿射decoder，列范数每步归一化；
 
 同设置的 dim_g=1 已从实际 114 步短测续训至累计 1200 步，只有一个排斥子，插值 K2≈0.91796，尚未恢复两个边界；dim_g=2 的最终结果待训练/报告管线完成，暂不列为成功案例。不能把旧目录名中的 `1200` 当作其实际完成步数。详细记录见[双 Ising 实验](docs/dual_ising_reconstruction.md)。
 
-改变固定 C loss/梯度配方的消融必须显式加 `--allow-nondefault-recipe`；冻结 C、PCA 初始化及 R-only 续训有专门的显式诊断入口，也不能默认启用。旧通用训练器需 `--allow-legacy-training`（Python API 为 `allow_legacy_training=True`）。旧配置文件的反序列化默认保持兼容，实际生效的 C 目标和梯度路由由默认训练入口设置并写入 manifest；不应只凭旧 JSON 的 `gradient_mode` 判断新实验。历史结果不追溯改写。
+改变固定 C loss/梯度配方的消融必须显式加 `--allow-nondefault-recipe`；联合阶段冻结 C、PCA 初始化及历史独立续训仍属于显式诊断。上文末尾固定 Q/C 的 R-only 阶段已按用户要求成为新管线默认。旧通用训练器需 `--allow-legacy-training`（Python API 为 `allow_legacy_training=True`）。旧配置文件的反序列化默认保持兼容，实际生效的 C 目标和梯度路由由默认训练入口设置并写入 manifest；不应只凭旧 JSON 的 `gradient_mode` 判断新实验。历史结果不追溯改写。
 
 **二维块大小默认更新（2026-10-06）：**新配置使用 `schema_version: 5`，省略 `model.block_factor` 时二维取 3、一维取 2；显式设置仍被尊重。无版本号以及版本 1–4 的旧配置若省略该字段，仍取 2，旧 checkpoint 同样保持兼容。二维数据必须支持每次除以 3，例如 `36×36 → 12×12 → 4×4`，不能直接复用原来 `16×16` 的两步链。底层历史几何/MI API 的默认参数未追溯修改；默认训练入口会显式传入模型的实际块大小。
 
@@ -74,7 +86,8 @@ $$
 \begin{aligned}
 \mathcal L_Q&=20\mathcal L_{\rm split,0}+5\mathcal L_{\rm split,coarse}+10\mathcal L_{\rm rec},\\
 \mathcal L_C&=-2\widehat I(H;E)+2\mathcal L_{\rm variance}+\lambda_{\rm color}\mathcal L_{\rm color},\\
-\mathcal L_R&=5\mathcal L_{\rm step}+5\mathcal L_{\rm rollout}.
+\mathcal L_R&=\frac{10}{S}\sum_{t=1}^{S}\frac1t\sum_{s=0}^{t-1}
+\mathbb E_i\|R^{t-s}(\operatorname{sg}\bar g_{is})-\operatorname{sg}\bar g_{it}\|^2.
 \end{aligned}
 $$
 
@@ -89,8 +102,8 @@ $$
 | 经验 RSMI | 粗变量保留隔着 buffer 的环境信息 | C |
 | 逐系综方差下限 | 防止 C 把仍有变化的输入压为偏置或常数输出 | C |
 | 均匀块保色（默认权重 1） | 固定颜色约定，抑制全同块的翻转 / 循环重标号 | C |
-| 一步闭环 | 拟合每个已观测尺度的 Q(CD) | R |
-| 全尺度 rollout | 从微观编码递推，匹配所有可用的 Q(C^kD) | R |
+| 全起点锚定闭环（默认） | 每个早期尺度递推到同一直接编码终点；终点之间等权 | R |
+| 历史一步／微观起点 rollout | 保留旧实验与诊断日志；不是额外叠加到新目标的项 | R |
 
 ### 1. 同系综子集一致性
 
@@ -174,7 +187,17 @@ $$
 
 只约束均匀块，混合块仍可学习；二值情形就是全正 / 全负块的 Bernoulli NLL。它不等于硬对称性，也不保证全局不存在周期轨道。三态 Potts 的精选结果未使用此项，应与保色 Ising 对照区分。
 
-### 6. R 的一步和全尺度闭环
+### 6. R 的全起点、同终点锚定闭环
+
+2026-10-25 按用户要求，将 `all_start_anchor` 设为新实验默认。令共有 S 次 RG、S+1 个尺度点，默认目标为上面的单一双重求和：每个终点 t 的总权重均为10/S，终点内的所有起点 s<t 等权。没有额外预测—预测一致性惩罚，没有加入旧 `L_future`；二维块大小仍默认 b=3，本次 b=2 的配对实验只是显式消融。
+
+当 S=1 或2且旧两分支外权均为5时，新旧目标代数等价；S≥3时增加中间起点的长程路径，同时重新分配同一终点内的权重。它统一了有限尺度链上的多步一致性，不能据此保证临界指数正确、无限深度泛化或精度提升。2026-10-25 的单seed、32→16→8→4实验在新增16→4路径的留出误差降低约3.5%，但另四条路径误差略升，因此采用默认的理由是定义简洁，不是已证明整体更优。
+
+新 `LossConfig()` 使用新默认；反序列化缺少 `closure_objective` 的历史 JSON/checkpoint 仍解释为旧目标，续训继承 checkpoint 中保存的实际模式，不重新猜默认值。标准 `--config` 入口**从头训练**时若未指定该字段，会采用新默认；精确复现旧目标须在另存的配置中写 `loss.closure_objective="one_step_and_rollout"`，不能改历史 manifest。历史 `--source` 与显式历史消融入口仍保留自己的配方。新实验应另存配置并显式写 `"all_start_anchor"`，让实际目标可审计；不再需要 b=2／深度3的实验标记。兼容字段 `commutator=5` 与 `rollout_weight=5` 合为总权重10；旧分支诊断仍保留，但不再单独加入新总目标。
+
+这与 [Lusch 等（2018）](https://pmc.ncbi.nlm.nih.gov/articles/PMC6251871/) 的 Koopman 学习中多步预测一致性思路相容，但当前 R 仍是非线性状态映射，不是已学到有限维线性 Koopman 算子。可另外研究提升后的可观测量与谱分析，但它们不是本次默认更改的一部分。
+
+历史模式 `one_step_and_rollout` 仍使用：
 
 $$
 \mathcal L_{\rm step}=\mathbb E_{i,0\le k<n}\|R(\operatorname{sg}\bar g_{ik})-\operatorname{sg}\bar g_{i,k+1}\|^2,
@@ -186,6 +209,79 @@ $$
 覆盖缓存链的所有可用尺度，不只前两步；但不约束链长之外的无限次递推。R loss 不再通过收缩 Q/C 表示来降低自身误差。日志总量含负 MI，可能为负，不能只按其大小判断相变学习是否正确。
 
 训练使用两个半系综编码的均值 \(\bar g\)，常规报告使用完整系综的 \(Q(\mathcal D_k)\)；Q 输出头非线性，二者并非代数恒等。下述三值自旋 R-only 诊断改用缓存的完整系综坐标，是明确的目标抽样方式变更。
+
+## 二维 Ising KB 扫描：监督强度对照
+
+2026-11-04 完成的**用户明确授权消融**：比较无监督、弱监督和强监督；不将耦合标签监督加入默认配方，也不据此将本实验的 CNN 编码器设为通用入口默认结构。
+
+三组复用相同数据和划分：K=0.20:0.03:0.68、B=−0.010:0.001:0.010，共 357 个参数格点，每点 2 条独立物理链、每链 64 个构型；按整个参数格点划分为 TRAIN 474 条链、TEST 240 条链。格点尺度为 36→12→4，b=3，dim_g=2，seed=91。Q 为跨尺度共享的逐构型 CNN，C 为随机初始化的可训练概率核，R 为残差 MLP；三组从相同随机权重、fresh Adam 开始，各完成 **1250 次 Q/C/R 更新**，学习率分别为 0.001/0.001/0.003，batch=32 个系综。数据、初始化、C/R 目标、梯度路由和训练长度保持一致，改变项只有监督权重。
+
+监督项为
+
+$$
+\mathcal L_Q^{(\lambda)}=\mathcal L_Q+
+\lambda\,\mathbb E_i\|Q(\mathcal D_{i,0})-z_{\rm TRAIN}(K_i,B_i)\|^2,
+\qquad \lambda\in\{0,1,10\}。
+$$
+
+标准化只使用 TRAIN 参数。标签仅监督完整微观系综的 Q，不监督粗尺度，不更新 C/R；R 仍使用两个半系综编码均值作为目标，以均匀 `all_start_anchor` 训练。Q 原有共享仿射重构和有效权重 20/5 的子集一致性保留，decoder 列范数仍逐步归一化。完整系综编码与半系综编码均值分别保存，不能将两种估计器混为一谈。
+
+**正式留出集结果。**图案重构误差是相同 16 个有序 2×2 图案概率的逐分量 MSE，先对图案分量及系综平均。训练中的重构项对 16 个分量求和：在相同样本与尺度上，其未加权数值是逐分量 MSE 的 16 倍，再按目标平均尺度、乘权重；随机训练 batch 日志不能与全留出集指标逐值对应。参数读出是在 TRAIN 上事后拟合的仿射映射、在 TEST 上计算 R²，不是直接监督坐标误差，也没有用于选择模型。
+
+| 留出集指标 | 无监督 λ=0 | 弱监督 λ=1 | 强监督 λ=10 |
+|---|---:|---:|---:|
+| k=0，L=36 图案重构 MSE | 0.0000416 | 0.000793 | 0.02596 |
+| k=1，L=12 图案重构 MSE | 0.0000497 | 0.000361 | 0.00453 |
+| k=2，L=4 图案重构 MSE | 0.000117 | 0.000241 | 0.00283 |
+| 微观 K 仿射读出 R² | 0.944 | 0.905 | 0.925 |
+| 微观 B 仿射读出 R² | 0.494 | 0.536 | 0.838 |
+
+强监督的三尺度图案重构误差分别约为无监督的 624、91、24 倍；训练集也同样偏高，不能解释成普通的“训练集好、测试集差”。但 B 的参数可读性确实改善，不能说 Q 的所有功能都变差。三组已保存的 C 目标图案统计逐元素一致，最终 TEST MI 均为 0.341324，没有 C 退化的证据。
+
+R 的 TEST 闭环 NRMSE（36→12、12→4、36→4）在无监督下为 4.71%、6.23%、9.40%，强监督下为 9.69%、10.25%、11.09%；弱监督为 6.51%、6.53%、7.58%。这些 NRMSE 分别使用各模型自己的 TRAIN 目标标准差，坐标系也发生变化，不能把差值直接解释为同一个物理误差或单独归因于 R 优化器。
+
+**事后诊断，不是新增训练结果。**仅读已保存的 `evaluation_arrays.npz`，固定 Q 编码与 C 输出，在 TRAIN 的全部尺度上最小二乘拟合一个不限制列范数的共享仿射 decoder，并在 TEST 验证：强监督微观图案 MSE 从 0.02596 降至 0.00477，下降约 82%。该诊断同时放松列范数并重新求解 decoder，不足以单独分离两者贡献；剩余误差仍明显高于无监督，也不能据此保证更换 decoder 会改善不动点。
+
+使用保存的重构输出还可精确恢复原仿射 decoder（全数组最大复现误差约 5.2×10⁻¹⁵），再解码已保存的 R 预测。强监督的 36→12 图案预测 MSE 为 0.00454，而直接解码真实目标 g₁ 的重构 MSE 已为 0.00453，说明这项端到端统计误差在目标表示/解码阶段已经很大。两种误差含交叉项，不能相减当成独立的 R 误差贡献。
+
+这些证据支持一个具体问题：`g₀≈标准化(K,B)` 固定了参数坐标尺度，而 `pₖ≈Wgₖ+b、‖W[:,j]‖=1` 同时固定了解码器的增益，并要求跨尺度共享；当前训练在两种要求之间出现明显折衷。它不证明标签天然不利于 RG，也不证明 Q 必然丢失了全部相关信息。上述事后分析没有更新 Q/C/R；随后实际训练的消融见下文，通用默认架构及 loss 不因此改变。
+
+有限范围查根中，无监督找到一个训练编码凸包内的排斥子及一个外推鞍点；弱监督找到凸包内的排斥子和鞍点；强监督仅找到外推鞍点。凸包内不等于根附近有充分数据支撑，未找到也不证明不存在；这些数值根均未认证为物理临界点，`thermal_nu=null`。本轮只有一个训练 seed、36→12→4 的有限尺度和每格点两条物理链，历史数据也未新增热化认证。
+
+[三组正式数值对照](results/ising2d_KB_cnn_supervision1_matched1250_seed91_vm225_20261104_monitor/final/report/comparison.json) · [强监督 manifest](results/ising2d_KB_cnn_supervised_short_seed91_vm225_20261104_monitor/final/manifest.json) · [事后诊断使用的强监督公共数组](results/ising2d_KB_cnn_supervised_short_seed91_vm225_20261104_monitor/final/evaluation_arrays.npz) · [监督项与梯度路由实现](experiments/ising_kb_supervised_short.py) · [仿射重构与列范数约束](recurrent_rg/representation.py)
+
+| 监督权重 | 微观流场：灰色箭头 R(g)−g、参数着色散点 | 参数到 g 的映射 | Loss 曲线 |
+|---|---|---|---|
+| 0 | [流场](results/ising2d_KB_cnn_unsupervised_matched1250_seed91_vm225_20261104_monitor/final/report/R_flow_by_KB_k0.png) | [K/B–g](results/ising2d_KB_cnn_unsupervised_matched1250_seed91_vm225_20261104_monitor/final/report/Q_g_KB.png) | [曲线](results/ising2d_KB_cnn_unsupervised_matched1250_seed91_vm225_20261104_monitor/final/report/loss_curves.png) |
+| 1 | [流场](results/ising2d_KB_cnn_supervision1_matched1250_seed91_vm225_20261104_monitor/final/report/R_flow_by_KB_k0.png) | [K/B–g](results/ising2d_KB_cnn_supervision1_matched1250_seed91_vm225_20261104_monitor/final/report/Q_g_KB.png) | [曲线](results/ising2d_KB_cnn_supervision1_matched1250_seed91_vm225_20261104_monitor/final/report/loss_curves.png) |
+| 10 | [流场](results/ising2d_KB_cnn_supervised_short_seed91_vm225_20261104_monitor/display_KB_v1/R_flow_by_KB_k0.png) | [K/B–g](results/ising2d_KB_cnn_supervised_short_seed91_vm225_20261104_monitor/final/report/Q_g_KB.png) | [曲线](results/ising2d_KB_cnn_supervised_short_seed91_vm225_20261104_monitor/final/report/loss_curves.png) |
+
+### 放开解码增益的配对实验
+
+2026-11-04 按用户授权完成独立的第四组：仍为强监督 λ=10、同一 seed/初始化/数据/学习率及 1250 次 Q/C/R 更新，仅取消每次 Adam 后将仿射 decoder 列范数投影到 1 的操作。初始权重（包括初始单位列范数）及 TRAIN 均值偏置校准保持相同；无额外网络、非线性 decoder 或粗尺度标签。专用配置显式记录 `decoder_column_constraint="free_after_initialization"`，不改变其他训练入口的单位列范数默认。
+
+**监督位置仍只有物理尺度 k=0 的完整系综编码。**这不是只训练 Q 网络的第一层：监督通过整个共享 Q 编码网络反传，因而间接改变 k≥1 的输出；decoder 由重构项学习，C/R 不接收监督梯度。
+
+正式管线约 9 分 50 秒完成，所有 Q/C/R Adam 参数各更新 1250 次，父子进程正常退出。最终 decoder 两列范数为 0.237225、0.562457，三组历史对照的 C 目标统计均与新组逐元素一致。下表均为同一留出集结果：
+
+| 指标 | 原强监督：单位列范数 | 新强监督：自由列范数 |
+|---|---:|---:|
+| k=0 图案重构 MSE | 0.025963 | 0.003280 |
+| k=1 图案重构 MSE | 0.004529 | 0.001931 |
+| k=2 图案重构 MSE | 0.002828 | 0.001003 |
+| 微观 K 仿射读出 R² | 0.9248 | 0.9743 |
+| 微观 B 仿射读出 R² | 0.8384 | 0.8270 |
+| 36→12 经各自 decoder 解码后的图案预测 MSE | 0.004540 | 0.001655 |
+
+微观重构误差下降约 87%，36→12 的图案预测误差下降约 64%，支持尺度约束确实造成了相当一部分统计重构困难。但微观重构仍差于无监督组的 0.0000416，B 读出也没有改善。各自 TRAIN 标准差归一化的闭环 NRMSE（36→12、12→4、36→4）由 9.69%、10.25%、11.09% 变为 10.15%、11.33%、13.08%；坐标及归一化分母不同，不能只据此认定同一物理预测变差。
+
+新组有限范围搜索找到两个数值根：吸引点 g≈(−0.83202,0.01225)，乘子 (−0.07471,0.32611)；鞍点 g≈(−0.33805,−0.74382)，乘子 (1.76235,0.66378)。均位于训练编码凸包内，但鞍点距最近训练编码约 0.129，局部数据支撑有限；没有找到排斥子，也未将这些根认定为物理临界点。**本次解决了人为固定解码增益的尺度冲突，并改善了重构，但没有解决完整的临界流场学习问题。**单 seed、有限尺寸及采样限制仍保留，`thermal_nu=null`。
+
+本轮新增及相关回归检查共 19 项通过；625 个历史数值实现文件指纹保持一致。只下载了白名单公共结果和启动/执行回执，共 23 个文件逐 SHA 校验，不包含 checkpoint、物理构型或 MI 缓存。
+
+[实验配置](configs/ising2d_KB_cnn_supervision10_free_decoder_matched1250_seed91.json) · [专用训练入口](experiments/ising_kb_free_decoder_matched.py) · [四组对照](results/ising2d_KB_cnn_supervision10_free_decoder_matched1250_seed91_vm225_20261104_monitor/final/report/comparison.json) · [完整 manifest](results/ising2d_KB_cnn_supervision10_free_decoder_matched1250_seed91_vm225_20261104_monitor/final/manifest.json)
+
+[微观 R(g) 流场](results/ising2d_KB_cnn_supervision10_free_decoder_matched1250_seed91_vm225_20261104_monitor/final/report/R_flow_by_KB_k0.png) · [各尺度 K/B–g 映射](results/ising2d_KB_cnn_supervision10_free_decoder_matched1250_seed91_vm225_20261104_monitor/final/report/Q_g_KB.png) · [loss 曲线](results/ising2d_KB_cnn_supervision10_free_decoder_matched1250_seed91_vm225_20261104_monitor/final/report/loss_curves.png) · [解码增益变化](results/ising2d_KB_cnn_supervision10_free_decoder_matched1250_seed91_vm225_20261104_monitor/final/report/decoder_gains.png)
 
 ## 精选实验
 

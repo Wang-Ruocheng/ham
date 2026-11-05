@@ -1,6 +1,5 @@
 """Probability-level regularizers for finite-alphabet local kernels."""
 import torch
-import math
 from .adapters import BinaryFieldHead, CategoricalFieldHead
 
 
@@ -9,9 +8,9 @@ def uniform_block_probabilities(kernel):
     head = getattr(kernel, 'field_head', None)
     binary = isinstance(head, BinaryFieldHead)
     if not binary and not isinstance(head, CategoricalFieldHead):
-        raise ValueError('Distinct loss requires a learnable finite-alphabet kernel')
+        raise ValueError('Uniform-block probes require a learnable finite-alphabet kernel')
     if binary and head.sampling_mode != 'bernoulli':
-        raise ValueError('Distinct loss requires Bernoulli probabilities')
+        raise ValueError('Uniform-block probes require Bernoulli probabilities')
     first = kernel.local_encoder[0]
     q = 2 if binary else head.output_channels
     channels = 1 if binary else q
@@ -26,22 +25,6 @@ def uniform_block_probabilities(kernel):
         plus = torch.sigmoid(2*logits)
         return torch.cat((1-plus,plus),dim=-1)
     return torch.softmax(logits,dim=-1)
-
-
-def kernel_distinct_loss(kernel, *, margin=.8):
-    """Mean [margin-TV(P(.|a^m),P(.|b^m))]_+^2 over a<b.
-
-    Output-permutation invariant, but assumes distinct uniform blocks should
-    remain distinguishable. Not a general information-preservation guarantee.
-    At exactly identical probability vectors abs has zero subgradient; random
-    initialization is retained, not replaced by a symmetry-breaking rule.
-    """
-    if not math.isfinite(margin) or not 0 < margin <= 1:
-        raise ValueError('Distinct margin must be in (0,1]')
-    probabilities = uniform_block_probabilities(kernel)
-    pairs = torch.triu_indices(len(probabilities),len(probabilities),offset=1,device=probabilities.device)
-    tv = .5*(probabilities[pairs[0]]-probabilities[pairs[1]]).abs().sum(-1)
-    return torch.relu(margin-tv).square().mean()
 
 
 def uniform_reference_marginal(kernel, *, max_patterns=65536, chunk_size=4096):

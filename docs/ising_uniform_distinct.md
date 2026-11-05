@@ -1,5 +1,11 @@
 # Uniform-block distinguishability: single-seed test
 
+> 已退役（2026-10-20）：当前训练已删除 `kernel_distinct_loss` 及
+> `--distinct-alpha` / `--distinct-margin` 入口，保留现有保色约束。
+> 旧公式仅归档于 `archive/qcr_ablations/kernel_distinct.py`，用于历史结果诊断；
+> 以下配置、命令和结果是原实验记录，不代表当前可执行的训练入口。
+> 历史 manifest/checkpoint 不变；含非零 distinct 权重的配置可读，但活动训练会明确拒绝。
+
 This is an optional experiment, not a default-loss change. Start from the same
 seed91/data/configurations as the simultaneous separated-gradient QC/R runs;
 train from scratch for 2400 updates. No warm start, early-stop selection,

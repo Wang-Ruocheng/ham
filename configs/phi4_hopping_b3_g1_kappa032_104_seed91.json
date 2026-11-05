@@ -1,0 +1,40 @@
+{
+  "schema_version": 5,
+  "recipe": "phi4_hopping_raw_patch_joint625_v1",
+  "data": "/mnt/nas-new/home/yange/ham/results/phi4_hopping_b3_g1_kappa032_104_seed91_gpu3_vm225_20261031/data",
+  "output": "/mnt/nas-new/home/yange/ham/results/phi4_hopping_b3_g1_kappa032_104_seed91_gpu3_vm225_20261031/training",
+  "model": {
+    "hidden": 96,
+    "theory_dim": 1,
+    "local_features": 12,
+    "patch_chunk_size": 4096,
+    "block_size": 3,
+    "stride": 3
+  },
+  "loss": {
+    "closure_objective": "all_start_anchor",
+    "closure_scale_weights": null,
+    "commutator": 5,
+    "rollout_weight": 5,
+    "q_reconstruction": 10,
+    "q_subset_micro": 20,
+    "q_subset_coarse": 5,
+    "c_information": -2,
+    "c_variance": 2,
+    "c_uniform": 1
+  },
+  "training": {
+    "device": "cuda:0",
+    "steps": 3000,
+    "system_batch": 32,
+    "sample_batch": 64,
+    "seed": 91,
+    "threads": 1,
+    "log_every": 100,
+    "checkpoint_every": 1000,
+    "information_pairs": 128,
+    "max_training_seconds": 14400,
+    "max_cuda_bytes": 8589934592,
+    "expected_gpu_uuid": "GPU-a167decd-ce49-6c8f-6bcf-136fde596683"
+  }
+}

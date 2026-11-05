@@ -16,6 +16,9 @@ def pattern_function(config):
     """Use the same configuration statistics as the standard training runner."""
     if config.model.categorical_states:
         return categorical_plaquette_distribution
+    if config.model.dimension == 3:
+        from recurrent_rg.data.statistics import cube_distribution
+        return cube_distribution
     return two_spin_distribution if config.model.dimension == 1 else plaquette_distribution
 
 

@@ -1,0 +1,30 @@
+{
+  "schema_version": 5,
+  "recipe": "phi4_hopping_b3_configuration_cnn_refinedR_v1",
+  "data_root": "/mnt/nas-new/home/yange/ham/results/phi4_hopping_b3_g1_kappa032_104_seed91_gpu3_vm225_20261031/data",
+  "data_manifest_sha256": "f624bbffbb077df7986b971ba74434270945c78d345513807b5f7746cd88ed95",
+  "seed": 91,
+  "theory_dim": 1,
+  "lattice_sizes": [36, 12, 4],
+  "block_size": 3,
+  "stride": 3,
+  "system_batch": 32,
+  "sample_batch": 64,
+  "information_pairs": 128,
+  "learning_rate": 0.001,
+  "r_updates_per_batch": 10,
+  "target_seconds": 900.0,
+  "hard_seconds": 1200.0,
+  "loss": {
+    "closure_objective": "all_start_anchor",
+    "closure_scale_weights": null,
+    "commutator": 5,
+    "rollout_weight": 5,
+    "q_reconstruction": 10,
+    "q_subset_micro": 20,
+    "q_subset_coarse": 5,
+    "c_information": -2,
+    "c_variance": 2,
+    "c_uniform": 1
+  }
+}

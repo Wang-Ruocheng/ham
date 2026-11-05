@@ -48,7 +48,9 @@ def test_training_only_cap_records_actual_updates_without_reducing_config(tmp_pa
                 test, torch.tensor([.5,.6],dtype=torch.double)), cache)
     raw['data']['cache'] = str(cache)
     raw['model']['hidden'] = 5
-    raw['training'].update(epochs=8,threads=1,checkpoint_every=2,log_every=2)
+    # This regression exercises the historical joint-only clock, not the new
+    # mandatory terminal stage (which must report an exhausted budget).
+    raw['training'].update(epochs=8,threads=1,checkpoint_every=2,log_every=2,terminal_r_fit=False)
     config = tmp_path / 'config.json'
     config.write_text(json.dumps(raw))
     run = tmp_path / 'run'

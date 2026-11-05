@@ -1,0 +1,55 @@
+{
+  "schema_version": 5,
+  "data": {
+    "cache": "../data_cache/ising2d_fixedwolff_v2_L32_nK64_rep3_n128_eq4096_gap512128_seed91.pt",
+    "physical_model": "Zero-field square-lattice classical Ising, positive K in [0.2,0.68]; fixed-count Wolff v2 cache",
+    "coupling_names": ["K"],
+    "spin_flip_augment": false
+  },
+  "model": {
+    "dimension": 2,
+    "theory_dim": 1,
+    "hidden": 96,
+    "categorical_states": 0,
+    "affine_reconstruction": true,
+    "fixed_kernel": false,
+    "block_factor": 2,
+    "kernel_layout": "nonoverlapping",
+    "kernel_sampling": "bernoulli",
+    "kernel_initialization": "random",
+    "kernel_temperature": 1.0,
+    "binary_lookup": true
+  },
+  "loss": {
+    "geometry_mode": "relative_local",
+    "kernel_noncollapse_mode": "variance_floor_ensemble",
+    "kernel_variance_ratio": 1.0,
+    "kernel_sign_weight": 1.0,
+    "weights": {
+      "anchor": 2.0,
+      "coarse_consistency": 5.0,
+      "separation": 10.0,
+      "commutator": 5.0,
+      "kernel_noncollapse": 2.0
+    },
+    "rollout_weight": 5.0
+  },
+  "training": {
+    "epochs": 12000,
+    "max_rg_steps": 3,
+    "system_batch": 16,
+    "sample_batch": 128,
+    "learning_rate": 0.001,
+    "seed": 91,
+    "threads": 2,
+    "checkpoint_every": 200,
+    "log_every": 200,
+    "gradient_mode": "qc_r_separate",
+    "train_modules": ["Q", "C", "R"]
+  },
+  "evaluation": {
+    "max_rg_steps": 3,
+    "samples": 128,
+    "systems": 32
+  }
+}

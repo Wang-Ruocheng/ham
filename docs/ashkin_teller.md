@@ -239,3 +239,58 @@ spatially IID categorical distribution (and mixtures of such distributions),
 so three isolated attractors are NOT guaranteed by this kernel. It is a
 symmetry-preserving control, not a guarantee of the desired phase-flow normal
 form. k3 has only a 2x2 lattice and cannot establish asymptotic convergence.
+
+## Matched middle-dense fixed-C control: dim_g=2
+
+Completed 1200 updates, seed91, using the identical cache and every scalar-control
+configuration field except model.theory_dim (1 -> 2). C remains joint-state
+positive decimation; Q/R have separate gradients, no MI or C penalties. Latent
+dimension changes parameter shapes and initialization, despite the same seed.
+
+```bash
+python -m recurrent_rg train \
+  --config configs/ashkin_teller2d_g2_middle_dense_fixed_decimation_seed91.json \
+  --output results/ashkin_teller2d_g2_middle_dense_fixed_decimation_1200_seed91
+python -m recurrent_rg plot \
+  --run results/ashkin_teller2d_g2_middle_dense_fixed_decimation_1200_seed91 \
+  --output results/ashkin_teller2d_g2_middle_dense_fixed_decimation_1200_seed91/report
+python -m scripts.audit_at_fixed \
+  --run results/ashkin_teller2d_g2_middle_dense_fixed_decimation_1200_seed91
+python -m scripts.compare_at_fixed_dimensions
+```
+
+Final logged train/test total .0415864/.0499534. Test weighted components:
+micro subset .0136028, coarse subset .0055193, geometry .0120307,
+one-step .0068256, rollout .0119750. The final checkpoint is used, not the
+lower-loss update1100 checkpoint.
+
+Full128-sample held-out diagnostics, normalized by each model's training target
+SD (per-coordinate pooled RMS):
+
+| Metric | dim_g=1 | dim_g=2 |
+|---|---:|---:|
+| One-step k0->1 NRMSE | 6.55% | 7.37% |
+| One-step k1->2 NRMSE | 3.66% | 2.87% |
+| Two-step rollout NRMSE | 6.40% | 7.29% |
+
+The union of observed R-input encodings remains nearly one-dimensional:
+covariance eigenvalues (2.8146e-6, .374486), weak variance fraction ~7.52e-6.
+Rotated scale curves show a small transverse separation; low variance alone
+does not prove the second coordinate contains no useful information.
+A piecewise-linear training-curve decoder, without a scale input, gives
+held-out RMSE (.01522,.01650), versus (.00506,.00843) when given scale.
+This is a diagnostic, not a trained alternative R or a universal error floor;
+nearest-segment selection can be sensitive to noise and sampling density.
+The extra dimension has not established accurate autonomous closure.
+
+Bounded root search finds one saddle g=(2.421817,.155544), DR eigenvalues
+(1.318548,.903716), and one attractor g=(4.213472,.267029), eigenvalues
+(.796096,.909440). Saddle projection onto the microscopic mean curve gives
+K~.332523 with residual .003179: not an exact inverse or either estimated
+transition. The attractor is outside observed support (nearest training input
+distance .2064); its nearest K=.08 endpoint is not a physical inverse.
+Thus the matched dim_g=2 experiment has not recovered both phase boundaries.
+
+![Vector flow](../results/ashkin_teller2d_g2_middle_dense_fixed_decimation_1200_seed91/report/R_vector_field.png)
+![Scale curves and coupling mapping](../results/ashkin_teller2d_g2_middle_dense_fixed_decimation_1200_seed91/dimension_audit/scale_curves_and_K.png)
+![Loss](../results/ashkin_teller2d_g2_middle_dense_fixed_decimation_1200_seed91/dimension_audit/loss.png)

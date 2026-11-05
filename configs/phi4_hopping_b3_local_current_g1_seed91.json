@@ -1,0 +1,44 @@
+{
+  "schema_version": 5,
+  "recipe": "phi4_hopping_b3_local_Q_free_gain_unsupervised1250_seed91_v1",
+  "data_root": "/mnt/nas-new/home/yange/ham/results/phi4_hopping_b3_g1_kappa032_104_seed91_gpu3_vm225_20261031/data",
+  "data_manifest_sha256": "f624bbffbb077df7986b971ba74434270945c78d345513807b5f7746cd88ed95",
+  "seed": 91,
+  "theory_dim": 1,
+  "lattice_sizes": [
+    36,
+    12,
+    4
+  ],
+  "block_size": 3,
+  "stride": 3,
+  "q_encoder": "local_motif",
+  "decoder_column_constraint": "free_after_initialization",
+  "steps": 1250,
+  "system_batch": 32,
+  "sample_batch": 64,
+  "information_pairs": 128,
+  "patch_chunk_size": 131072,
+  "learning_rates": {
+    "Q": 0.001,
+    "C": 0.001,
+    "R": 0.003
+  },
+  "r_updates_per_batch": 1,
+  "supervision_weight": 0.0,
+  "loss": {
+    "closure_objective": "all_start_anchor",
+    "closure_scale_weights": null,
+    "commutator": 5,
+    "rollout_weight": 5,
+    "q_reconstruction": 10,
+    "q_subset_micro": 20,
+    "q_subset_coarse": 5,
+    "c_information": -2,
+    "c_variance": 2,
+    "c_uniform": 1
+  },
+  "hard_seconds": 1800,
+  "max_cuda_bytes": 8589934592,
+  "max_output_bytes": 2147483648
+}

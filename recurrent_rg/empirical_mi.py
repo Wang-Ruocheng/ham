@@ -182,8 +182,10 @@ class EmpiricalBinaryMI:
         return binary_entropy(self.marginal@positive)-torch.sparse.mm(self.weights,conditional_entropy[:,None]).squeeze(-1)
 
 
-def binary_lattice_mi_statistics(x,*,flip=False,buffer=1,block=2):
-    return lattice_mi_statistics(x,states=2,flip=flip,buffer=buffer,block=block)
+def binary_lattice_mi_statistics(x,*,flip=False,buffer=1,block=2,
+                                 shuffle_visible_seed=None):
+    return lattice_mi_statistics(x,states=2,flip=flip,buffer=buffer,block=block,
+                                 shuffle_visible_seed=shuffle_visible_seed)
 
 
 def categorical_lattice_mi_statistics(x,*,flip=False,buffer=1,block=2):
@@ -191,9 +193,47 @@ def categorical_lattice_mi_statistics(x,*,flip=False,buffer=1,block=2):
     return lattice_mi_statistics(x,states=x.shape[-1],buffer=buffer,block=block)
 
 
+def _region_codes(ensemble, offsets, states):
+    """Collision-free base-q region identities, using multiple words if needed.
+
+    One signed int64 remains the historical path for a region with fewer than
+    62 bits. Wider environments retain *all* digits in independently encoded
+    words. ``np.unique(..., axis=0)`` below compares the full word vector, not a
+    hash, projection, or separate per-face marginal. Each word stays below
+    2**62, including intermediate products, and so cannot overflow int64.
+    """
+    sites_per_word = 0
+    capacity = 1
+    while capacity * states < 2**62:
+        capacity *= states
+        sites_per_word += 1
+    if sites_per_word == 0:
+        raise ValueError('Alphabet exceeds supported integer width')
+    axes = tuple(range(1, ensemble.ndim))
+    words, cardinalities = [], []
+    offsets = offsets.tolist()
+    for start in range(0, len(offsets), sites_per_word):
+        part = offsets[start:start + sites_per_word]
+        z = torch.zeros_like(ensemble, dtype=torch.long)
+        for i, offset in enumerate(part):
+            z += torch.roll(ensemble, tuple(-n for n in offset), axes) * states**i
+        words.append(z.flatten().numpy())
+        cardinalities.append(states**len(part))
+    return (words[0] if len(words) == 1 else np.stack(words, axis=1),
+            np.asarray(cardinalities, dtype=np.int64))
+
+
 def lattice_mi_statistics(x,*,states,flip=False,buffer=1,shuffle_visible_seed=None,sparse_conditionals=None,environment_offsets=None,block=2):
-    """All samples and translated V/E regions; individual ensembles preserved."""
+    """All samples and translated V/E regions; individual ensembles preserved.
+
+    Wide shells use exact multiword identities, never an environment reduction.
+    In particular, a 3D block-2 region with buffer 1 has 8 visible sites and a
+    6**3-4**3 = 152-site *joint* environment. Sparse conditionals avoid a dense
+    observed-environments by visible-alphabet count table for that shell.
+    """
     dimension=x.ndim-3
+    if isinstance(states, bool) or not isinstance(states, int) or states < 2:
+        raise ValueError('Expected an integer alphabet size >= 2')
     visible,environment=region_offsets(dimension,block=block,buffer=buffer)
     if environment_offsets is not None:
         requested=torch.as_tensor(environment_offsets,dtype=torch.long)
@@ -202,39 +242,63 @@ def lattice_mi_statistics(x,*,states,flip=False,buffer=1,shuffle_visible_seed=No
             raise ValueError('Environment subset must contain distinct sites from the buffered shell')
         environment=requested
     if any(n<block+2*(buffer+1) for n in x.shape[2:-1]):raise ValueError('Invalid lattice shape')
-    if states**len(environment)>=2**62:raise ValueError('Environment code exceeds supported integer width')
+    if states**len(visible)>=2**62:raise ValueError('Visible code exceeds supported integer width')
     if x.shape[-1]==1:
         if states!=2 or not torch.all((x==1)|(x==-1)):raise ValueError('Expected binary +/-1 data')
         colors=(x[...,0]>0).long()
     else:
         if x.shape[-1]!=states or not torch.all((x==0)|(x==1)) or not torch.all(x.sum(-1)==1):raise ValueError('Expected one-hot data')
         colors=x.argmax(-1)
-    nv=states**len(visible);ne=states**len(environment)
-    sparse_conditionals=nv>256 if sparse_conditionals is None else sparse_conditionals
+    nv=states**len(visible)
+    # A 3D b=2 shell can have almost one category per observation even though
+    # its visible alphabet has only 256 states. Keep legacy 1D/2D defaults.
+    sparse_conditionals=(nv>256 or dimension==3) if sparse_conditionals is None else sparse_conditionals
     signatures={};sparse_rows=[];sparse_cols=[];sparse_values=[]
     primitive=[];weight=[];owners=[];marginals=[];counts=[];singletons=[]
+    singleton_observation_fractions=[];observation_counts=[]
     shuffle_rng=np.random.default_rng(shuffle_visible_seed) if shuffle_visible_seed is not None else None
     for a,ensemble in enumerate(colors.cpu()):
-        axes=tuple(range(1,dimension+1))
-        def code(offsets):
-            z=torch.zeros_like(ensemble,dtype=torch.long)
-            for i,offset in enumerate(offsets.tolist()):
-                z+=torch.roll(ensemble,tuple(-n for n in offset),axes)*states**i
-            return z.flatten().numpy()
-        v,e=code(visible),code(environment)
+        v,_=_region_codes(ensemble,visible,states)
+        e,environment_cardinalities=_region_codes(ensemble,environment,states)
         if shuffle_rng is not None:v=v[shuffle_rng.permutation(len(v))]
-        if flip:v,e=np.r_[v,nv-1-v],np.r_[e,ne-1-e]
-        ue,inverse=np.unique(e,return_inverse=True)
+        if flip:
+            v=np.r_[v,nv-1-v]
+            complements=environment_cardinalities-1-e
+            e=np.concatenate((e,complements),axis=0)
+        ue,inverse=np.unique(e,return_inverse=True,axis=0 if e.ndim==2 else None)
+        totals=np.bincount(inverse)
+        counts.append(len(ue));singletons.append(float(np.mean(totals==1)))
+        singleton_observation_fractions.append(float(np.sum(totals==1)/len(v)))
+        observation_counts.append(len(v))
         if sparse_conditionals:
             # Encode observed (environment index, visible code), never allocate
             # number_of_environments x q**visible_sites dense count tables.
             pairs,pair_counts=np.unique(inverse*nv+v,return_counts=True)
             erows=pairs//nv;vcols=pairs%nv
             starts=np.r_[0,np.flatnonzero(np.diff(erows))+1,len(pairs)]
-            totals=np.bincount(inverse);counts.append(len(ue));singletons.append(float(np.mean(totals==1)))
             marginals.append(np.bincount(v,minlength=nv)/len(v))
             local={}
-            for left,right in zip(starts[:-1],starts[1:]):
+            row_ranges=zip(starts[:-1],starts[1:])
+            if dimension==3:
+                # Wide shells often identify nearly every observation. All
+                # one-support P(V|E) rows are exact point masses, including
+                # repeated observations with the same V. Aggregate their
+                # integer counts once rather than looping over every E.
+                # This changes neither the retained E identity nor MI: only
+                # rows with exactly identical P(V|E) are compressed together.
+                pointmass=np.diff(starts)==1
+                positions=starts[:-1][pointmass]
+                pointmass_counts=np.bincount(vcols[positions],
+                    weights=pair_counts[positions],minlength=nv)
+                for column in np.flatnonzero(pointmass_counts):
+                    key=((int(column),1),)
+                    index=signatures.get(key)
+                    if index is None:
+                        index=len(signatures);signatures[key]=index
+                        sparse_rows.append(index);sparse_cols.append(int(column));sparse_values.append(1.)
+                    local[index]=float(pointmass_counts[column]/len(v))
+                row_ranges=zip(starts[:-1][~pointmass],starts[1:][~pointmass])
+            for left,right in row_ranges:
                 cols=vcols[left:right];values=pair_counts[left:right]
                 reduced=values//np.gcd.reduce(values)
                 key=tuple(zip(cols.tolist(),reduced.tolist()))
@@ -248,7 +312,7 @@ def lattice_mi_statistics(x,*,states,flip=False,buffer=1,shuffle_visible_seed=No
             primitive.append(np.array(list(local),dtype=np.int64))
             continue
         hist=np.bincount(inverse*nv+v,minlength=len(ue)*nv).reshape(-1,nv)
-        totals=hist.sum(1);counts.append(len(ue));singletons.append(float(np.sum(totals==1)/len(ue)))
+        totals=hist.sum(1)
         marginals.append(hist.sum(0)/hist.sum())
         reduced=hist//np.gcd.reduce(hist,axis=1)[:,None]
         unique,inv=np.unique(reduced,axis=0,return_inverse=True)
@@ -267,8 +331,20 @@ def lattice_mi_statistics(x,*,states,flip=False,buffer=1,shuffle_visible_seed=No
         visible_sites=len(visible),environment_sites=len(environment),states=states,buffer=buffer,
         unique_conditionals=nunique,sparse_conditionals=bool(sparse_conditionals),mean_observed_environment_states=float(np.mean(counts)),
         mean_fraction_environment_categories_seen_once=float(np.mean(singletons)),
+        observed_environment_states_by_ensemble=counts,
+        observations_by_ensemble=observation_counts,
+        fraction_environment_categories_seen_once_by_ensemble=singletons,
+        fraction_observations_in_singleton_environment_categories_by_ensemble=singleton_observation_fractions,
+        mean_fraction_observations_in_singleton_environment_categories=float(np.mean(singleton_observation_fractions)),
+        environment_identity_encoding=('int64_base_q' if e.ndim==1 else 'joint_multiword_base_q'),
+        environment_identity_words=len(environment_cardinalities),
+        environment_identity_max_word_bits=max(int(c-1).bit_length() for c in environment_cardinalities),
+        environment_projection=False,
         shuffle_visible_seed=shuffle_visible_seed,
-        note='Exact empirical MI, not population MI. Unique/rare environments can cause severe finite-sample upward bias.'))
+        shuffle_null_qualification=('No shuffled-null comparison was computed by this statistics object.'
+            if shuffle_visible_seed is None else
+            'Visible codes were permuted within each ensemble, preserving all environment identities and marginals; finite-cache shuffled MI may remain positive, especially for singleton environments.'),
+        note='Exact empirical MI, not population MI. Unique/rare environments can cause severe finite-sample upward bias; a high training or shuffled-null MI is not evidence of population information.'))
 
 
 @dataclass

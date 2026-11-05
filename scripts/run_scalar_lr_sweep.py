@@ -36,7 +36,7 @@ def make_configs(cache, *, epochs=12000, seed=91, threads=2):
                    affine_reconstruction=True, reconstruction_hidden=0, theory_head='nonlinear'),
         loss=dict(balanced_reconstruction_weight=0., rollout_weight=5.,
                   isotropy_weight=0., tangent_weight=0., orientation_weight=0.,
-                  kernel_sign_weight=1., kernel_neutral_weight=0., kernel_distinct_alpha=0.,
+                  kernel_sign_weight=1., kernel_neutral_weight=0.,
                   closure_metric='euclidean', coordinate_reduction='sum',
                   kernel_noncollapse_mode='variance_floor_ensemble', kernel_variance_ratio=1.,
                   weights=dict(anchor=2., coarse_consistency=5., kernel_noncollapse=2.,
