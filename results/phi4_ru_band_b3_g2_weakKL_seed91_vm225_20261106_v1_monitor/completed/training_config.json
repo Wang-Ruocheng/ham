@@ -1,0 +1,45 @@
+{
+  "schema_version": 5,
+  "recipe": "phi4_ru_b3_g2_ensemble_vae_terminal_v1",
+  "data": {
+    "root": "/mnt/nas-new/home/yange/ham/results/phi4_ru_band_b3_g2_weakKL_seed91_vm225_20261106_v1/data",
+    "manifest_sha256": "36bbabb7c94b3992e790d75fa6890dec0224a0c3698a981ed89616f783c73c7d"
+  },
+  "model": {
+    "theory_dim": 2,
+    "hidden": 96,
+    "block_size": 3,
+    "depth": 2,
+    "q_encoder": "continuous_ensemble_vae",
+    "feature_bins": 625,
+    "kl_weight": 0.01,
+    "kl_warmup_steps": 600,
+    "patch_chunk_size": 65536
+  },
+  "loss": {
+    "closure_objective": "all_start_anchor",
+    "closure_scale_weights": null,
+    "coordinate_reduction": "sum",
+    "commutator": 5,
+    "rollout_weight": 5,
+    "c_information": -2,
+    "c_variance": 2,
+    "c_uniform": 1,
+    "q_objective": "mean_over_scales(cross_half_CE+warmup_KL)"
+  },
+  "training": {
+    "epochs": 3000,
+    "system_batch": 8,
+    "sample_batch": 64,
+    "learning_rate": 0.001,
+    "seed": 91,
+    "threads": 1,
+    "checkpoint_every": 500,
+    "log_every": 100,
+    "information_pairs": 128,
+    "terminal_r_fit": true,
+    "terminal_r_max_steps": 10000,
+    "terminal_r_cache_repeats": 8
+  },
+  "active_wall_limit_seconds": 3540
+}

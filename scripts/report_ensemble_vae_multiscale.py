@@ -6,7 +6,7 @@ from scripts.report_dual_ising_q_vae import factor_diagnostics, readout
 from scripts.run_dual_ising_current import write_json
 
 
-def report_multiscale(arrays, reconstruction, roots, history, out, plt):
+def report_multiscale(arrays, reconstruction, roots, history, out, plt, *, parameter_names=('K_1','K_2')):
     g, labels = arrays['direct_g'], arrays['labels']
     train = arrays['splits']=='train'; test = ~train
     diagnostics = []
@@ -38,7 +38,7 @@ def report_multiscale(arrays, reconstruction, roots, history, out, plt):
         v=np.array(diagnostics[k]['parameter_main_effects']);im=ax.imshow(v,vmin=0,vmax=1,cmap='Blues')
         for j in range(2):
             for i in range(2):ax.text(i,j,f'{v[j,i]:.3f}',ha='center',va='center',color='white' if v[j,i]>.6 else 'black')
-        ax.set(title=f'k={k}，格点边长 {[36,12,4][k]}',xticks=[0,1],xticklabels=['$K_1$','$K_2$'],yticks=[0,1],yticklabels=['$g_1$','$g_2$'])
+        ax.set(title=f'k={k}，格点边长 {[36,12,4][k]}',xticks=[0,1],xticklabels=[f'${n}$' for n in parameter_names],yticks=[0,1],yticklabels=['$g_1$','$g_2$'])
     fig.colorbar(im,ax=axes,label='参数主效应 / 编码总方差')
     fig.suptitle('同一 Q 的多尺度分离：原始坐标，未按尺度旋转／重新排序')
     fig.savefig(out/'q_multiscale_separation.png',dpi=170);plt.close(fig)
@@ -52,11 +52,11 @@ def report_multiscale(arrays, reconstruction, roots, history, out, plt):
     fig.suptitle('Q 的实际目标：各尺度等权，交叉熵＋逐渐增至 0.01 的 KL；未使用参数监督')
     fig.savefig(out/'q_vae_losses.png',dpi=170);plt.close(fig)
     write_json(out/'q_multiscale.json',dict(scales=diagnostics,
-        labels_used_only_post_training=True,shared_Q_and_decoder=True,
+        labels_used_only_post_training=True,parameter_names=parameter_names,shared_Q_and_decoder=True,
         coordinate_transform_applied=False,encoding='Mean of two half-ensemble posterior means, then four fixed C/subset draws',
         Q_only_comparison_caveat='Joint Q is newly initialized, minibatched and shared over three evolving scales; not a continuation of the full-batch k=0 Q-only run',
         limitations=['参数主效应使用完整网格，包含训练与留出；留出相关／读出另报。',
-                     '粗尺度颜色和评价标签始终是原始 K1/K2，不是有效耦合。',
+                     '粗尺度颜色和评价标签始终是原始扫描参数，不是有效耦合。',
                      '同一 Q 的编码无逐尺度坐标校正；分别报告配对评分不等于坐标对应保持不变。',
                      '有限尺寸、两条物理链、单训练种子；四次 C／子集抽样不是独立物理链。']))
     return diagnostics

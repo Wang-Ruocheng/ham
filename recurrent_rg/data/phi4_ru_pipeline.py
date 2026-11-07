@@ -39,6 +39,8 @@ class Phi4RUOptions(base.Phi4Options):
     seed: int = 20261029
     test_every: int = 4
     test_offset: int = 1
+    # Optional explicit physical points for a matched nonrectangular scan.
+    parameter_cells: tuple[tuple[float, float], ...] | None = None
     cluster_probability: float = .5
     max_trajectories: int = TRAJECTORY_CAP
     max_force_site_evaluations: int = FORCE_SITE_CAP

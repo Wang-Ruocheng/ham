@@ -18,6 +18,27 @@ def test_process_presence_rejects_gpu_even_with_free_memory():
     assert not eligible(s)
 
 
+def test_explicit_sharing_is_pinned_and_keeps_load_memory_guards():
+    s = snapshot(); gpu = s['gpus'][0]
+    gpu.update(compute_process_present=True, utilization_percent=0)
+    policy = dict(uuid='GPU-a', max_utilization_percent=20, min_free_mib=20480)
+    assert not eligible(s) and eligible(s, policy) == [gpu]
+    gpu['uuid'] = 'GPU-other'
+    assert not eligible(s, policy)
+    gpu['uuid'] = 'GPU-a'; gpu['utilization_percent'] = 21
+    assert not eligible(s, policy)
+    gpu['utilization_percent'] = None
+    assert not eligible(s, policy)
+    gpu['utilization_percent'] = 0; gpu['free_mib'] = 20479
+    assert not eligible(s, policy)
+    gpu['free_mib'] = 22000; s['mem_available_gib'] = 31
+    assert not eligible(s, policy)
+    s['mem_available_gib'] = 64; s['load1'] = 31
+    assert not eligible(s, policy)
+    s['load1'] = 8; s['io_full_avg10'] = 20
+    assert not eligible(s, policy)
+
+
 @pytest.mark.parametrize('key,value', [('mem_available_gib', 31), ('load1', 31), ('io_full_avg10', 20)])
 def test_host_pressure_rejects_admission(key, value):
     s = snapshot(); s[key] = value
@@ -51,3 +72,33 @@ def test_fresh_config_has_current_recipe_and_terminal_fit():
     assert c.loss.balanced_reconstruction_weight == 0
     assert c.training.terminal_r_fit and c.training.terminal_r_cache_repeats == 8
     assert c.training.r_updates_per_batch == 1 and c.training.gradient_mode == 'qc_r_separate'
+
+
+@pytest.mark.parametrize('pipeline', ['phi4_ru_ensemble_vae', 'ising_KB_ensemble_vae'])
+def test_failed_VAE_numerical_preflight_never_starts_training(tmp_path, monkeypatch, pipeline):
+    import json
+    from types import SimpleNamespace
+    from scripts import run_dual_ising_current as runner
+    output = tmp_path/'fresh'
+    plan = tmp_path/'plan.json'
+    plan.write_text(json.dumps(dict(output=str(output), pipeline=pipeline,
+        verify_vae_normalization=True, config='unused.json', active_wall_limit_seconds=3540)))
+    monkeypatch.setattr(runner.sys, 'argv', ['runner', '--plan', str(plan)])
+    monkeypatch.setattr(runner.os, 'uname', lambda: SimpleNamespace(nodename='thinklab-105-225'))
+    monkeypatch.setattr(runner.os, 'getpriority', lambda *args: 10)
+    monkeypatch.setattr(runner, 'verify_plan', lambda *args: None)
+    monkeypatch.setattr(runner, 'resource_snapshot', snapshot)
+    monkeypatch.setattr(runner.time, 'sleep', lambda _: None)
+    commands = []
+
+    def failed_preflight(command, **kwargs):
+        commands.append(command)
+        return SimpleNamespace(pid=123, wait=lambda **kwargs: 1)
+
+    monkeypatch.setattr(runner.subprocess, 'Popen', failed_preflight)
+    with pytest.raises(RuntimeError, match='numerical_preflight exited 1'):
+        runner.main()
+    assert len(commands) == 1 and 'scripts.verify_vae_normalization' in commands[0]
+    assert not (output/'run').exists()
+    job = json.loads((output/'job.json').read_text())
+    assert job['status'] == 'failed' and job['requires_user_action']

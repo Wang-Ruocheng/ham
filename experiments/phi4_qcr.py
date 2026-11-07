@@ -200,7 +200,12 @@ def load_dataset(root):
         raise ValueError("Microscopic side must support two nonoverlapping b=3 steps")
     configurations, splits, cells, labels, receipts = [], [], [], [], []
     seen, cell_split = set(), {}
-    expected_cells = len(options["r_values"]) * len(options["u_values"])
+    explicit_cells = options.get("parameter_cells")
+    if explicit_cells is not None:
+        from recurrent_rg.data.phi4_hybrid_pipeline import parameter_cells
+        from types import SimpleNamespace
+        explicit_cells = parameter_cells(SimpleNamespace(**options))
+    expected_cells = len(explicit_cells) if explicit_cells is not None else len(options["r_values"]) * len(options["u_values"])
     for shard in manifest["shards"]:
         if shard["size"] != side or shard["cell_index"] in seen:
             raise ValueError("Duplicate or unexpected microscopic shard")
@@ -219,8 +224,10 @@ def load_dataset(root):
                 or metadata["data_sha256"] != data_sha
                 or metadata["split"] != expected_split or shard["split"] != expected_split):
             raise ValueError("Inconsistent whole-parameter-cell split or shard provenance")
-        expected_label = [options["r_values"][cell // len(options["u_values"])],
-                          options["u_values"][cell % len(options["u_values"])], options["h"]]
+        pair = explicit_cells[cell] if explicit_cells is not None else (
+            options["r_values"][cell // len(options["u_values"])],
+            options["u_values"][cell % len(options["u_values"])])
+        expected_label = [*pair, options["h"]]
         actual_label = [metadata[name] for name in ("r", "u", "h")]
         if actual_label != expected_label:
             raise ValueError("Sidecar evaluation labels disagree with the manifest")

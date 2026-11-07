@@ -245,6 +245,16 @@ def microscopic_coupling_loss(encoder, batch, labels):
     return (predicted-target).square().sum(-1).mean()
 
 
+def validate_ensemble_vae_training(args):
+    """Explicit microscopic supervision is compatible with detached VAE Q.
+
+    The existing coupling-loss path changes Q only. Future-observable losses
+    and coupled C gradients remain unsupported; zero weight is unchanged.
+    """
+    if args.q_future_weight or not args.independent_c:
+        raise ValueError('Weak-KL ensemble Q requires independent training without future-observable loss')
+
+
 def closure_scale_contract(cfg):
     """Record the explicit scale-weight ablation without altering gradient routing."""
     values = getattr(cfg.loss, 'closure_scale_weights', None)
@@ -1378,8 +1388,7 @@ def main(argv=None):
             raise ValueError('Joint plateau exact resume requires identical stopping settings')
     if cfg.model.q_encoder == 'ensemble_vae':
         from recurrent_rg.ensemble_vae import calibrate_from_train
-        if args.q_coupling_weight or args.q_future_weight or not args.independent_c:
-            raise ValueError('Weak-KL ensemble Q requires label-free independent training')
+        validate_ensemble_vae_training(args)
         if resume is None and not frozen_source:
             calibration = calibrate_from_train(m.theory_encoder, tx.configurations)
         else:
@@ -1387,13 +1396,15 @@ def main(argv=None):
         metadata['q_reconstruction'] = dict(
             objective='Shared cross-subset normalized histogram CE + .01 KL; equal mean over all scales',
             kl_warmup_updates=600, calibration=calibration,
-            architecture='256-96-96 Gaussian Q; 2-64-64-256 LeakyReLU probability decoder for dg=2',
+            architecture=f'{len(m.theory_encoder.center)}-96-96 Gaussian Q; {cfg.model.theory_dim}-64-64-{len(m.theory_encoder.center)} LeakyReLU probability decoder',
             original_subset_weights_disabled=True, TC_weight=0,
             gradient='Q/decoder only; histograms detached; no Q gradient into C',
             encoding='R and reports use half-mean posterior means, never posterior samples',
             sampling='Private update/scale-indexed posterior noise; C/data RNG unchanged',
             initialization='Fresh random Q; TRAIN microscopic histogram centering/scaling and decoder bias only',
             logging='separation=mean CE+warmup*.01 KL; vae_cross_entropy/KL/effective_KL_weight per scale')
+        if args.q_coupling_weight:
+            metadata['q_reconstruction']['additional_microscopic_supervision'] = metadata['q_supervision']
     if cfg.model.affine_reconstruction:
         pca_initialization=None
         if args.affine_pca_init:

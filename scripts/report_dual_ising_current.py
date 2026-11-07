@@ -23,7 +23,7 @@ def collect(model, train, test, *, samples=64, repeats=4, seed=91951, reconstruc
     generator = torch.Generator().manual_seed(seed)
     draws, target_draws, decoded_draws = [], [], []
     if reconstruction:
-        from recurrent_rg.data.statistics import categorical_plaquette_distribution
+        from recurrent_rg.data.statistics import categorical_plaquette_distribution, plaquette_distribution
     with isolated_rng(device, seed+1):
         for _ in range(repeats):
             batches, targets, decoded = [], [], []
@@ -37,10 +37,17 @@ def collect(model, train, test, *, samples=64, repeats=4, seed=91951, reconstruc
                                          model.theory_encoder(v[:, half:])) for v in levels], 1)
                     batches.append(g.cpu().numpy())
                     if reconstruction:
-                        target = torch.stack([categorical_plaquette_distribution(v) for v in levels], 1)
-                        pred = model.theory_encoder.distribution_decoder(g)
-                        if getattr(model.theory_encoder, 'distribution_reconstruction_mode', '') != 'affine_mse':
-                            pred = pred.softmax(-1)
+                        histogram = plaquette_distribution if x.shape[-1] == 1 else categorical_plaquette_distribution
+                        target = torch.stack([histogram(v) for v in levels], 1)
+                        if hasattr(model.theory_encoder, 'decode_probabilities'):
+                            pred = model.theory_encoder.decode_probabilities(g)
+                            if (not torch.isfinite(pred).all() or (pred < 0).any()
+                                    or (pred.sum(-1)-1).abs().max() > 1e-10):
+                                raise FloatingPointError('VAE report decoder probabilities are not normalized')
+                        else:
+                            pred = model.theory_encoder.distribution_decoder(g)
+                            if getattr(model.theory_encoder, 'distribution_reconstruction_mode', '') != 'affine_mse':
+                                pred = pred.softmax(-1)
                         targets.append(target.cpu().numpy()); decoded.append(pred.cpu().numpy())
             draws.append(np.concatenate(batches))
             if reconstruction:
@@ -79,7 +86,8 @@ def closure_metrics(draws, predictions_, ntrain):
     return result
 
 
-def plot_flow(a, roots, out, plt):
+def plot_flow(a, roots, out, plt, *, parameter_names=('K_1', 'K_2'),
+              model_title='双 Ising', parameter_ranges=((0, 1.3), (0, 1.3))):
     from matplotlib.colors import LinearSegmentedColormap, Normalize
     from matplotlib.patches import Rectangle
     grid, delta, bounds = a['flow_g'], a['flow_displacement'], a['flow_bounds']
@@ -101,7 +109,8 @@ def plot_flow(a, roots, out, plt):
                           angles='xy', scale_units='xy', scale=1, width=.0025, zorder=1)
             for split, marker, label in [('train', 'o', '训练参数'), ('test', '^', '留出参数')]:
                 m = a['splits'] == split
-                sc = ax.scatter(*g[m].T, c=a['labels'][m, parameter], cmap='viridis', vmin=0, vmax=1.3,
+                sc = ax.scatter(*g[m].T, c=a['labels'][m, parameter], cmap='viridis',
+                                vmin=parameter_ranges[parameter][0], vmax=parameter_ranges[parameter][1],
                                 s=22, marker=marker, edgecolors='white', linewidths=.25, zorder=3, label=label)
             ax.add_patch(Rectangle(low, *(high-low), fill=False, ls='--', lw=1.2, ec='#444444',
                                    label='实际编码坐标范围（框内不保证有数据）', zorder=4))
@@ -112,12 +121,12 @@ def plot_flow(a, roots, out, plt):
                 ax.annotate(f'{number} '+classes[root['classification']]+('（外推）' if not inside else ''),
                             point, xytext=(4, 5), textcoords='offset points', fontsize=8, color='#a32434')
             ax.set(xlabel='$g_1$', ylabel='$g_2$', xlim=bounds[0], ylim=bounds[1],
-                   title=f'按原始 $K_{parameter+1}$ 着色')
+                   title=f'按原始 ${parameter_names[parameter]}$ 着色')
             ax.set_box_aspect(1); ax.grid(alpha=.12); ax.legend(fontsize=7, loc='best')
-            fig.colorbar(sc, ax=ax, label=f'生成数据时的原始 $K_{parameter+1}$')
+            fig.colorbar(sc, ax=ax, label=f'生成数据时的原始 ${parameter_names[parameter]}$')
         fig.colorbar(q, ax=axes, location='bottom', shrink=.7,
                      label=r'流动幅度 $\|R(g)-g\|_2$：越小越浅（不是 Jacobian 或损失梯度）')
-        fig.suptitle(f'双 Ising，k={k}：R(g)−g 方向与实际数据编码\n'
+        fig.suptitle(f'{model_title}，k={k}：R(g)−g 方向与实际数据编码\n'
                      '每点为一条物理链的四次固定 C／子集抽样平均；数值根不等于物理临界点'
                      + ('；k=2 为目标尺度，流场属额外外推' if k == 2 else ''), fontsize=11)
         fig.savefig(out/f'flow_k{k}.png', dpi=170); plt.close(fig)
@@ -126,10 +135,12 @@ def plot_flow(a, roots, out, plt):
                 box_is_not_physical_support=True)
 
 
-def render_arrays(a, roots, root, out):
+def render_arrays(a, roots, root, out, *, parameter_names=('K_1', 'K_2'), model_title='双 Ising'):
     from scripts.report_phi4_hopping_qcr import _setup_plot
     plt = _setup_plot(None)
-    style = plot_flow(a, roots, out, plt)
+    ranges = tuple((float(a['labels'][:, j].min()), float(a['labels'][:, j].max())) for j in range(2))
+    style = plot_flow(a, roots, out, plt, parameter_names=parameter_names,
+                      model_title=model_title, parameter_ranges=ranges)
     cells = np.unique(a['labels'], axis=0)
     means = np.stack([a['direct_g'][(a['labels'] == cell).all(1)].mean(0) for cell in cells])
     fig, axes = plt.subplots(2, 3, figsize=(13, 8), layout='constrained')
@@ -137,7 +148,7 @@ def render_arrays(a, roots, root, out):
         for k in range(3):
             ax = axes[coordinate, k]
             sc = ax.scatter(*cells.T, c=means[:, k, coordinate], cmap='viridis', s=65, marker='s')
-            ax.set(xlabel='$K_1$', ylabel='$K_2$', title=f'k={k}，$g_{coordinate+1}$')
+            ax.set(xlabel=f'${parameter_names[0]}$', ylabel=f'${parameter_names[1]}$', title=f'k={k}，$g_{coordinate+1}$')
             fig.colorbar(sc, ax=ax, label=f'$g_{coordinate+1}$')
     fig.suptitle('参数到潜变量：每格为两条独立物理链的均值；不填补未采样参数')
     fig.savefig(out/'coupling_to_g.png', dpi=170); plt.close(fig)
@@ -207,12 +218,16 @@ def main():
                   flow_displacement=mapped-grid, flow_bounds=bounds)
     np.savez_compressed(out/'evaluation_arrays.npz', **arrays)
     write_json(out/'roots.json', dict(roots=roots, search=search))
-    style = render_arrays(arrays, roots, root, out)
+    names = tuple(final.config['data'].get('coupling_names', ('K1', 'K2')))
+    parameter_names = ('K', 'B') if names == ('K', 'B') else ('K_1', 'K_2')
+    model_title = '二维 Ising，K–B 扫描' if names == ('K', 'B') else '双 Ising'
+    style = render_arrays(arrays, roots, root, out, parameter_names=parameter_names, model_title=model_title)
     if is_vae:
         from scripts.report_ensemble_vae_multiscale import report_multiscale
         from scripts.report_phi4_hopping_qcr import _setup_plot
         scale_diagnostics = report_multiscale(arrays,reconstruction,roots,
-            json.loads((root/'history_progress.json').read_text()),out,_setup_plot(None))
+            json.loads((root/'history_progress.json').read_text()),out,_setup_plot(None),
+            parameter_names=parameter_names)
         np.savez_compressed(out/'reconstruction_arrays.npz',**reconstruction)
     terminal = json.loads((root/'r_only/summary.json').read_text())
     report = dict(status='complete', joint_Q_C_updates=final.config['training']['epochs'],
@@ -220,7 +235,7 @@ def main():
                   Q_C_unchanged=True, closure=metrics, flow=search, root_count=len(roots), plot_style=style,
                   evaluation_seed=91951, draws_per_chain=4, physical_chains=[ntrain, len(test.configurations)],
                   encoding='Same two-half mean as training; independent fixed evaluation C/subset draws',
-                  labels_used_for_training=False, thermal_nu=None,
+                  labels_used_for_training=False, coupling_names=names, thermal_nu=None,
                   limitations=['框内空白不代表物理数据支撑；框外是外推。',
                                '四次 C／子集重复不是四条独立物理链。',
                                '有限格点与单训练种子；低闭环误差不认证正确相结构或临界指数。',

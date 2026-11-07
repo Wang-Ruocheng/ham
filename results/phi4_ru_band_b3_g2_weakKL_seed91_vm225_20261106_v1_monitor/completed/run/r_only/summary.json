@@ -1,0 +1,165 @@
+{
+  "actual_extra_R_updates": 10000,
+  "stop_reason": "update_cap",
+  "train_plateau_reached": false,
+  "initial_R_Adam_steps": [
+    3000,
+    3000,
+    3000,
+    3000,
+    3000,
+    3000
+  ],
+  "final_R_Adam_steps": [
+    13000,
+    13000,
+    13000,
+    13000,
+    13000,
+    13000
+  ],
+  "frozen_before_sha256": {
+    "Q": "f94796624985133596d3909f2603e70e30646d4c395bb835f767fcf047e8cacf",
+    "C": "639dfa7dd53d1e9cf41beea302f2bf2e00a45589d3809a3a184272c343a13d7f"
+  },
+  "frozen_after_sha256": {
+    "Q": "f94796624985133596d3909f2603e70e30646d4c395bb835f767fcf047e8cacf",
+    "C": "639dfa7dd53d1e9cf41beea302f2bf2e00a45589d3809a3a184272c343a13d7f"
+  },
+  "Q_C_unchanged": true,
+  "initial_train_loss": 0.5070976206485232,
+  "final_train_loss": 0.07064828373816619,
+  "elapsed_seconds": 224.1389678493142,
+  "history": [
+    {
+      "extra_R_updates": 0,
+      "train_loss": 0.5070976206485232,
+      "best_train_closure": 0.5070976206485232,
+      "elapsed_seconds": 0.0029096920043230057
+    },
+    {
+      "extra_R_updates": 500,
+      "train_loss": 0.19854816701159053,
+      "best_train_closure": 0.19854816701159053,
+      "elapsed_seconds": 11.083540555089712
+    },
+    {
+      "extra_R_updates": 1000,
+      "train_loss": 0.14073721598695269,
+      "best_train_closure": 0.14073721598695269,
+      "elapsed_seconds": 22.308884451165795
+    },
+    {
+      "extra_R_updates": 1500,
+      "train_loss": 0.11859828824303174,
+      "best_train_closure": 0.11859828824303174,
+      "elapsed_seconds": 33.54567381180823
+    },
+    {
+      "extra_R_updates": 2000,
+      "train_loss": 0.10592593936599749,
+      "best_train_closure": 0.10592593936599749,
+      "elapsed_seconds": 44.823647597804666
+    },
+    {
+      "extra_R_updates": 2500,
+      "train_loss": 0.09677136726296184,
+      "best_train_closure": 0.09677136726296184,
+      "elapsed_seconds": 55.90186266601086
+    },
+    {
+      "extra_R_updates": 3000,
+      "train_loss": 0.09027094397450591,
+      "best_train_closure": 0.09027094397450591,
+      "elapsed_seconds": 67.10051277652383
+    },
+    {
+      "extra_R_updates": 3500,
+      "train_loss": 0.08523679696910744,
+      "best_train_closure": 0.08523679696910744,
+      "elapsed_seconds": 78.26857979409397
+    },
+    {
+      "extra_R_updates": 4000,
+      "train_loss": 0.0813180678085617,
+      "best_train_closure": 0.0813180678085617,
+      "elapsed_seconds": 89.44270106777549
+    },
+    {
+      "extra_R_updates": 4500,
+      "train_loss": 0.07863692467543178,
+      "best_train_closure": 0.07863692467543178,
+      "elapsed_seconds": 100.59305583126843
+    },
+    {
+      "extra_R_updates": 5000,
+      "train_loss": 0.07708009808526399,
+      "best_train_closure": 0.07708009808526399,
+      "elapsed_seconds": 111.84081165120006
+    },
+    {
+      "extra_R_updates": 5500,
+      "train_loss": 0.07602988080043017,
+      "best_train_closure": 0.07602988080043017,
+      "elapsed_seconds": 123.14670796133578
+    },
+    {
+      "extra_R_updates": 6000,
+      "train_loss": 0.0750833942797613,
+      "best_train_closure": 0.0750833942797613,
+      "elapsed_seconds": 134.38289586640894
+    },
+    {
+      "extra_R_updates": 6500,
+      "train_loss": 0.07417043460683012,
+      "best_train_closure": 0.07417043460683012,
+      "elapsed_seconds": 145.56839978322387
+    },
+    {
+      "extra_R_updates": 7000,
+      "train_loss": 0.07346811529689111,
+      "best_train_closure": 0.07346811529689111,
+      "elapsed_seconds": 156.8055514562875
+    },
+    {
+      "extra_R_updates": 7500,
+      "train_loss": 0.0729434016136659,
+      "best_train_closure": 0.0729434016136659,
+      "elapsed_seconds": 168.06729807518423
+    },
+    {
+      "extra_R_updates": 8000,
+      "train_loss": 0.07252635051718527,
+      "best_train_closure": 0.07252635051718527,
+      "elapsed_seconds": 179.1899958513677
+    },
+    {
+      "extra_R_updates": 8500,
+      "train_loss": 0.07205973311472522,
+      "best_train_closure": 0.07205973311472522,
+      "elapsed_seconds": 190.28005952388048
+    },
+    {
+      "extra_R_updates": 9000,
+      "train_loss": 0.07290442034982667,
+      "best_train_closure": 0.07205973311472522,
+      "elapsed_seconds": 201.5147718694061
+    },
+    {
+      "extra_R_updates": 9500,
+      "train_loss": 0.07114611387315,
+      "best_train_closure": 0.07114611387315,
+      "elapsed_seconds": 212.8231108635664
+    },
+    {
+      "extra_R_updates": 10000,
+      "train_loss": 0.07064828373816619,
+      "best_train_closure": 0.07064828373816619,
+      "elapsed_seconds": 224.06476076692343
+    }
+  ],
+  "labels_used": false,
+  "objective_unchanged": true,
+  "target_sampling": "fixed finite TRAIN subsets/C draws; full-cache mean",
+  "limitation": "Operational TRAIN plateau, not global optimality or a physical RG certification"
+}

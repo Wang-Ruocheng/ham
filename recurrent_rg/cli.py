@@ -30,6 +30,12 @@ def main(argv=None):
         # historical discrete/r-u config as hopping-kappa data.
         config_path = Path(args.config)
         config_header = json.loads(config_path.read_text()) if config_path.is_file() else {}
+        if isinstance(config_header, dict) and config_header.get('recipe') == 'phi4_ru_b3_g2_ensemble_vae_terminal_v1':
+            if (args.allow_legacy_training or args.resume or args.initialize_from
+                    or args.benchmark_warmup is not None or args.reference_execution or args.mi_cache_dir):
+                parser.error('The explicit continuous ensemble-VAE experiment is fresh-only')
+            from experiments.phi4_ru_vae_qcr import run
+            return run(args.config, args.output, device=args.device)
         if isinstance(config_header, dict) and config_header.get('recipe') == 'xy2d_b3_local_g2_terminal_fixed_QC_R_v1':
             if (args.allow_legacy_training or args.resume or args.initialize_from
                     or args.benchmark_warmup is not None or args.reference_execution or args.mi_cache_dir

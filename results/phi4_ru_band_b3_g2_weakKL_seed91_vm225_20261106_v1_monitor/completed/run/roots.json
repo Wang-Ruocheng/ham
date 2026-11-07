@@ -1,0 +1,408 @@
+{
+  "roots": [
+    {
+      "g": [
+        -1.0196855584570543,
+        1.289338860238036
+      ],
+      "residual": 3.4863831452177634e-14,
+      "full_DR": [
+        [
+          1.1655272465779376,
+          0.4882062794628507
+        ],
+        [
+          0.8535310076266273,
+          1.0075635665116398
+        ]
+      ],
+      "eigenvalues": [
+        {
+          "real": 1.7368817262245337,
+          "imag": 0.0,
+          "modulus": 1.7368817262245337
+        },
+        {
+          "real": 0.43620908686504356,
+          "imag": 0.0,
+          "modulus": 0.43620908686504356
+        }
+      ],
+      "classification": "saddle",
+      "contracting_directions": 1,
+      "expanding_directions": 1,
+      "within_train_hull": false,
+      "within_search_bounds": true,
+      "nearest_train_distance": 0.3614726361903815,
+      "local_rank": 2,
+      "local_rank_points": 16,
+      "data_nearby": [
+        {
+          "split": "train",
+          "scale": 0,
+          "within_coordinate_ranges": false,
+          "nearest_distance": 2.0885012699612706
+        },
+        {
+          "split": "train",
+          "scale": 1,
+          "within_coordinate_ranges": false,
+          "nearest_distance": 0.3614726361903815
+        },
+        {
+          "split": "train",
+          "scale": 2,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.159987086580586
+        },
+        {
+          "split": "test",
+          "scale": 0,
+          "within_coordinate_ranges": false,
+          "nearest_distance": 2.2370557959660924
+        },
+        {
+          "split": "test",
+          "scale": 1,
+          "within_coordinate_ranges": false,
+          "nearest_distance": 0.7914485702882931
+        },
+        {
+          "split": "test",
+          "scale": 2,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.20096288897443973
+        }
+      ],
+      "physical_critical_point_certified": false,
+      "thermal_nu": null
+    }
+  ],
+  "search": {
+    "schema": "phi4_ru_bounded_flow_v1",
+    "train_inputs_only_for_bounds_hull_and_pca": true,
+    "input_scales": [
+      0,
+      1
+    ],
+    "train_input_count": 272,
+    "train_input_rank": 2,
+    "rank_relative_tolerance": 1e-08,
+    "pca_mean": [
+      0.40861297299153326,
+      -0.1423753481095475
+    ],
+    "pca_components": [
+      [
+        0.5944640082303789,
+        -0.8041222188937898
+      ],
+      [
+        0.8041222188937898,
+        0.5944640082303789
+      ]
+    ],
+    "pca_variances": [
+      0.9210758909168874,
+      0.5210127424603537
+    ],
+    "pca_explained_variance_ratio": [
+      0.6387096254685893,
+      0.3612903745314108
+    ],
+    "bounds": [
+      [
+        -1.068373385078378,
+        2.3491421799917953
+      ],
+      [
+        -2.344274229430589,
+        3.044351973560774
+      ]
+    ],
+    "bound_padding_fraction": 0.1,
+    "coordinate_width_floor": 1e-06,
+    "grid_side": 33,
+    "grid_points": 1089,
+    "hull_available": true,
+    "hull_error": null,
+    "support_qualification": "Full numerical rank does not certify sufficient physical support",
+    "starts_rule": "fixed 7x7 TRAIN bounding-box grid, restricted to TRAIN convex hull",
+    "maximum_starts": 49,
+    "actual_starts": 22,
+    "max_nfev_per_start": 64,
+    "residual_tolerance": 5.3174702235664004e-08,
+    "deduplication_normalized_tolerance": 1e-05,
+    "root_search_attempts": [
+      {
+        "start": [
+          0.16572945786362892,
+          -1.146801739876953
+        ],
+        "nfev": 16,
+        "njev": 16,
+        "success": true,
+        "status": 2,
+        "residual": 0.43278906735481854,
+        "accepted": false
+      },
+      {
+        "start": [
+          0.6403843974567085,
+          -1.146801739876953
+        ],
+        "nfev": 18,
+        "njev": 18,
+        "success": true,
+        "status": 2,
+        "residual": 0.4327890765199153,
+        "accepted": false
+      },
+      {
+        "start": [
+          1.1150393370497882,
+          -1.146801739876953
+        ],
+        "nfev": 15,
+        "njev": 15,
+        "success": true,
+        "status": 2,
+        "residual": 0.432789069326867,
+        "accepted": false
+      },
+      {
+        "start": [
+          1.5896942766428679,
+          -1.146801739876953
+        ],
+        "nfev": 18,
+        "njev": 18,
+        "success": true,
+        "status": 2,
+        "residual": 0.43278906440270615,
+        "accepted": false
+      },
+      {
+        "start": [
+          -0.3089254817294507,
+          -0.39838143390593017
+        ],
+        "nfev": 19,
+        "njev": 19,
+        "success": true,
+        "status": 2,
+        "residual": 0.4327890861516186,
+        "accepted": false
+      },
+      {
+        "start": [
+          0.16572945786362892,
+          -0.39838143390593017
+        ],
+        "nfev": 50,
+        "njev": 42,
+        "success": true,
+        "status": 2,
+        "residual": 0.8577816245034138,
+        "accepted": false
+      },
+      {
+        "start": [
+          0.6403843974567085,
+          -0.39838143390593017
+        ],
+        "nfev": 21,
+        "njev": 20,
+        "success": true,
+        "status": 2,
+        "residual": 0.4327890599028769,
+        "accepted": false
+      },
+      {
+        "start": [
+          1.1150393370497882,
+          -0.39838143390593017
+        ],
+        "nfev": 13,
+        "njev": 13,
+        "success": true,
+        "status": 1,
+        "residual": 3.4863831452177634e-14,
+        "accepted": true
+      },
+      {
+        "start": [
+          1.5896942766428679,
+          -0.39838143390593017
+        ],
+        "nfev": 10,
+        "njev": 10,
+        "success": true,
+        "status": 1,
+        "residual": 4.4408920985006257e-16,
+        "accepted": true
+      },
+      {
+        "start": [
+          -0.3089254817294507,
+          0.35003887206509265
+        ],
+        "nfev": 9,
+        "njev": 9,
+        "success": true,
+        "status": 1,
+        "residual": 5.183886520390336e-11,
+        "accepted": true
+      },
+      {
+        "start": [
+          0.16572945786362892,
+          0.35003887206509265
+        ],
+        "nfev": 9,
+        "njev": 9,
+        "success": true,
+        "status": 1,
+        "residual": 4.965068306494545e-16,
+        "accepted": true
+      },
+      {
+        "start": [
+          0.6403843974567085,
+          0.35003887206509265
+        ],
+        "nfev": 2,
+        "njev": 2,
+        "success": true,
+        "status": 2,
+        "residual": 1.5805124550731449,
+        "accepted": false
+      },
+      {
+        "start": [
+          1.1150393370497882,
+          0.35003887206509265
+        ],
+        "nfev": 13,
+        "njev": 13,
+        "success": true,
+        "status": 1,
+        "residual": 2.220446049250313e-15,
+        "accepted": true
+      },
+      {
+        "start": [
+          1.5896942766428679,
+          0.35003887206509265
+        ],
+        "nfev": 10,
+        "njev": 10,
+        "success": true,
+        "status": 1,
+        "residual": 4.594930263653152e-12,
+        "accepted": true
+      },
+      {
+        "start": [
+          -0.3089254817294507,
+          1.0984591780361153
+        ],
+        "nfev": 10,
+        "njev": 10,
+        "success": true,
+        "status": 1,
+        "residual": 4.965068306494545e-16,
+        "accepted": true
+      },
+      {
+        "start": [
+          0.16572945786362892,
+          1.0984591780361153
+        ],
+        "nfev": 10,
+        "njev": 10,
+        "success": true,
+        "status": 1,
+        "residual": 1.4634124656306742e-10,
+        "accepted": true
+      },
+      {
+        "start": [
+          0.6403843974567085,
+          1.0984591780361153
+        ],
+        "nfev": 7,
+        "njev": 7,
+        "success": true,
+        "status": 1,
+        "residual": 1.5695590547722902e-12,
+        "accepted": true
+      },
+      {
+        "start": [
+          1.1150393370497882,
+          1.0984591780361153
+        ],
+        "nfev": 7,
+        "njev": 7,
+        "success": true,
+        "status": 1,
+        "residual": 2.168508676957659e-12,
+        "accepted": true
+      },
+      {
+        "start": [
+          1.5896942766428679,
+          1.0984591780361153
+        ],
+        "nfev": 10,
+        "njev": 10,
+        "success": true,
+        "status": 1,
+        "residual": 1.3324526538729395e-14,
+        "accepted": true
+      },
+      {
+        "start": [
+          0.6403843974567085,
+          1.8468794840071379
+        ],
+        "nfev": 15,
+        "njev": 15,
+        "success": true,
+        "status": 2,
+        "residual": 0.20144154047865692,
+        "accepted": false
+      },
+      {
+        "start": [
+          1.1150393370497882,
+          1.8468794840071379
+        ],
+        "nfev": 16,
+        "njev": 16,
+        "success": true,
+        "status": 2,
+        "residual": 0.20144156129884844,
+        "accepted": false
+      },
+      {
+        "start": [
+          1.5896942766428679,
+          1.8468794840071379
+        ],
+        "nfev": 16,
+        "njev": 16,
+        "success": true,
+        "status": 2,
+        "residual": 0.2014415475736017,
+        "accepted": false
+      }
+    ],
+    "full_DR_includes_identity": true,
+    "all_spectra_preserved": true,
+    "eigenmode_selection": "none",
+    "thermal_nu": null,
+    "physical_critical_point_certified": false
+  }
+}

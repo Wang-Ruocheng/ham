@@ -1,0 +1,906 @@
+{
+  "roots": [
+    {
+      "g": [
+        -1.0593316375142747,
+        -1.0252281084638581
+      ],
+      "residual": 2.3796096707841763e-14,
+      "full_DR": [
+        [
+          0.18226647150320052,
+          -0.06653956676221776
+        ],
+        [
+          0.00892876932625936,
+          0.12103873488353367
+        ]
+      ],
+      "eigenvalues": [
+        {
+          "real": 0.1701753592032795,
+          "imag": 0.0,
+          "modulus": 0.1701753592032795
+        },
+        {
+          "real": 0.1331298471834547,
+          "imag": 0.0,
+          "modulus": 0.1331298471834547
+        }
+      ],
+      "classification": "attracting",
+      "contracting_directions": 2,
+      "expanding_directions": 0,
+      "within_train_hull": true,
+      "within_search_bounds": true,
+      "nearest_train_distance": 0.0009474327734313077,
+      "local_rank": 2,
+      "local_rank_points": 16,
+      "data_nearby": [
+        {
+          "split": "train",
+          "scale": 0,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.0067922894674167355
+        },
+        {
+          "split": "train",
+          "scale": 1,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.0009474327734313077
+        },
+        {
+          "split": "train",
+          "scale": 2,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.0009474327734313077
+        },
+        {
+          "split": "test",
+          "scale": 0,
+          "within_coordinate_ranges": false,
+          "nearest_distance": 0.01397624127333263
+        },
+        {
+          "split": "test",
+          "scale": 1,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.001973121675458243
+        },
+        {
+          "split": "test",
+          "scale": 2,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.001973121675458243
+        }
+      ],
+      "physical_critical_point_certified": false,
+      "thermal_nu": null
+    },
+    {
+      "g": [
+        -0.9182753402624644,
+        0.4082591386664529
+      ],
+      "residual": 5.796557768069842e-14,
+      "full_DR": [
+        [
+          0.25616466724009734,
+          0.7212014221667127
+        ],
+        [
+          0.32564798290242863,
+          2.904960310044644
+        ]
+      ],
+      "eigenvalues": [
+        {
+          "real": 0.170283304321039,
+          "imag": 0.0,
+          "modulus": 0.170283304321039
+        },
+        {
+          "real": 2.9908416729637026,
+          "imag": 0.0,
+          "modulus": 2.9908416729637026
+        }
+      ],
+      "classification": "saddle",
+      "contracting_directions": 1,
+      "expanding_directions": 1,
+      "within_train_hull": true,
+      "within_search_bounds": true,
+      "nearest_train_distance": 0.15031758870601128,
+      "local_rank": 2,
+      "local_rank_points": 16,
+      "data_nearby": [
+        {
+          "split": "train",
+          "scale": 0,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.15031758870601128
+        },
+        {
+          "split": "train",
+          "scale": 1,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.27529589113639563
+        },
+        {
+          "split": "train",
+          "scale": 2,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.485932548651211
+        },
+        {
+          "split": "test",
+          "scale": 0,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.1555356060095388
+        },
+        {
+          "split": "test",
+          "scale": 1,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.2712197922461517
+        },
+        {
+          "split": "test",
+          "scale": 2,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.5879280042980991
+        }
+      ],
+      "physical_critical_point_certified": false,
+      "thermal_nu": null
+    },
+    {
+      "g": [
+        -0.7162109403483322,
+        1.649185161920214
+      ],
+      "residual": 5.7529659939690725e-11,
+      "full_DR": [
+        [
+          -0.15418268845041538,
+          0.037378714031446415
+        ],
+        [
+          0.08265565104613226,
+          0.08330012703764322
+        ]
+      ],
+      "eigenvalues": [
+        {
+          "real": -0.16654842718044457,
+          "imag": 0.0,
+          "modulus": 0.16654842718044457
+        },
+        {
+          "real": 0.0956658657676724,
+          "imag": 0.0,
+          "modulus": 0.0956658657676724
+        }
+      ],
+      "classification": "attracting",
+      "contracting_directions": 2,
+      "expanding_directions": 0,
+      "within_train_hull": true,
+      "within_search_bounds": true,
+      "nearest_train_distance": 0.01018158849061032,
+      "local_rank": 2,
+      "local_rank_points": 16,
+      "data_nearby": [
+        {
+          "split": "train",
+          "scale": 0,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.018259267769926344
+        },
+        {
+          "split": "train",
+          "scale": 1,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.01018158849061032
+        },
+        {
+          "split": "train",
+          "scale": 2,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.006047132490668095
+        },
+        {
+          "split": "test",
+          "scale": 0,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.023030413729997586
+        },
+        {
+          "split": "test",
+          "scale": 1,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.012540398497370655
+        },
+        {
+          "split": "test",
+          "scale": 2,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.011925130342487881
+        }
+      ],
+      "physical_critical_point_certified": false,
+      "thermal_nu": null
+    },
+    {
+      "g": [
+        0.21571692409275167,
+        0.26860276431696356
+      ],
+      "residual": 1.2562947417966881e-14,
+      "full_DR": [
+        [
+          2.1697989214908793,
+          -0.22175583164656956
+        ],
+        [
+          0.514319449853687,
+          1.5109580986486448
+        ]
+      ],
+      "eigenvalues": [
+        {
+          "real": 1.8403785100697623,
+          "imag": 0.07440114161390547,
+          "modulus": 1.8418818067943585
+        },
+        {
+          "real": 1.8403785100697623,
+          "imag": -0.07440114161390547,
+          "modulus": 1.8418818067943585
+        }
+      ],
+      "classification": "repelling",
+      "contracting_directions": 0,
+      "expanding_directions": 2,
+      "within_train_hull": true,
+      "within_search_bounds": true,
+      "nearest_train_distance": 0.13691262296077428,
+      "local_rank": 2,
+      "local_rank_points": 16,
+      "data_nearby": [
+        {
+          "split": "train",
+          "scale": 0,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.13691262296077428
+        },
+        {
+          "split": "train",
+          "scale": 1,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.35560267135160734
+        },
+        {
+          "split": "train",
+          "scale": 2,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.8842957485459053
+        },
+        {
+          "split": "test",
+          "scale": 0,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.254674824119476
+        },
+        {
+          "split": "test",
+          "scale": 1,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.5185974834318943
+        },
+        {
+          "split": "test",
+          "scale": 2,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.9093919654089934
+        }
+      ],
+      "physical_critical_point_certified": false,
+      "thermal_nu": null
+    },
+    {
+      "g": [
+        0.3344445291206315,
+        -0.900659127050575
+      ],
+      "residual": 2.9893669801409083e-16,
+      "full_DR": [
+        [
+          2.5178360178924746,
+          -0.13938680232902748
+        ],
+        [
+          0.3121852996467482,
+          0.24376774502658805
+        ]
+      ],
+      "eigenvalues": [
+        {
+          "real": 2.498537143836951,
+          "imag": 0.0,
+          "modulus": 2.498537143836951
+        },
+        {
+          "real": 0.2630666190821115,
+          "imag": 0.0,
+          "modulus": 0.2630666190821115
+        }
+      ],
+      "classification": "saddle",
+      "contracting_directions": 1,
+      "expanding_directions": 1,
+      "within_train_hull": true,
+      "within_search_bounds": true,
+      "nearest_train_distance": 0.16857468897440375,
+      "local_rank": 2,
+      "local_rank_points": 16,
+      "data_nearby": [
+        {
+          "split": "train",
+          "scale": 0,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.16857468897440375
+        },
+        {
+          "split": "train",
+          "scale": 1,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.22168131604626032
+        },
+        {
+          "split": "train",
+          "scale": 2,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.3975183883511076
+        },
+        {
+          "split": "test",
+          "scale": 0,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.1880924916364287
+        },
+        {
+          "split": "test",
+          "scale": 1,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.2149590491623781
+        },
+        {
+          "split": "test",
+          "scale": 2,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.4461587342296768
+        }
+      ],
+      "physical_critical_point_certified": false,
+      "thermal_nu": null
+    },
+    {
+      "g": [
+        0.4071861181619138,
+        1.5483118732527583
+      ],
+      "residual": 2.288783399261119e-15,
+      "full_DR": [
+        [
+          2.249229938378268,
+          -0.19586374441117682
+        ],
+        [
+          -0.379196455453959,
+          0.38240812618264886
+        ]
+      ],
+      "eigenvalues": [
+        {
+          "real": 2.288201033993259,
+          "imag": 0.0,
+          "modulus": 2.288201033993259
+        },
+        {
+          "real": 0.3434370305676582,
+          "imag": 0.0,
+          "modulus": 0.3434370305676582
+        }
+      ],
+      "classification": "saddle",
+      "contracting_directions": 1,
+      "expanding_directions": 1,
+      "within_train_hull": false,
+      "within_search_bounds": true,
+      "nearest_train_distance": 0.2846908051473228,
+      "local_rank": 2,
+      "local_rank_points": 16,
+      "data_nearby": [
+        {
+          "split": "train",
+          "scale": 0,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.2846908051473228
+        },
+        {
+          "split": "train",
+          "scale": 1,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.3117535151298414
+        },
+        {
+          "split": "train",
+          "scale": 2,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.6152438286312769
+        },
+        {
+          "split": "test",
+          "scale": 0,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.30600241129035033
+        },
+        {
+          "split": "test",
+          "scale": 1,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.41855061132047316
+        },
+        {
+          "split": "test",
+          "scale": 2,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.6221049704466945
+        }
+      ],
+      "physical_critical_point_certified": false,
+      "thermal_nu": null
+    },
+    {
+      "g": [
+        1.4063279536672038,
+        -0.7988687460431649
+      ],
+      "residual": 7.71748758611043e-13,
+      "full_DR": [
+        [
+          0.3316684133034763,
+          -0.1061734496770608
+        ],
+        [
+          -0.10630393936207921,
+          0.25974207779183733
+        ]
+      ],
+      "eigenvalues": [
+        {
+          "real": 0.4078658687242701,
+          "imag": 0.0,
+          "modulus": 0.4078658687242701
+        },
+        {
+          "real": 0.18354462237104346,
+          "imag": 0.0,
+          "modulus": 0.18354462237104346
+        }
+      ],
+      "classification": "attracting",
+      "contracting_directions": 2,
+      "expanding_directions": 0,
+      "within_train_hull": true,
+      "within_search_bounds": true,
+      "nearest_train_distance": 0.005316147328489024,
+      "local_rank": 2,
+      "local_rank_points": 16,
+      "data_nearby": [
+        {
+          "split": "train",
+          "scale": 0,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.005316147328489024
+        },
+        {
+          "split": "train",
+          "scale": 1,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.017636483142286934
+        },
+        {
+          "split": "train",
+          "scale": 2,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.00849412337393643
+        },
+        {
+          "split": "test",
+          "scale": 0,
+          "within_coordinate_ranges": false,
+          "nearest_distance": 0.014115381409201357
+        },
+        {
+          "split": "test",
+          "scale": 1,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.019429739142977406
+        },
+        {
+          "split": "test",
+          "scale": 2,
+          "within_coordinate_ranges": true,
+          "nearest_distance": 0.007632733102224834
+        }
+      ],
+      "physical_critical_point_certified": false,
+      "thermal_nu": null
+    }
+  ],
+  "search": {
+    "schema": "phi4_ru_bounded_flow_v1",
+    "train_inputs_only_for_bounds_hull_and_pca": true,
+    "input_scales": [
+      0,
+      1
+    ],
+    "train_input_count": 524,
+    "train_input_rank": 2,
+    "rank_relative_tolerance": 1e-08,
+    "pca_mean": [
+      -0.15796026864480972,
+      -0.07372331156247838
+    ],
+    "pca_components": [
+      [
+        -0.4425933838827175,
+        -0.8967224188918472
+      ],
+      [
+        0.8967224188918472,
+        -0.4425933838827175
+      ]
+    ],
+    "pca_variances": [
+      0.929157073879879,
+      0.6968317647730594
+    ],
+    "pca_explained_variance_ratio": [
+      0.5714412373516939,
+      0.42855876264830606
+    ],
+    "bounds": [
+      [
+        -1.3478663842138028,
+        1.6656683191483173
+      ],
+      [
+        -1.3223213440808441,
+        1.9523464524724814
+      ]
+    ],
+    "bound_padding_fraction": 0.1,
+    "coordinate_width_floor": 1e-06,
+    "grid_side": 33,
+    "grid_points": 1089,
+    "hull_available": true,
+    "hull_error": null,
+    "support_qualification": "Full numerical rank does not certify sufficient physical support",
+    "starts_rule": "fixed 7x7 TRAIN bounding-box grid, restricted to TRAIN convex hull",
+    "maximum_starts": 49,
+    "actual_starts": 25,
+    "max_nfev_per_start": 64,
+    "residual_tolerance": 3.708552482864517e-08,
+    "deduplication_normalized_tolerance": 1e-05,
+    "root_search_attempts": [
+      {
+        "start": [
+          -0.6781920056888873,
+          -0.5946173892912161
+        ],
+        "nfev": 7,
+        "njev": 7,
+        "success": true,
+        "status": 1,
+        "residual": 2.3796096707841763e-14,
+        "accepted": true
+      },
+      {
+        "start": [
+          -0.259645519110815,
+          -0.5946173892912161
+        ],
+        "nfev": 8,
+        "njev": 8,
+        "success": true,
+        "status": 1,
+        "residual": 6.233089088255905e-15,
+        "accepted": true
+      },
+      {
+        "start": [
+          0.15890096746725724,
+          -0.5946173892912161
+        ],
+        "nfev": 7,
+        "njev": 7,
+        "success": true,
+        "status": 1,
+        "residual": 2.9893669801409083e-16,
+        "accepted": true
+      },
+      {
+        "start": [
+          0.5774474540453294,
+          -0.5946173892912161
+        ],
+        "nfev": 7,
+        "njev": 7,
+        "success": true,
+        "status": 1,
+        "residual": 1.1102230246251565e-16,
+        "accepted": true
+      },
+      {
+        "start": [
+          0.9959939406234017,
+          -0.5946173892912161
+        ],
+        "nfev": 7,
+        "njev": 7,
+        "success": true,
+        "status": 1,
+        "residual": 7.71748758611043e-13,
+        "accepted": true
+      },
+      {
+        "start": [
+          -0.6781920056888873,
+          -0.13980241754769873
+        ],
+        "nfev": 8,
+        "njev": 8,
+        "success": true,
+        "status": 1,
+        "residual": 1.790180836524724e-15,
+        "accepted": true
+      },
+      {
+        "start": [
+          -0.259645519110815,
+          -0.13980241754769873
+        ],
+        "nfev": 8,
+        "njev": 8,
+        "success": true,
+        "status": 1,
+        "residual": 1.9601646988179566e-14,
+        "accepted": true
+      },
+      {
+        "start": [
+          0.15890096746725724,
+          -0.13980241754769873
+        ],
+        "nfev": 8,
+        "njev": 8,
+        "success": true,
+        "status": 1,
+        "residual": 1.1102230246251565e-16,
+        "accepted": true
+      },
+      {
+        "start": [
+          0.5774474540453294,
+          -0.13980241754769873
+        ],
+        "nfev": 7,
+        "njev": 7,
+        "success": true,
+        "status": 1,
+        "residual": 2.280607838872738e-12,
+        "accepted": true
+      },
+      {
+        "start": [
+          0.9959939406234017,
+          -0.13980241754769873
+        ],
+        "nfev": 7,
+        "njev": 7,
+        "success": true,
+        "status": 1,
+        "residual": 6.883935424579963e-13,
+        "accepted": true
+      },
+      {
+        "start": [
+          -0.6781920056888873,
+          0.31501255419581864
+        ],
+        "nfev": 6,
+        "njev": 6,
+        "success": true,
+        "status": 1,
+        "residual": 5.796557768069842e-14,
+        "accepted": true
+      },
+      {
+        "start": [
+          -0.259645519110815,
+          0.31501255419581864
+        ],
+        "nfev": 7,
+        "njev": 7,
+        "success": true,
+        "status": 1,
+        "residual": 1.799221230395904e-13,
+        "accepted": true
+      },
+      {
+        "start": [
+          0.15890096746725724,
+          0.31501255419581864
+        ],
+        "nfev": 6,
+        "njev": 6,
+        "success": true,
+        "status": 1,
+        "residual": 1.2562947417966881e-14,
+        "accepted": true
+      },
+      {
+        "start": [
+          0.5774474540453294,
+          0.31501255419581864
+        ],
+        "nfev": 64,
+        "njev": 55,
+        "success": false,
+        "status": 0,
+        "residual": 0.15391711822169696,
+        "accepted": false
+      },
+      {
+        "start": [
+          0.9959939406234017,
+          0.31501255419581864
+        ],
+        "nfev": 64,
+        "njev": 52,
+        "success": false,
+        "status": 0,
+        "residual": 0.15393215942091013,
+        "accepted": false
+      },
+      {
+        "start": [
+          -0.6781920056888873,
+          0.7698275259393361
+        ],
+        "nfev": 6,
+        "njev": 6,
+        "success": true,
+        "status": 1,
+        "residual": 1.6653345369377348e-16,
+        "accepted": true
+      },
+      {
+        "start": [
+          -0.259645519110815,
+          0.7698275259393361
+        ],
+        "nfev": 7,
+        "njev": 7,
+        "success": true,
+        "status": 1,
+        "residual": 4.2855183991760767e-14,
+        "accepted": true
+      },
+      {
+        "start": [
+          0.15890096746725724,
+          0.7698275259393361
+        ],
+        "nfev": 8,
+        "njev": 8,
+        "success": true,
+        "status": 1,
+        "residual": 2.36600458474195e-13,
+        "accepted": true
+      },
+      {
+        "start": [
+          0.5774474540453294,
+          0.7698275259393361
+        ],
+        "nfev": 13,
+        "njev": 11,
+        "success": true,
+        "status": 2,
+        "residual": 0.41033441995655023,
+        "accepted": false
+      },
+      {
+        "start": [
+          0.9959939406234017,
+          0.7698275259393361
+        ],
+        "nfev": 13,
+        "njev": 13,
+        "success": true,
+        "status": 2,
+        "residual": 0.4103343841941761,
+        "accepted": false
+      },
+      {
+        "start": [
+          -0.6781920056888873,
+          1.2246424976828534
+        ],
+        "nfev": 6,
+        "njev": 6,
+        "success": true,
+        "status": 1,
+        "residual": 5.7529659939690725e-11,
+        "accepted": true
+      },
+      {
+        "start": [
+          -0.259645519110815,
+          1.2246424976828534
+        ],
+        "nfev": 6,
+        "njev": 6,
+        "success": true,
+        "status": 1,
+        "residual": 4.768460394654724e-11,
+        "accepted": true
+      },
+      {
+        "start": [
+          0.15890096746725724,
+          1.2246424976828534
+        ],
+        "nfev": 6,
+        "njev": 6,
+        "success": true,
+        "status": 1,
+        "residual": 2.288783399261119e-15,
+        "accepted": true
+      },
+      {
+        "start": [
+          0.5774474540453294,
+          1.2246424976828534
+        ],
+        "nfev": 6,
+        "njev": 6,
+        "success": true,
+        "status": 1,
+        "residual": 2.7048650342505186e-12,
+        "accepted": true
+      },
+      {
+        "start": [
+          0.9959939406234017,
+          1.2246424976828534
+        ],
+        "nfev": 8,
+        "njev": 7,
+        "success": true,
+        "status": 1,
+        "residual": 3.9224095309379235e-12,
+        "accepted": true
+      }
+    ],
+    "full_DR_includes_identity": true,
+    "all_spectra_preserved": true,
+    "eigenmode_selection": "none",
+    "thermal_nu": null,
+    "physical_critical_point_certified": false
+  }
+}

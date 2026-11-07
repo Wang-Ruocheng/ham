@@ -90,10 +90,33 @@ def source_pins():
     }
 
 
+def parameter_cells(options):
+    """Ordered physical points; legacy Cartesian ordering/seeds stay unchanged."""
+    explicit = getattr(options, 'parameter_cells', None)
+    if explicit is None:
+        return [(float(r), float(u)) for r in options.r_values for u in options.u_values]
+    if not isinstance(explicit, (tuple, list)) or not explicit:
+        raise ValueError('Explicit parameter_cells must be nonempty')
+    points = []
+    for pair in explicit:
+        if not isinstance(pair, (tuple, list)) or len(pair) != 2:
+            raise ValueError('Expected physical (r,u) pairs')
+        r, u = (base._finite(v, 'parameter_cell') for v in pair)
+        if u <= 0 or r not in options.r_values or u not in options.u_values:
+            raise ValueError('Explicit point outside declared axes or u<=0')
+        points.append((r, u))
+    if len(set(points)) != len(points):
+        raise ValueError('Duplicate physical parameter cell')
+    test = [i % options.test_every == options.test_offset for i in range(len(points))]
+    if not any(test) or all(test):
+        raise ValueError('Explicit cells must have both train and test')
+    return points
+
+
 def generation_plan(options):
     """Pure resource preflight; worst-case cluster work uses every cycle, not pN."""
     options.validate()
-    cells = len(options.r_values) * len(options.u_values)
+    cells = len(parameter_cells(options))
     cycles = options.burn_in + options.samples * options.spacing
     volumes = [int(size) ** options.dimension for size in options.sizes]
     total_cycles = cells * len(volumes) * options.chains * cycles
@@ -152,8 +175,7 @@ def generation_plan(options):
 
 def chain_seed(options, size, cell, chain):
     message = [SCHEMA, int(options.seed), int(options.dimension), int(size),
-               float(options.r_values[cell // len(options.u_values)]),
-               float(options.u_values[cell % len(options.u_values)]), 0., int(chain)]
+               *parameter_cells(options)[cell], 0., int(chain)]
     return int.from_bytes(hashlib.sha256(json.dumps(message).encode()).digest()[:16], "little")
 
 
@@ -229,8 +251,7 @@ def generate_dataset(output, options):
     try:
         for size in options.sizes:
             for cell in range(plan["parameter_cells"]):
-                r = float(options.r_values[cell // len(options.u_values)])
-                u = float(options.u_values[cell % len(options.u_values)])
+                r, u = parameter_cells(options)[cell]
                 split = "test" if cell % options.test_every == options.test_offset else "train"
                 current = f"L{size}_c{cell:04d}"
                 directory = output / "conditions" / current

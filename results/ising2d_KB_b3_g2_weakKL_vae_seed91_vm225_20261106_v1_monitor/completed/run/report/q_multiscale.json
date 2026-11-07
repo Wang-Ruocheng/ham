@@ -1,0 +1,640 @@
+{
+  "scales": [
+    {
+      "parameter_main_effects": [
+        [
+          0.9947987148886833,
+          0.002893879013055454
+        ],
+        [
+          0.0004326675019487984,
+          0.6634353527202947
+        ]
+      ],
+      "interaction_fraction": [
+        0.002307406098261224,
+        0.33613197977775644
+      ],
+      "evaluation_axis_assignment": [
+        0,
+        1
+      ],
+      "axis_separation_score": 0.8291170338044891,
+      "cell_mean_covariance_eigenvalues": [
+        0.2546201447707147,
+        0.8751391350821858
+      ],
+      "cell_mean_PCA_fractions": [
+        0.7746244272462474,
+        0.22537557275375278
+      ],
+      "cell_mean_variance_over_estimated_replica_noise": [
+        2811.3007000492644,
+        657.3727483551406
+      ],
+      "notes": [
+        "Main effects are a post-hoc full-grid ANOVA using physical parameter labels, never a training loss.",
+        "Only coordinate permutation is used for scoring; no supervised rotation or nonlinear axis correction.",
+        "Full covariance rank may come from a curved one-dimensional code; it is not identifiability proof.",
+        "Replica-noise ratio assumes independent physical chains; only two chains per cell."
+      ],
+      "scale": 0,
+      "sites": 36,
+      "heldout_two_coordinate_cubic_K_R2": [
+        0.9984338209875144,
+        0.840903381669629
+      ],
+      "heldout_Spearman_g_K": [
+        [
+          0.9963961306208735,
+          0.05492242850491882
+        ],
+        [
+          -0.011028610990067775,
+          -0.8313894890503751
+        ]
+      ],
+      "probability_reconstruction": {
+        "train": {
+          "sum_bin_mse": 0.000793145311482716,
+          "constant_TRAIN_histogram_mse": 0.24369394784874937,
+          "improvement": 0.9967453220792541
+        },
+        "test": {
+          "sum_bin_mse": 0.0008881764164282868,
+          "constant_TRAIN_histogram_mse": 0.2424125421054031,
+          "improvement": 0.9963360954482211
+        }
+      },
+      "nearest_sampled_parameters_to_roots": [
+        {
+          "root_id": 1,
+          "sampled_parameters": [
+            [
+              0.2,
+              0.0
+            ],
+            [
+              0.2,
+              0.006
+            ],
+            [
+              0.2,
+              0.009
+            ]
+          ],
+          "standardized_distances": [
+            1.3651913657638095,
+            1.379115110573175,
+            1.384806217986082
+          ],
+          "note": "Nearest actual two-chain mean codes only; NOT inferred root couplings or critical points"
+        },
+        {
+          "root_id": 2,
+          "sampled_parameters": [
+            [
+              0.44,
+              0.0
+            ],
+            [
+              0.41,
+              0.0
+            ],
+            [
+              0.41,
+              0.001
+            ]
+          ],
+          "standardized_distances": [
+            0.010682297147570937,
+            0.2154169647056513,
+            0.23079987457537365
+          ],
+          "note": "Nearest actual two-chain mean codes only; NOT inferred root couplings or critical points"
+        },
+        {
+          "root_id": 3,
+          "sampled_parameters": [
+            [
+              0.68,
+              0.001
+            ],
+            [
+              0.68,
+              0.009
+            ],
+            [
+              0.68,
+              0.007
+            ]
+          ],
+          "standardized_distances": [
+            0.8342422849163228,
+            0.9188695334134518,
+            0.9512056799241885
+          ],
+          "note": "Nearest actual two-chain mean codes only; NOT inferred root couplings or critical points"
+        },
+        {
+          "root_id": 4,
+          "sampled_parameters": [
+            [
+              0.68,
+              -0.001
+            ],
+            [
+              0.68,
+              -0.009
+            ],
+            [
+              0.68,
+              -0.005
+            ]
+          ],
+          "standardized_distances": [
+            1.0617524386444575,
+            1.0620138325610995,
+            1.0743500980770595
+          ],
+          "note": "Nearest actual two-chain mean codes only; NOT inferred root couplings or critical points"
+        },
+        {
+          "root_id": 5,
+          "sampled_parameters": [
+            [
+              0.68,
+              -0.001
+            ],
+            [
+              0.68,
+              -0.009
+            ],
+            [
+              0.68,
+              -0.005
+            ]
+          ],
+          "standardized_distances": [
+            1.0791796981258437,
+            1.0965071904780406,
+            1.1088354282160728
+          ],
+          "note": "Nearest actual two-chain mean codes only; NOT inferred root couplings or critical points"
+        },
+        {
+          "root_id": 6,
+          "sampled_parameters": [
+            [
+              0.68,
+              0.0
+            ],
+            [
+              0.65,
+              0.0
+            ],
+            [
+              0.62,
+              0.0
+            ]
+          ],
+          "standardized_distances": [
+            0.6958442734472531,
+            0.9278228488218294,
+            1.1440879562716029
+          ],
+          "note": "Nearest actual two-chain mean codes only; NOT inferred root couplings or critical points"
+        }
+      ]
+    },
+    {
+      "parameter_main_effects": [
+        [
+          0.9974319072362972,
+          0.0006541864957209089
+        ],
+        [
+          0.0010117714862087257,
+          0.7849266073026478
+        ]
+      ],
+      "interaction_fraction": [
+        0.001913906267981936,
+        0.21406162121114347
+      ],
+      "evaluation_axis_assignment": [
+        0,
+        1
+      ],
+      "axis_separation_score": 0.8911792572694726,
+      "cell_mean_covariance_eigenvalues": [
+        0.9774983566765773,
+        1.0337815646738615
+      ],
+      "cell_mean_PCA_fractions": [
+        0.5139918882995397,
+        0.48600811170046043
+      ],
+      "cell_mean_variance_over_estimated_replica_noise": [
+        323.36480989723424,
+        1382.2162562923945
+      ],
+      "notes": [
+        "Main effects are a post-hoc full-grid ANOVA using physical parameter labels, never a training loss.",
+        "Only coordinate permutation is used for scoring; no supervised rotation or nonlinear axis correction.",
+        "Full covariance rank may come from a curved one-dimensional code; it is not identifiability proof.",
+        "Replica-noise ratio assumes independent physical chains; only two chains per cell."
+      ],
+      "scale": 1,
+      "sites": 12,
+      "heldout_two_coordinate_cubic_K_R2": [
+        0.9821124495569918,
+        0.8926325630270433
+      ],
+      "heldout_Spearman_g_K": [
+        [
+          0.9896493414586592,
+          0.008081747128729087
+        ],
+        [
+          -0.005030541420834235,
+          -0.8433985897975217
+        ]
+      ],
+      "probability_reconstruction": {
+        "train": {
+          "sum_bin_mse": 0.0009336920871278795,
+          "constant_TRAIN_histogram_mse": 0.3061530933103979,
+          "improvement": 0.9969502444772582
+        },
+        "test": {
+          "sum_bin_mse": 0.0010369990924020487,
+          "constant_TRAIN_histogram_mse": 0.30490370174380804,
+          "improvement": 0.9965989291488715
+        }
+      },
+      "nearest_sampled_parameters_to_roots": [
+        {
+          "root_id": 1,
+          "sampled_parameters": [
+            [
+              0.2,
+              0.002
+            ],
+            [
+              0.2,
+              0.006
+            ],
+            [
+              0.2,
+              -0.002
+            ]
+          ],
+          "standardized_distances": [
+            0.08315342178174234,
+            0.13213077100237416,
+            0.14126873576674306
+          ],
+          "note": "Nearest actual two-chain mean codes only; NOT inferred root couplings or critical points"
+        },
+        {
+          "root_id": 2,
+          "sampled_parameters": [
+            [
+              0.44,
+              0.0
+            ],
+            [
+              0.41,
+              0.0
+            ],
+            [
+              0.41,
+              0.001
+            ]
+          ],
+          "standardized_distances": [
+            0.026987978396414036,
+            0.31458022699583726,
+            0.35847950429301817
+          ],
+          "note": "Nearest actual two-chain mean codes only; NOT inferred root couplings or critical points"
+        },
+        {
+          "root_id": 3,
+          "sampled_parameters": [
+            [
+              0.62,
+              0.009
+            ],
+            [
+              0.68,
+              0.008
+            ],
+            [
+              0.65,
+              0.003
+            ]
+          ],
+          "standardized_distances": [
+            0.010872767102533957,
+            0.010872767102533957,
+            0.010872767102533957
+          ],
+          "note": "Nearest actual two-chain mean codes only; NOT inferred root couplings or critical points"
+        },
+        {
+          "root_id": 4,
+          "sampled_parameters": [
+            [
+              0.65,
+              -0.006
+            ],
+            [
+              0.68,
+              -0.009
+            ],
+            [
+              0.65,
+              -0.01
+            ]
+          ],
+          "standardized_distances": [
+            0.029098091329888408,
+            0.029098091329888408,
+            0.029098091329888408
+          ],
+          "note": "Nearest actual two-chain mean codes only; NOT inferred root couplings or critical points"
+        },
+        {
+          "root_id": 5,
+          "sampled_parameters": [
+            [
+              0.68,
+              -0.002
+            ],
+            [
+              0.65,
+              -0.004
+            ],
+            [
+              0.68,
+              -0.01
+            ]
+          ],
+          "standardized_distances": [
+            0.022946470301549268,
+            0.02747658658715321,
+            0.02747658658715321
+          ],
+          "note": "Nearest actual two-chain mean codes only; NOT inferred root couplings or critical points"
+        },
+        {
+          "root_id": 6,
+          "sampled_parameters": [
+            [
+              0.65,
+              0.0
+            ],
+            [
+              0.68,
+              0.0
+            ],
+            [
+              0.59,
+              0.0
+            ]
+          ],
+          "standardized_distances": [
+            0.04707269740456731,
+            0.09678494444695042,
+            0.10453310863534813
+          ],
+          "note": "Nearest actual two-chain mean codes only; NOT inferred root couplings or critical points"
+        }
+      ]
+    },
+    {
+      "parameter_main_effects": [
+        [
+          0.9875683379211456,
+          0.0034533504308292685
+        ],
+        [
+          0.0009081229904967784,
+          0.8906395177161227
+        ]
+      ],
+      "interaction_fraction": [
+        0.008978311648025109,
+        0.10845235929338048
+      ],
+      "evaluation_axis_assignment": [
+        0,
+        1
+      ],
+      "axis_separation_score": 0.9391039278186342,
+      "cell_mean_covariance_eigenvalues": [
+        1.2927484402690588,
+        1.505030415022979
+      ],
+      "cell_mean_PCA_fractions": [
+        0.5379375900908655,
+        0.46206240990913455
+      ],
+      "cell_mean_variance_over_estimated_replica_noise": [
+        111.98343584598844,
+        480.4754277806059
+      ],
+      "notes": [
+        "Main effects are a post-hoc full-grid ANOVA using physical parameter labels, never a training loss.",
+        "Only coordinate permutation is used for scoring; no supervised rotation or nonlinear axis correction.",
+        "Full covariance rank may come from a curved one-dimensional code; it is not identifiability proof.",
+        "Replica-noise ratio assumes independent physical chains; only two chains per cell."
+      ],
+      "scale": 2,
+      "sites": 4,
+      "heldout_two_coordinate_cubic_K_R2": [
+        0.8908362511036716,
+        0.8456915707568722
+      ],
+      "heldout_Spearman_g_K": [
+        [
+          0.908540080123121,
+          -0.08058440936203119
+        ],
+        [
+          0.02521159526418471,
+          -0.8754525020443709
+        ]
+      ],
+      "probability_reconstruction": {
+        "train": {
+          "sum_bin_mse": 0.0014794990489036652,
+          "constant_TRAIN_histogram_mse": 0.3410037034590703,
+          "improvement": 0.9956613402320974
+        },
+        "test": {
+          "sum_bin_mse": 0.0015535877209397618,
+          "constant_TRAIN_histogram_mse": 0.3397841384223073,
+          "improvement": 0.9954277214700091
+        }
+      },
+      "nearest_sampled_parameters_to_roots": [
+        {
+          "root_id": 1,
+          "sampled_parameters": [
+            [
+              0.2,
+              -0.001
+            ],
+            [
+              0.26,
+              0.0
+            ],
+            [
+              0.29,
+              0.001
+            ]
+          ],
+          "standardized_distances": [
+            0.02238751840096548,
+            0.04380200672926754,
+            0.058412123052788666
+          ],
+          "note": "Nearest actual two-chain mean codes only; NOT inferred root couplings or critical points"
+        },
+        {
+          "root_id": 2,
+          "sampled_parameters": [
+            [
+              0.44,
+              0.0
+            ],
+            [
+              0.44,
+              -0.001
+            ],
+            [
+              0.41,
+              0.0
+            ]
+          ],
+          "standardized_distances": [
+            0.04095955857814389,
+            0.4855077471854741,
+            0.63976178973331
+          ],
+          "note": "Nearest actual two-chain mean codes only; NOT inferred root couplings or critical points"
+        },
+        {
+          "root_id": 3,
+          "sampled_parameters": [
+            [
+              0.68,
+              0.01
+            ],
+            [
+              0.59,
+              0.003
+            ],
+            [
+              0.53,
+              0.01
+            ]
+          ],
+          "standardized_distances": [
+            0.00950675610208567,
+            0.00950675610208609,
+            0.00950675610208609
+          ],
+          "note": "Nearest actual two-chain mean codes only; NOT inferred root couplings or critical points"
+        },
+        {
+          "root_id": 4,
+          "sampled_parameters": [
+            [
+              0.62,
+              -0.005
+            ],
+            [
+              0.62,
+              -0.004
+            ],
+            [
+              0.68,
+              -0.01
+            ]
+          ],
+          "standardized_distances": [
+            0.026045267235653456,
+            0.026045267235653456,
+            0.026045267235653456
+          ],
+          "note": "Nearest actual two-chain mean codes only; NOT inferred root couplings or critical points"
+        },
+        {
+          "root_id": 5,
+          "sampled_parameters": [
+            [
+              0.62,
+              -0.002
+            ],
+            [
+              0.5,
+              -0.002
+            ],
+            [
+              0.53,
+              -0.002
+            ]
+          ],
+          "standardized_distances": [
+            0.020219002982455485,
+            0.020219002982455485,
+            0.020219002982455485
+          ],
+          "note": "Nearest actual two-chain mean codes only; NOT inferred root couplings or critical points"
+        },
+        {
+          "root_id": 6,
+          "sampled_parameters": [
+            [
+              0.65,
+              0.0
+            ],
+            [
+              0.68,
+              0.0
+            ],
+            [
+              0.59,
+              0.0
+            ]
+          ],
+          "standardized_distances": [
+            0.04053648512213555,
+            0.08607279850544537,
+            0.08616039206097412
+          ],
+          "note": "Nearest actual two-chain mean codes only; NOT inferred root couplings or critical points"
+        }
+      ]
+    }
+  ],
+  "labels_used_only_post_training": true,
+  "parameter_names": [
+    "K",
+    "B"
+  ],
+  "shared_Q_and_decoder": true,
+  "coordinate_transform_applied": false,
+  "encoding": "Mean of two half-ensemble posterior means, then four fixed C/subset draws",
+  "Q_only_comparison_caveat": "Joint Q is newly initialized, minibatched and shared over three evolving scales; not a continuation of the full-batch k=0 Q-only run",
+  "limitations": [
+    "参数主效应使用完整网格，包含训练与留出；留出相关／读出另报。",
+    "粗尺度颜色和评价标签始终是原始扫描参数，不是有效耦合。",
+    "同一 Q 的编码无逐尺度坐标校正；分别报告配对评分不等于坐标对应保持不变。",
+    "有限尺寸、两条物理链、单训练种子；四次 C／子集抽样不是独立物理链。"
+  ]
+}

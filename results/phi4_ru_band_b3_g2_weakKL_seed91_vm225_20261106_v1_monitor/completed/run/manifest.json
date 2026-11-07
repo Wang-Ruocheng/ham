@@ -1,0 +1,361 @@
+{
+  "recipe": "phi4_ru_b3_g2_ensemble_vae_terminal_v1",
+  "schema_version": 5,
+  "config": {
+    "schema_version": 5,
+    "recipe": "phi4_ru_b3_g2_ensemble_vae_terminal_v1",
+    "data": {
+      "root": "/mnt/nas-new/home/yange/ham/results/phi4_ru_band_b3_g2_weakKL_seed91_vm225_20261106_v1/data",
+      "manifest_sha256": "36bbabb7c94b3992e790d75fa6890dec0224a0c3698a981ed89616f783c73c7d"
+    },
+    "model": {
+      "theory_dim": 2,
+      "hidden": 96,
+      "block_size": 3,
+      "depth": 2,
+      "q_encoder": "continuous_ensemble_vae",
+      "feature_bins": 625,
+      "kl_weight": 0.01,
+      "kl_warmup_steps": 600,
+      "patch_chunk_size": 65536
+    },
+    "loss": {
+      "closure_objective": "all_start_anchor",
+      "closure_scale_weights": null,
+      "coordinate_reduction": "sum",
+      "commutator": 5,
+      "rollout_weight": 5,
+      "c_information": -2,
+      "c_variance": 2,
+      "c_uniform": 1,
+      "q_objective": "mean_over_scales(cross_half_CE+warmup_KL)"
+    },
+    "training": {
+      "epochs": 3000,
+      "system_batch": 8,
+      "sample_batch": 64,
+      "learning_rate": 0.001,
+      "seed": 91,
+      "threads": 1,
+      "checkpoint_every": 500,
+      "log_every": 100,
+      "information_pairs": 128,
+      "terminal_r_fit": true,
+      "terminal_r_max_steps": 10000,
+      "terminal_r_cache_repeats": 8
+    },
+    "active_wall_limit_seconds": 3540
+  },
+  "device": {
+    "type": "cuda",
+    "index": 0,
+    "name": "NVIDIA GeForce RTX 3090",
+    "uuid": "713b07d0-118c-f939-c0a8-565390215e01",
+    "total_memory": 25447170048,
+    "CUDA_DEVICE_ORDER": "PCI_BUS_ID",
+    "CUDA_VISIBLE_DEVICES": "GPU-713b07d0-118c-f939-c0a8-565390215e01"
+  },
+  "physical_data_sha256": "36bbabb7c94b3992e790d75fa6890dec0224a0c3698a981ed89616f783c73c7d",
+  "shards": [
+    {
+      "path": "conditions/L36_c0000/data.npz",
+      "sha256": "7f741935e60d6d0c828101938a460f094dbcad08acff2c64d8bfe469ab1dcb13",
+      "sidecar": "conditions/L36_c0000/sidecar.json",
+      "sidecar_sha256": "069094c39ee09a96e97e7fbb038cf63c68b401ee1bde924631932730e4a3e1dc"
+    },
+    {
+      "path": "conditions/L36_c0001/data.npz",
+      "sha256": "4243d1473defd907f1b574b5d1128ba76444cb0b7778d227a2132a2372e65514",
+      "sidecar": "conditions/L36_c0001/sidecar.json",
+      "sidecar_sha256": "04737ebb8715b9f5452f0f1f5745ba853883dd1d4c4bc62670ab263e6c4c9ff8"
+    },
+    {
+      "path": "conditions/L36_c0002/data.npz",
+      "sha256": "29d8f4535acab12b6eb7c39c4b49ed6294868c8749250367f8c29b98f85a7455",
+      "sidecar": "conditions/L36_c0002/sidecar.json",
+      "sidecar_sha256": "60a4c7ea00a1a540da3348096cb294fb4eb98b7145e7e105b6dc7f1fd634fafd"
+    },
+    {
+      "path": "conditions/L36_c0003/data.npz",
+      "sha256": "5d1797b3063d7c269d96b367a7199b2379b27365947a92105fa4ebe5aa2f330d",
+      "sidecar": "conditions/L36_c0003/sidecar.json",
+      "sidecar_sha256": "e4755343487d696714876ad069d238b8e602125bfc2acb9055d431202460454c"
+    },
+    {
+      "path": "conditions/L36_c0004/data.npz",
+      "sha256": "8143d76633aa48993aafe14598b1b99bad3aceb61a78e1dc3fe7f90b1b918222",
+      "sidecar": "conditions/L36_c0004/sidecar.json",
+      "sidecar_sha256": "52934a1f5b91a9fdcb9dc33e545fa5f4325a210a3d69d6e9cb3954f1036af5eb"
+    },
+    {
+      "path": "conditions/L36_c0005/data.npz",
+      "sha256": "bb4a27a34904b6fecb2645ec012dd329379fd8d88ea36acde0ac05e2bff418a2",
+      "sidecar": "conditions/L36_c0005/sidecar.json",
+      "sidecar_sha256": "c6164e2e26f149240c10de918d278e642e0f0cb0a6915dffc068fc8a9d7d0f9a"
+    },
+    {
+      "path": "conditions/L36_c0006/data.npz",
+      "sha256": "598b3caafe145b4d9c26ddaac0091b8d79fe3309ca2c09477f567b279f6da486",
+      "sidecar": "conditions/L36_c0006/sidecar.json",
+      "sidecar_sha256": "3e38b0d9eb7dc9638f7361377c248301a3b88701a2b4997cd3e8d0a5063a0108"
+    },
+    {
+      "path": "conditions/L36_c0007/data.npz",
+      "sha256": "73b2574e034f0b9ac9de11a409b103fba68cc35c4f381607cd3aa8ed2faba000",
+      "sidecar": "conditions/L36_c0007/sidecar.json",
+      "sidecar_sha256": "cbf0557c05c8e667e546f98f54710a8a5eb77a46ec9275a7ac0b4026a0aa4490"
+    },
+    {
+      "path": "conditions/L36_c0008/data.npz",
+      "sha256": "aee0b1289165d5e39fc4460c648d7405b78fee6a6f1e6de5e65975e6412c5137",
+      "sidecar": "conditions/L36_c0008/sidecar.json",
+      "sidecar_sha256": "526b6deb09ce09de55d8f58fd8241a6293c40ce09c34e6b2ec731f6fa8c3a592"
+    },
+    {
+      "path": "conditions/L36_c0009/data.npz",
+      "sha256": "428df82e6602d1f708eda35e569da38f932302ef3c02655321dda32dba9439b5",
+      "sidecar": "conditions/L36_c0009/sidecar.json",
+      "sidecar_sha256": "574e017a221ca2a90671f16ce023035b1dc01b16930b7b155bbd5faf59e9a094"
+    },
+    {
+      "path": "conditions/L36_c0010/data.npz",
+      "sha256": "ef4ee07329c3f8f98da81205b58b7e8500613c35de63c8c13a01489d4a82b94e",
+      "sidecar": "conditions/L36_c0010/sidecar.json",
+      "sidecar_sha256": "48e97595e11c286964a74be9684ccf249c20d890accd121bf233af2d81f5ebaa"
+    },
+    {
+      "path": "conditions/L36_c0011/data.npz",
+      "sha256": "e7c382fea94fac3f29e5adf6684db899ccbd1be5916cfb810b43103c1f862a2c",
+      "sidecar": "conditions/L36_c0011/sidecar.json",
+      "sidecar_sha256": "c7376c99ef46d03e30406b6bbef93d8b0a1dd325128859345bedc3b79b6dcc97"
+    },
+    {
+      "path": "conditions/L36_c0012/data.npz",
+      "sha256": "db4a9f59b8ac1f6c3bec5d57413cdf25ff02101b0189de1361601a5ea035c1b5",
+      "sidecar": "conditions/L36_c0012/sidecar.json",
+      "sidecar_sha256": "f7965956839fb9fc46b52b72e34a30faad0d8d495a77518b16b80cd0bbdac60e"
+    },
+    {
+      "path": "conditions/L36_c0013/data.npz",
+      "sha256": "3a986da5d8d4fc7eeddbeb3041a3ff6619edf757c5d83f8e8913ff2e5e3138f6",
+      "sidecar": "conditions/L36_c0013/sidecar.json",
+      "sidecar_sha256": "c9427bf3deaa9cf2a21dd3bebcb53c967ab3910ec52014d2de3cf1b5b7126775"
+    },
+    {
+      "path": "conditions/L36_c0014/data.npz",
+      "sha256": "eac00e7348cd824397b9320c4f04b6f3978c6aa09b7ddc1cc4597c12f737539a",
+      "sidecar": "conditions/L36_c0014/sidecar.json",
+      "sidecar_sha256": "f72942319be0755b2efba0eb0adb4706f49e0205f9c137f751319695d9b3939e"
+    },
+    {
+      "path": "conditions/L36_c0015/data.npz",
+      "sha256": "9d4736f48780e0751fc8fa1abcdcab9ae57b8d329ce733cb2990bb672e5402ab",
+      "sidecar": "conditions/L36_c0015/sidecar.json",
+      "sidecar_sha256": "a0489b3e87408c3ca6ec092dba90469f667f486921110a176711c491a4e5f111"
+    },
+    {
+      "path": "conditions/L36_c0016/data.npz",
+      "sha256": "d072f8278fb2f398223adebc11f29e1275713a7f160c273fd0ac5d1dca8e40fb",
+      "sidecar": "conditions/L36_c0016/sidecar.json",
+      "sidecar_sha256": "da8196656e2f6c3d9b6664706597854ce77a07925b71fad91a870ab908883c48"
+    },
+    {
+      "path": "conditions/L36_c0017/data.npz",
+      "sha256": "77431624feadc1a1ce73cd82d36e9fb99e8b58a08ddf80ffbda07bffe5f81ddc",
+      "sidecar": "conditions/L36_c0017/sidecar.json",
+      "sidecar_sha256": "fe6ba3c5cb8c8cd0600f740a812222b7ac8f516abf88a7f0ce150cbcacdf8387"
+    },
+    {
+      "path": "conditions/L36_c0018/data.npz",
+      "sha256": "fa584be56ea402a7285ac809b70708581cc2f5b508d98a0c4929733437d99b54",
+      "sidecar": "conditions/L36_c0018/sidecar.json",
+      "sidecar_sha256": "70c549bc0f8c500f98938bca29d2b0f8fbe30c53927ca04bcd497e497878f77e"
+    },
+    {
+      "path": "conditions/L36_c0019/data.npz",
+      "sha256": "02f11301e2134191e8d21a59c64c4e5221fc64ea2373d9f3da063d1f26017dbe",
+      "sidecar": "conditions/L36_c0019/sidecar.json",
+      "sidecar_sha256": "37be3733e2fedf197eb8189ca90a288cb622f9b378bf982aa422a37629b89705"
+    },
+    {
+      "path": "conditions/L36_c0020/data.npz",
+      "sha256": "fa505f71c35a9263e6fb83bc03c6142d6a441b6a516285257bf940c835ae8345",
+      "sidecar": "conditions/L36_c0020/sidecar.json",
+      "sidecar_sha256": "aeedc0deeada3a57eb91774e195608b71e7c9dab737dbf40ae2fb9334ed87ab8"
+    },
+    {
+      "path": "conditions/L36_c0021/data.npz",
+      "sha256": "09f69339997c86248b7b7f71d99124beb24b061f57423f6182512da7b0157624",
+      "sidecar": "conditions/L36_c0021/sidecar.json",
+      "sidecar_sha256": "912bf35ef8b3f36c84339c313096eeb533032277b6e9ef15aef83607fbfa1504"
+    },
+    {
+      "path": "conditions/L36_c0022/data.npz",
+      "sha256": "f4c7782a8a927d25637963d803676a05bee7d43708fd98dc13a538bb5e3a797d",
+      "sidecar": "conditions/L36_c0022/sidecar.json",
+      "sidecar_sha256": "646969d83f5f802fc0c8de366e5d365611efb87ca6d1e9e2a8ef229d6e9bbe01"
+    },
+    {
+      "path": "conditions/L36_c0023/data.npz",
+      "sha256": "16b441631a99571e4e5d05c412b581049ee26c9562f524bfa140b64f66abb4b7",
+      "sidecar": "conditions/L36_c0023/sidecar.json",
+      "sidecar_sha256": "9645e4dbcd47818210fe964999d26dc04293e7e6aff739d699e307136f4714d1"
+    },
+    {
+      "path": "conditions/L36_c0024/data.npz",
+      "sha256": "4d36d889d915cc9a013de8e0d1b810ea120c761b4b8573b93ed6652fffde987d",
+      "sidecar": "conditions/L36_c0024/sidecar.json",
+      "sidecar_sha256": "adcdef62e208ecc8be843fc10d9e0b4bab9640682a71c81e0dc9d89afa2fc8bc"
+    },
+    {
+      "path": "conditions/L36_c0025/data.npz",
+      "sha256": "63af7b007dea83d58ab73b94102a046ff5a000414cc05456268b016311da71b9",
+      "sidecar": "conditions/L36_c0025/sidecar.json",
+      "sidecar_sha256": "371e7944ad30de2c321adaf0c3f5f49a96283c3e1b2d3fa5ad89459178daa3a4"
+    },
+    {
+      "path": "conditions/L36_c0026/data.npz",
+      "sha256": "5eac73e9803af998f234a4d76561cb2a8b48173a60c807c056d4d658fea01a29",
+      "sidecar": "conditions/L36_c0026/sidecar.json",
+      "sidecar_sha256": "d267bcc12e20b1a374df16fd0e6fc051841e8027fdc9ca17a9b28b655165e421"
+    },
+    {
+      "path": "conditions/L36_c0027/data.npz",
+      "sha256": "42327383cb695efa1dfd994337276b1b853a65042cace199baf5d0bb3774e5b5",
+      "sidecar": "conditions/L36_c0027/sidecar.json",
+      "sidecar_sha256": "416c0fe2972964aded7c986ad96dba426bb737058b0a511ac0d3e096e58a1881"
+    },
+    {
+      "path": "conditions/L36_c0028/data.npz",
+      "sha256": "44d42ceba58399868c8da01cd570a102cf754124daee1061e8b17d06cca553df",
+      "sidecar": "conditions/L36_c0028/sidecar.json",
+      "sidecar_sha256": "bf5b4ee94a98a6d2af003548307843071c2e4990faea00d371b44d7f374b4031"
+    },
+    {
+      "path": "conditions/L36_c0029/data.npz",
+      "sha256": "a88110ca80c4346f5afab8daa55e62775fa0208c69261c6c8db19ab477830f66",
+      "sidecar": "conditions/L36_c0029/sidecar.json",
+      "sidecar_sha256": "7451932263cd45f7a49b72b6c08cbcc6be479a7265c2eaeb23605b0c1a8665cb"
+    },
+    {
+      "path": "conditions/L36_c0030/data.npz",
+      "sha256": "595d0775d3798fdc458e52b9a9a6cb0714e07610c9c6944a67e486d409d80d86",
+      "sidecar": "conditions/L36_c0030/sidecar.json",
+      "sidecar_sha256": "48a324799857d5930e9f655afca61794fedd76fd4148a1b706f1930035bf6a33"
+    },
+    {
+      "path": "conditions/L36_c0031/data.npz",
+      "sha256": "85d88be2918195b2c9e7fb3c11a133a428fef92a1005a3988c3eab209ff6c469",
+      "sidecar": "conditions/L36_c0031/sidecar.json",
+      "sidecar_sha256": "33b98c0af7a32a994baebb44fe327b7014550bf1b200a449f8580fa928085a70"
+    },
+    {
+      "path": "conditions/L36_c0032/data.npz",
+      "sha256": "60bcdc8faacd5bf96b3cc905def6284e8069c69bd0ced813f553cfd21c370650",
+      "sidecar": "conditions/L36_c0032/sidecar.json",
+      "sidecar_sha256": "12d7ed133288ac62bca1628b4c64446b889567851eec75e4f113c766c7db7cf3"
+    },
+    {
+      "path": "conditions/L36_c0033/data.npz",
+      "sha256": "cda2288366311df787bd52d463056a332527df40327c2233b818f65613b010b5",
+      "sidecar": "conditions/L36_c0033/sidecar.json",
+      "sidecar_sha256": "34681cb1f959ee24620ca5b4b465582df4f8c80cfe03b8bd676e4d2b7cc9fd71"
+    },
+    {
+      "path": "conditions/L36_c0034/data.npz",
+      "sha256": "617e1722fd1e1cbb607d1716bc1e6f2222c186c15b1bd6bcf1bc530f55e59f08",
+      "sidecar": "conditions/L36_c0034/sidecar.json",
+      "sidecar_sha256": "1199fd090bf46b8fc195dc9a7ccc41addf2d3d8106e96d10343c6e22fa4fa9a4"
+    },
+    {
+      "path": "conditions/L36_c0035/data.npz",
+      "sha256": "0b9e8b17e429c77f218940f075674196a5065dbec55e52f5380e74ea4ffcc1b2",
+      "sidecar": "conditions/L36_c0035/sidecar.json",
+      "sidecar_sha256": "050c025be05c7e7aa2a251911c03dc56a7f39d94ec3c6c1241f2d21ca95b7a82"
+    },
+    {
+      "path": "conditions/L36_c0036/data.npz",
+      "sha256": "ab73dfe9de1d4bede4e4680b45f652d54e8c38bb2e4af79fa7363e3dee57b6c4",
+      "sidecar": "conditions/L36_c0036/sidecar.json",
+      "sidecar_sha256": "3eae71f3f8fa2bd5ce59ca2877a853ec2ff6460f7d36ea6b4f84def185d53249"
+    },
+    {
+      "path": "conditions/L36_c0037/data.npz",
+      "sha256": "711ebd7eed343a0fbf42632f90a12b4b1e4d8a06856c9dd9da86d3ab7b49ecb1",
+      "sidecar": "conditions/L36_c0037/sidecar.json",
+      "sidecar_sha256": "c4ea766eb27d7ea38de4bc0885f09fc2d51e7bda64b455907a4b216ffd98104c"
+    },
+    {
+      "path": "conditions/L36_c0038/data.npz",
+      "sha256": "5cf446a8bbf0da342851c63ff7a3b69a1f26cc32b3074640da465838ee6bc8d5",
+      "sidecar": "conditions/L36_c0038/sidecar.json",
+      "sidecar_sha256": "6faa07f0d18ec143f9e36c611247b7b9fa3c13dbb3b33061385e1930aff0fd2c"
+    },
+    {
+      "path": "conditions/L36_c0039/data.npz",
+      "sha256": "c2bebd7d99fa45d24cf0a0e2b05e56e63b2c83cb9844c6db72997098b6ee3c6f",
+      "sidecar": "conditions/L36_c0039/sidecar.json",
+      "sidecar_sha256": "bf49158ed13a20b1f8817a2f12feb137b3eb64ddeb0de9cc5f3db33f4a8ea2c8"
+    },
+    {
+      "path": "conditions/L36_c0040/data.npz",
+      "sha256": "ce60eb3cf1f75022ac5c66ffaea4fd81b849e29d5bcfd1a479990697b6e550a8",
+      "sidecar": "conditions/L36_c0040/sidecar.json",
+      "sidecar_sha256": "f8f9ee6baf3fe5ea4fbe26d409aa9a807f7dd0d30bf53c1cbaace522ee74e3a8"
+    },
+    {
+      "path": "conditions/L36_c0041/data.npz",
+      "sha256": "cdff97b56bf6b5baa7cf799a783a91e05eefa9327073c5249bf24011eb55e064",
+      "sidecar": "conditions/L36_c0041/sidecar.json",
+      "sidecar_sha256": "4925a1e89c6f1c23560a8cee98d1d8ae81aea8a385dadcb39252f805f20e303d"
+    },
+    {
+      "path": "conditions/L36_c0042/data.npz",
+      "sha256": "c66e3e1f64f1b150d8890386f192387758e8ec342f961f05ae1518b41d48d1d5",
+      "sidecar": "conditions/L36_c0042/sidecar.json",
+      "sidecar_sha256": "3e897fa8bbedf922152ed97c1c3d0607261f8cb90852632907ccafa2c187eec2"
+    },
+    {
+      "path": "conditions/L36_c0043/data.npz",
+      "sha256": "1a464d1fd83fb1998830386d3199c8052a54fdafc07cf59ddfb239c013fa00a9",
+      "sidecar": "conditions/L36_c0043/sidecar.json",
+      "sidecar_sha256": "1030f5a54e631194dd3decc4af61b51274a5ef8f7065fb8dc896189f59d20ac3"
+    },
+    {
+      "path": "conditions/L36_c0044/data.npz",
+      "sha256": "e6305a46e76b9519b4a297ed6ce58b57e19f4ae690fcf970c8344ee32697dfda",
+      "sidecar": "conditions/L36_c0044/sidecar.json",
+      "sidecar_sha256": "7ed9ef766919c23568c5e41e34db1f838f391a43297986409e84506fea9d5571"
+    }
+  ],
+  "physical_shape": [
+    180,
+    128,
+    36,
+    36,
+    1
+  ],
+  "train_chains": 136,
+  "test_chains": 44,
+  "sampling_warning_count": 62,
+  "sampling_qualification": "周期实标量场h=0；固定HMC-Metropolis后采用固定概率的lazy embedded-Ising Wolff单簇核。无额外全局随机Z2增强，不丢HMC拒绝态；簇核仅更新条件符号，HMC更新幅度。簇翻转造成磁化变号不证明幅度、能量或偶统计已热化；有限链ESS/热冷比较不认证平衡。生产参数不自适应，不自动补样、换seed或重跑。四个独立相关Markov链初态为2hot、冷正、冷负；此初态安排不是平衡扇区权重认证。每条链仍为独立训练系综，保存样本不称iid；sampling/cluster原始轨迹只作诊断。实际r/u/h耦合由manifest记录，仅用于生成与事后评价，不作为训练监督。所有既有ESS/接受率/热冷/变号警告保留，不因警告自动换seed、补样、删链或重跑。",
+  "calibration": {
+    "physical_chains": 136,
+    "fitting_split": "TRAIN",
+    "scale": 0,
+    "field_RMS": 0.8640363927982483,
+    "std_floor": 0.001,
+    "labels_used": false,
+    "no_C_forward": true,
+    "no_pretraining": true,
+    "frozen_across_scales": true
+  },
+  "initialization": "fresh random Q/C/R; no kernel selection/pretraining",
+  "gradient_policy": "simultaneous independent Q representation / C own objective / R closure",
+  "c_adaptation": "Gaussian kernel; smoothed buffered full-shell information proxy; variance floor and uniform-amplitude MSE, not literal binary MI/NLL",
+  "q_adaptation": "625 soft continuous plaquette probabilities; cross-half CE, weak KL .01; posterior-mean encoding; finite descriptor, not full field likelihood",
+  "probability_normalization": "shifted logsumexp, explicit autograd; fused CUDA softmax/log-softmax bypassed",
+  "label_policy": "r/u/h read for provenance/evaluation only, never passed to objectives or model",
+  "C_repeats_are_not_independent_physical_chains": true,
+  "thermal_nu": null
+}

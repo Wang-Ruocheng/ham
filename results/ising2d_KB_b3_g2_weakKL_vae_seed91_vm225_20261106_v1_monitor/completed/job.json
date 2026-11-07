@@ -1,0 +1,296 @@
+{
+  "status": "complete",
+  "workflow_complete": true,
+  "parent_pid": 793,
+  "stages": [
+    {
+      "name": "numerical_preflight",
+      "command": [
+        "/mnt/nas-new/home/yange/ham/.env/bin/python",
+        "-m",
+        "scripts.verify_vae_normalization",
+        "--device",
+        "cuda:0",
+        "--output",
+        "/mnt/nas-new/home/yange/ham/results/ising2d_KB_b3_g2_weakKL_vae_seed91_vm225_20261106_v1/normalization_validation.json"
+      ],
+      "started_unix": 1793936681.9344275,
+      "returncode": 0,
+      "pid": 838,
+      "finished_unix": 1793936691.8377686
+    },
+    {
+      "name": "joint_and_terminal_R",
+      "command": [
+        "/mnt/nas-new/home/yange/ham/.env/bin/python",
+        "-m",
+        "experiments.rsmi_separate_qcr",
+        "--config",
+        "configs/ising2d_KB_weak_kl_vae_g2_seed91_20261106.json",
+        "--output",
+        "/mnt/nas-new/home/yange/ham/results/ising2d_KB_b3_g2_weakKL_vae_seed91_vm225_20261106_v1/run",
+        "--device",
+        "cuda:0",
+        "--mi-cache-dir",
+        "/mnt/nas-new/home/yange/ham/results/ising2d_KB_b3_g2_weakKL_vae_seed91_vm225_20261106_v1/mi_cache",
+        "--mi-test-cpu",
+        "--benchmark-warmup",
+        "20",
+        "--skip-final-report"
+      ],
+      "started_unix": 1793936691.840139,
+      "returncode": 0,
+      "pid": 866,
+      "finished_unix": 1793937694.6691928
+    },
+    {
+      "name": "report",
+      "command": [
+        "/mnt/nas-new/home/yange/ham/.env/bin/python",
+        "-m",
+        "scripts.report_dual_ising_current",
+        "--run",
+        "/mnt/nas-new/home/yange/ham/results/ising2d_KB_b3_g2_weakKL_vae_seed91_vm225_20261106_v1/run",
+        "--device",
+        "cpu"
+      ],
+      "started_unix": 1793937694.6714597,
+      "returncode": 0,
+      "pid": 2654,
+      "finished_unix": 1793937748.8484116
+    }
+  ],
+  "error": null,
+  "requires_user_action": false,
+  "started_unix": 1793936670.9943373,
+  "resource": {
+    "time_unix": 1793936671.5532415,
+    "gpus": [
+      {
+        "index": 0,
+        "uuid": "GPU-5bba87f1-7d32-4dde-fe28-caba4468ab42",
+        "name": "NVIDIA GeForce RTX 3090",
+        "free_mib": 22926.0,
+        "utilization_percent": 0.0,
+        "compute_process_present": true
+      },
+      {
+        "index": 1,
+        "uuid": "GPU-18fac97c-11ee-4624-d298-9074e8d7028c",
+        "name": "NVIDIA GeForce RTX 3090",
+        "free_mib": 24262.0,
+        "utilization_percent": 0.0,
+        "compute_process_present": false
+      },
+      {
+        "index": 2,
+        "uuid": "GPU-713b07d0-118c-f939-c0a8-565390215e01",
+        "name": "NVIDIA GeForce RTX 3090",
+        "free_mib": 24262.0,
+        "utilization_percent": 0.0,
+        "compute_process_present": false
+      },
+      {
+        "index": 3,
+        "uuid": "GPU-a167decd-ce49-6c8f-6bcf-136fde596683",
+        "name": "NVIDIA GeForce RTX 3090",
+        "free_mib": 24242.0,
+        "utilization_percent": 0.0,
+        "compute_process_present": false
+      }
+    ],
+    "load1": 14.77,
+    "cpu_count": 24,
+    "mem_available_gib": 117.65659713745117,
+    "io_full_avg10": 0.0
+  },
+  "admission": {
+    "first": {
+      "time_unix": 1793936671.5532415,
+      "gpus": [
+        {
+          "index": 0,
+          "uuid": "GPU-5bba87f1-7d32-4dde-fe28-caba4468ab42",
+          "name": "NVIDIA GeForce RTX 3090",
+          "free_mib": 22926.0,
+          "utilization_percent": 0.0,
+          "compute_process_present": true
+        },
+        {
+          "index": 1,
+          "uuid": "GPU-18fac97c-11ee-4624-d298-9074e8d7028c",
+          "name": "NVIDIA GeForce RTX 3090",
+          "free_mib": 24262.0,
+          "utilization_percent": 0.0,
+          "compute_process_present": false
+        },
+        {
+          "index": 2,
+          "uuid": "GPU-713b07d0-118c-f939-c0a8-565390215e01",
+          "name": "NVIDIA GeForce RTX 3090",
+          "free_mib": 24262.0,
+          "utilization_percent": 0.0,
+          "compute_process_present": false
+        },
+        {
+          "index": 3,
+          "uuid": "GPU-a167decd-ce49-6c8f-6bcf-136fde596683",
+          "name": "NVIDIA GeForce RTX 3090",
+          "free_mib": 24242.0,
+          "utilization_percent": 0.0,
+          "compute_process_present": false
+        }
+      ],
+      "load1": 14.77,
+      "cpu_count": 24,
+      "mem_available_gib": 117.65659713745117,
+      "io_full_avg10": 0.0
+    },
+    "second": {
+      "time_unix": 1793936681.6939642,
+      "gpus": [
+        {
+          "index": 0,
+          "uuid": "GPU-5bba87f1-7d32-4dde-fe28-caba4468ab42",
+          "name": "NVIDIA GeForce RTX 3090",
+          "free_mib": 22926.0,
+          "utilization_percent": 0.0,
+          "compute_process_present": true
+        },
+        {
+          "index": 1,
+          "uuid": "GPU-18fac97c-11ee-4624-d298-9074e8d7028c",
+          "name": "NVIDIA GeForce RTX 3090",
+          "free_mib": 24262.0,
+          "utilization_percent": 0.0,
+          "compute_process_present": false
+        },
+        {
+          "index": 2,
+          "uuid": "GPU-713b07d0-118c-f939-c0a8-565390215e01",
+          "name": "NVIDIA GeForce RTX 3090",
+          "free_mib": 24262.0,
+          "utilization_percent": 0.0,
+          "compute_process_present": false
+        },
+        {
+          "index": 3,
+          "uuid": "GPU-a167decd-ce49-6c8f-6bcf-136fde596683",
+          "name": "NVIDIA GeForce RTX 3090",
+          "free_mib": 24242.0,
+          "utilization_percent": 0.0,
+          "compute_process_present": false
+        }
+      ],
+      "load1": 14.88,
+      "cpu_count": 24,
+      "mem_available_gib": 117.65974044799805,
+      "io_full_avg10": 1.04
+    },
+    "selected": {
+      "index": 1,
+      "uuid": "GPU-18fac97c-11ee-4624-d298-9074e8d7028c",
+      "name": "NVIDIA GeForce RTX 3090",
+      "free_mib": 24262.0,
+      "utilization_percent": 0.0,
+      "compute_process_present": false
+    }
+  },
+  "current": null,
+  "finished_unix": 1793937748.8880835,
+  "active_wall_seconds": 1066.9536602515727,
+  "public_files": [
+    {
+      "path": "normalization_validation.json",
+      "sha256": "3aa75afe59ca370cc21e35517f9bbb5f25e7794fdb30b3f4f239f9345d3bdba8"
+    },
+    {
+      "path": "plan.json",
+      "sha256": "300dc7f269f5ae3116de74acc1231e2ce55c165fcfd25cac29815a260bfde3aa"
+    },
+    {
+      "path": "run/history_progress.json",
+      "sha256": "58d1692bad5100c5de74a9a426b2d127d701894319e91cd21aaa6473ca66a789"
+    },
+    {
+      "path": "run/manifest.json",
+      "sha256": "66fe1170de029888adf673cfea3b9041bf0e8d113ee8d7d4a45a08a278afee9e"
+    },
+    {
+      "path": "run/pipeline.json",
+      "sha256": "0d5a86cf092a034b58ef7fcea1168cdb1ee8ea2dd72b5e308d4ea44c8ceff492"
+    },
+    {
+      "path": "run/r_only/cache.json",
+      "sha256": "fdc66eb2ac431fc22de2fd71082fbd1e6187fa9bc9c593b682b85915328f9056"
+    },
+    {
+      "path": "run/r_only/history.json",
+      "sha256": "49898465341f0e61ab0c2a2276e32fd09baa87e113c33f1910d21d0bbd61f947"
+    },
+    {
+      "path": "run/r_only/loss_curves.png",
+      "sha256": "90f4c3cf7ddac640bd0ea1b2b8c38039a3e1bcf4931035cd1e93c06ef6c9518a"
+    },
+    {
+      "path": "run/r_only/manifest.json",
+      "sha256": "4fb4eff63f20c50e8e02b876df9793b76606a4520c8a84c7203f4a9729a8c6a9"
+    },
+    {
+      "path": "run/r_only/summary.json",
+      "sha256": "1e1118658ac8eab173ffe2c4abeca15aa9e1a9eaf5e729102f5ec051e316384d"
+    },
+    {
+      "path": "run/report/coupling_to_g.png",
+      "sha256": "aaba55c1539f00321314e0318e5d3c5c13221c817b3ee8456b25f5f6ce483c25"
+    },
+    {
+      "path": "run/report/evaluation_arrays.npz",
+      "sha256": "379d884ab178e95cd5d3f25a6cfceb5170087fd88eeb0932912976d3c89e22b5"
+    },
+    {
+      "path": "run/report/flow_k0.png",
+      "sha256": "14a1ae033dade86c9bda3cc1e7c67cca9bba9e6bf858fd272c6726c1d8fdb63d"
+    },
+    {
+      "path": "run/report/flow_k1.png",
+      "sha256": "d8ae3be4109a9f75de3af2df7810ec8bdd0cd6cd0fc02cfd2f6b20515cbdbd77"
+    },
+    {
+      "path": "run/report/flow_k2.png",
+      "sha256": "320366a4721438961dba70b9ac6d2ea4925a5e740eabe6309cbce482da9d5f48"
+    },
+    {
+      "path": "run/report/loss_curves.png",
+      "sha256": "84068fbadc64560af633dbc7aaaf1940263cf8d4ff71c37e1cb375086419cfdb"
+    },
+    {
+      "path": "run/report/q_multiscale.json",
+      "sha256": "67b6d96fc36daedff6f7841d4b12a0c2a60e592c941ec1a319aa3caee7e88be1"
+    },
+    {
+      "path": "run/report/q_multiscale_separation.png",
+      "sha256": "e20a2ad420692ace155b0a500da9272812778a48d69f37a6b32df3a09a6249bb"
+    },
+    {
+      "path": "run/report/q_vae_losses.png",
+      "sha256": "3826ecb86554d5973aa2cc0f0a2c24609e2c560001b7b54ac7f21f4a31fef0d4"
+    },
+    {
+      "path": "run/report/reconstruction_arrays.npz",
+      "sha256": "663446842899a56e33800a555c4a57cb3e7f7a5d27cb67f53910af307fe75654"
+    },
+    {
+      "path": "run/report/report.json",
+      "sha256": "b34e9afe9947b8d2fc8d72ef5ec0d47c24bc16de4a507c70184636ff68440d83"
+    },
+    {
+      "path": "run/report/roots.json",
+      "sha256": "3480d6c0ed4364da08387e5f2abb601d2ca4e77de0a8781c68e5461552148db8"
+    },
+    {
+      "path": "run/summary.json",
+      "sha256": "9a543614d1f718e90b22ede95c03c835608cdb5de24fd014269d609acbf81d87"
+    }
+  ]
+}

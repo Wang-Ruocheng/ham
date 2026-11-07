@@ -1,0 +1,77 @@
+{
+  "schema_version": 5,
+  "data": {
+    "cache": "/mnt/nas-new/home/yange/ham/data/ising2d_Kfocused_Buniform0p01_L36_n64_seed91/ensembles.pt",
+    "physical_model": "ising2d",
+    "coupling_names": [
+      "K",
+      "B"
+    ],
+    "spin_flip_augment": false,
+    "spin_flip_symmetric": false,
+    "train_pool_replicas": 1,
+    "test_pool_replicas": 1
+  },
+  "model": {
+    "dimension": 2,
+    "theory_dim": 2,
+    "hidden": 96,
+    "width": 3,
+    "block_factor": 3,
+    "kernel_layout": "nonoverlapping",
+    "categorical_states": 0,
+    "kernel_sampling": "bernoulli",
+    "kernel_initialization": "random",
+    "kernel_temperature": 1.0,
+    "fixed_kernel": false,
+    "binary_lookup": true,
+    "affine_reconstruction": false,
+    "q_encoder": "ensemble_vae"
+  },
+  "loss": {
+    "geometry_mode": "relative_local",
+    "geometry_tail_mix": 0.0,
+    "geometry_tail_add_weight": 0.0,
+    "kernel_noncollapse_mode": "variance_floor_ensemble",
+    "kernel_variance_ratio": 1.0,
+    "kernel_sign_weight": 1.0,
+    "closure_metric": "euclidean",
+    "coordinate_reduction": "sum",
+    "weights": {
+      "anchor": 0,
+      "coarse_consistency": 0,
+      "separation": 1,
+      "commutator": 5,
+      "kernel_noncollapse": 2
+    },
+    "rollout_weight": 5,
+    "closure_objective": "all_start_anchor",
+    "closure_scale_weights": null
+  },
+  "training": {
+    "epochs": 3000,
+    "max_rg_steps": 2,
+    "system_batch": 8,
+    "sample_batch": 64,
+    "learning_rate": 0.001,
+    "seed": 91,
+    "threads": 1,
+    "checkpoint_every": 500,
+    "log_every": 100,
+    "gradient_mode": "qc_r_separate",
+    "train_modules": [
+      "Q",
+      "C",
+      "R"
+    ],
+    "terminal_r_fit": true,
+    "terminal_r_max_steps": 10000,
+    "terminal_r_cache_repeats": 8,
+    "r_updates_per_batch": 1
+  },
+  "evaluation": {
+    "max_rg_steps": 2,
+    "samples": 64,
+    "systems": 16
+  }
+}

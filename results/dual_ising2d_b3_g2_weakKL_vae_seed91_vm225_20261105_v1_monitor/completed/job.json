@@ -1,0 +1,263 @@
+{
+  "status": "complete",
+  "workflow_complete": true,
+  "parent_pid": 14277,
+  "stages": [
+    {
+      "name": "joint_and_terminal_R",
+      "command": [
+        "/mnt/nas-new/home/yange/ham/.env/bin/python",
+        "-m",
+        "experiments.rsmi_separate_qcr",
+        "--config",
+        "/mnt/nas-new/home/yange/ham/snapshots/dual_ising2d_b3_g2_weakKL_vae_seed91_vm225_20261105_v1/configs/dual_ising2d_weak_kl_vae_g2_seed91_20261105.json",
+        "--output",
+        "/mnt/nas-new/home/yange/ham/results/dual_ising2d_b3_g2_weakKL_vae_seed91_vm225_20261105_v1/run",
+        "--device",
+        "cuda:0",
+        "--mi-cache-dir",
+        "/mnt/nas-new/home/yange/ham/results/dual_ising2d_b3_g2_weakKL_vae_seed91_vm225_20261105_v1/mi_cache",
+        "--mi-test-cpu",
+        "--benchmark-warmup",
+        "20",
+        "--skip-final-report"
+      ],
+      "started_unix": 1793877674.1948178,
+      "returncode": 0,
+      "pid": 32050,
+      "finished_unix": 1793878440.2784028
+    },
+    {
+      "name": "report",
+      "command": [
+        "/mnt/nas-new/home/yange/ham/.env/bin/python",
+        "-m",
+        "scripts.report_dual_ising_current",
+        "--run",
+        "/mnt/nas-new/home/yange/ham/results/dual_ising2d_b3_g2_weakKL_vae_seed91_vm225_20261105_v1/run",
+        "--device",
+        "cpu"
+      ],
+      "started_unix": 1793878440.3369753,
+      "returncode": 0,
+      "pid": 1586,
+      "finished_unix": 1793878512.39165
+    }
+  ],
+  "error": null,
+  "requires_user_action": false,
+  "started_unix": 1793873508.8396714,
+  "resource": {
+    "time_unix": 1793877662.450329,
+    "gpus": [
+      {
+        "index": 0,
+        "uuid": "GPU-5bba87f1-7d32-4dde-fe28-caba4468ab42",
+        "name": "NVIDIA GeForce RTX 3090",
+        "free_mib": 16870.0,
+        "compute_process_present": true
+      },
+      {
+        "index": 1,
+        "uuid": "GPU-18fac97c-11ee-4624-d298-9074e8d7028c",
+        "name": "NVIDIA GeForce RTX 3090",
+        "free_mib": 24262.0,
+        "compute_process_present": false
+      },
+      {
+        "index": 2,
+        "uuid": "GPU-713b07d0-118c-f939-c0a8-565390215e01",
+        "name": "NVIDIA GeForce RTX 3090",
+        "free_mib": 24262.0,
+        "compute_process_present": false
+      },
+      {
+        "index": 3,
+        "uuid": "GPU-a167decd-ce49-6c8f-6bcf-136fde596683",
+        "name": "NVIDIA GeForce RTX 3090",
+        "free_mib": 17148.0,
+        "compute_process_present": true
+      }
+    ],
+    "load1": 19.73,
+    "cpu_count": 24,
+    "mem_available_gib": 114.83541488647461,
+    "io_full_avg10": 0.47
+  },
+  "admission": {
+    "first": {
+      "time_unix": 1793877662.450329,
+      "gpus": [
+        {
+          "index": 0,
+          "uuid": "GPU-5bba87f1-7d32-4dde-fe28-caba4468ab42",
+          "name": "NVIDIA GeForce RTX 3090",
+          "free_mib": 16870.0,
+          "compute_process_present": true
+        },
+        {
+          "index": 1,
+          "uuid": "GPU-18fac97c-11ee-4624-d298-9074e8d7028c",
+          "name": "NVIDIA GeForce RTX 3090",
+          "free_mib": 24262.0,
+          "compute_process_present": false
+        },
+        {
+          "index": 2,
+          "uuid": "GPU-713b07d0-118c-f939-c0a8-565390215e01",
+          "name": "NVIDIA GeForce RTX 3090",
+          "free_mib": 24262.0,
+          "compute_process_present": false
+        },
+        {
+          "index": 3,
+          "uuid": "GPU-a167decd-ce49-6c8f-6bcf-136fde596683",
+          "name": "NVIDIA GeForce RTX 3090",
+          "free_mib": 17148.0,
+          "compute_process_present": true
+        }
+      ],
+      "load1": 19.73,
+      "cpu_count": 24,
+      "mem_available_gib": 114.83541488647461,
+      "io_full_avg10": 0.47
+    },
+    "second": {
+      "time_unix": 1793877672.591939,
+      "gpus": [
+        {
+          "index": 0,
+          "uuid": "GPU-5bba87f1-7d32-4dde-fe28-caba4468ab42",
+          "name": "NVIDIA GeForce RTX 3090",
+          "free_mib": 16870.0,
+          "compute_process_present": true
+        },
+        {
+          "index": 1,
+          "uuid": "GPU-18fac97c-11ee-4624-d298-9074e8d7028c",
+          "name": "NVIDIA GeForce RTX 3090",
+          "free_mib": 24262.0,
+          "compute_process_present": false
+        },
+        {
+          "index": 2,
+          "uuid": "GPU-713b07d0-118c-f939-c0a8-565390215e01",
+          "name": "NVIDIA GeForce RTX 3090",
+          "free_mib": 24262.0,
+          "compute_process_present": false
+        },
+        {
+          "index": 3,
+          "uuid": "GPU-a167decd-ce49-6c8f-6bcf-136fde596683",
+          "name": "NVIDIA GeForce RTX 3090",
+          "free_mib": 17148.0,
+          "compute_process_present": true
+        }
+      ],
+      "load1": 19.31,
+      "cpu_count": 24,
+      "mem_available_gib": 114.83402633666992,
+      "io_full_avg10": 0.17
+    },
+    "selected": {
+      "index": 1,
+      "uuid": "GPU-18fac97c-11ee-4624-d298-9074e8d7028c",
+      "name": "NVIDIA GeForce RTX 3090",
+      "free_mib": 24262.0,
+      "compute_process_present": false
+    }
+  },
+  "current": null,
+  "finished_unix": 1793878512.4956145,
+  "active_wall_seconds": 838.3008011877537,
+  "public_files": [
+    {
+      "path": "plan.json",
+      "sha256": "9372343fd31ce36d65b1bf645de7d65fa20e7edc0f9e990820c1b5e37a0c9cb1"
+    },
+    {
+      "path": "run/history_progress.json",
+      "sha256": "73ba6d0c1179083b3e2544772dfd141f18bcf7ba8bb10053d38b6babe2950fdc"
+    },
+    {
+      "path": "run/manifest.json",
+      "sha256": "facac7129a0f77463316c4862f01be9e294946caa4e8b561a0e25551cc7c69aa"
+    },
+    {
+      "path": "run/pipeline.json",
+      "sha256": "8a7b56f3913bc697580142a51959f3e8213886b7020b7af1a04ffaeb5bab3751"
+    },
+    {
+      "path": "run/r_only/cache.json",
+      "sha256": "a3e2d37a1e0ba117bccf3c27419f8f79efc24ac29d76b576dba62aeda2199cbd"
+    },
+    {
+      "path": "run/r_only/history.json",
+      "sha256": "6090aecdf36472c9bb3805d3a9a0da60792c94bbd5264c970f9f820fd7910f9f"
+    },
+    {
+      "path": "run/r_only/loss_curves.png",
+      "sha256": "fa313e83491d7931e36fd5c333d23b51a282622e696c265c3d70d5a4b2272f4b"
+    },
+    {
+      "path": "run/r_only/manifest.json",
+      "sha256": "8c250de32adcbed30f9e1047e52fee74d518c28d71f4e41d31d1ca49c05686b6"
+    },
+    {
+      "path": "run/r_only/summary.json",
+      "sha256": "507454f2ff8b7d718934a012811e0b398945497bdb8f6b9af720ccd1ccc00393"
+    },
+    {
+      "path": "run/report/coupling_to_g.png",
+      "sha256": "2829dde84470450afecf7601539eff0eafc30f0cff8432b02bdf9d14bde7b534"
+    },
+    {
+      "path": "run/report/evaluation_arrays.npz",
+      "sha256": "17c8ece39c1f9b2ef658ebb72bb5a95f0789b1e272c79d0a58fe8b8bdbf4b308"
+    },
+    {
+      "path": "run/report/flow_k0.png",
+      "sha256": "b5e25ffb7f2de51b3e651c8fdc27e71edea6eeeee26712692641ae44ce73f125"
+    },
+    {
+      "path": "run/report/flow_k1.png",
+      "sha256": "350d68edc7a9dc35963de1f9c2ae337d790015a736a7031ddb0fbc98c9febcb3"
+    },
+    {
+      "path": "run/report/flow_k2.png",
+      "sha256": "9d5f6d046dc473fbda089d3fb47db40622f6a45752548877cee18bdffb902b88"
+    },
+    {
+      "path": "run/report/loss_curves.png",
+      "sha256": "12e102b23b4ec64cc4bdcdfb60728e8ef966c6af854f5921604d702aedb3dac3"
+    },
+    {
+      "path": "run/report/q_multiscale.json",
+      "sha256": "d145978a96da71ada81a03d27aecef7b8bc949d31afab65282e5d341dd5ae02f"
+    },
+    {
+      "path": "run/report/q_multiscale_separation.png",
+      "sha256": "beaf19114a553a5756ae6cc4b626c298f25d18a3054641dfda946e3ffcf68e4b"
+    },
+    {
+      "path": "run/report/q_vae_losses.png",
+      "sha256": "e5dfbc8c1a68a756c58494ae1586006bda85b03349ed66532fcf9c840b6800ed"
+    },
+    {
+      "path": "run/report/reconstruction_arrays.npz",
+      "sha256": "a7e152011b1ac4b8a24bc1b7162bbb0c23b6d89e801489ad0c9e3179aeb09875"
+    },
+    {
+      "path": "run/report/report.json",
+      "sha256": "dec27d369dd683069f0717daf47fb961417da696bbba4c1dab053badae395502"
+    },
+    {
+      "path": "run/report/roots.json",
+      "sha256": "699ad64804119235ff4253a5a061d19112df8dde31f788ab8d000ced7fd242f4"
+    },
+    {
+      "path": "run/summary.json",
+      "sha256": "270b916ff75d2bb76e6dfb9c9ba1a9fe64dee99d238357df547003dd131e7b97"
+    }
+  ]
+}

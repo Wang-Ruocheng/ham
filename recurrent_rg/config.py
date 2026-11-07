@@ -128,10 +128,10 @@ class ModelConfig:
             raise ValueError('Nonlinear decoder options require a nonlinear probability decoder')
         if self.q_encoder not in ('local_motif', 'configuration_cnn', 'ensemble_vae'):
             raise ValueError('Unknown Q encoder architecture')
-        if self.q_encoder == 'ensemble_vae' and (self.dimension != 2 or self.categorical_states != 4
+        if self.q_encoder == 'ensemble_vae' and (self.dimension != 2 or self.categorical_states not in (0, 4)
                 or self.affine_reconstruction or self.reconstruction_hidden
                 or self.theory_head != 'nonlinear'):
-            raise ValueError('Ensemble VAE currently requires 2D four-state fields and its own decoder')
+            raise ValueError('Ensemble VAE requires binary or four-state 2D fields and its own decoder')
         if self.q_encoder == 'configuration_cnn' and (self.dimension != 2 or self.categorical_states
                 or type(self.theory_dim) is not int or self.theory_dim < 1
                 or not self.affine_reconstruction or self.theory_head != 'nonlinear'):

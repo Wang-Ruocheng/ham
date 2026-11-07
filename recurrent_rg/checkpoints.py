@@ -51,7 +51,7 @@ def attach_distribution_decoder(model, config):
     if config.q_encoder == 'ensemble_vae':
         from .ensemble_vae import EnsembleVAEQ
         with torch.random.fork_rng(devices=[]):
-            model.theory_encoder = EnsembleVAEQ(config.theory_dim, config.categorical_states)
+            model.theory_encoder = EnsembleVAEQ(config.theory_dim, config.categorical_states or 2)
         return model
     if config.q_encoder == 'configuration_cnn':
         from .ising_cnn import IsingConfigurationCNN

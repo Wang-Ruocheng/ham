@@ -6,7 +6,8 @@ not a full-configuration likelihood. R always sees deterministic posterior means
 """
 import torch
 from torch import nn
-from .data.statistics import categorical_plaquette_distribution
+from .data.statistics import categorical_plaquette_distribution, plaquette_distribution
+from .probability_normalization import stable_log_softmax, stable_softmax
 
 
 class EnsembleVAEQ(nn.Module):
@@ -39,10 +40,21 @@ class EnsembleVAEQ(nn.Module):
         h = self.encoder((probabilities-self.center)/self.scale)
         return self.mean(h), self.logvar(h).clamp(-8,3)
 
-    def forward(self, configurations):
+    def decode_probabilities(self, latent):
+        return stable_softmax(self.distribution_decoder(latent))
+
+    def probabilities(self, configurations):
         # Counts are detached explicitly, including when called outside the
         # independent-gradient trainer. Q cannot optimize C through this path.
-        return self.encode(categorical_plaquette_distribution(configurations.detach()))[0]
+        x = configurations.detach()
+        if self.categorical_states == 2 and x.shape[-1] == 1:
+            return plaquette_distribution(x)
+        if x.shape[-1] != self.categorical_states:
+            raise ValueError('Field channels do not match the VAE motif alphabet')
+        return categorical_plaquette_distribution(x)
+
+    def forward(self, configurations):
+        return self.encode(self.probabilities(configurations))[0]
 
     @torch.no_grad()
     def calibrate(self, train_histograms):
@@ -71,12 +83,16 @@ class EnsembleVAEQ(nn.Module):
             epsilon = torch.randn(mu.shape,generator=gen,dtype=torch.double).to(mu)
         z = mu+(lv*.5).exp()*epsilon
         target = torch.cat([b,a])
-        ce = -(target*self.distribution_decoder(z).log_softmax(-1)).sum(-1).mean()
+        log_probabilities = stable_log_softmax(self.distribution_decoder(z))
+        ce = -(target*log_probabilities).sum(-1).mean()
         kl = .5*(mu.square()+lv.exp()-lv-1).sum(-1).mean()
         coefficient = self.kl_weight*min(int(self.objective_step)/self.warmup_steps,1.)
-        mse = (self.distribution_decoder(mu).softmax(-1)-target).square().sum(-1).mean()
+        decoded = self.decode_probabilities(mu)
+        mse = (decoded-target).square().sum(-1).mean()
         return ce+coefficient*kl, dict(vae_cross_entropy=ce,vae_KL=kl,
-            vae_effective_KL_weight=ce.new_tensor(coefficient),reconstruction_mse=mse)
+            vae_effective_KL_weight=ce.new_tensor(coefficient),reconstruction_mse=mse,
+            decoder_probability_sum_error=(decoded.detach().sum(-1)-1).abs().max(),
+            decoder_log_probability_sum_error=(log_probabilities.detach().exp().sum(-1)-1).abs().max())
 
 
 @torch.no_grad()
@@ -85,7 +101,7 @@ def calibrate_from_train(encoder, configurations, chunk_size=8):
     hist = []
     for start in range(0,len(configurations),chunk_size):
         x = configurations[start:start+chunk_size].to(encoder.center)
-        hist.append(categorical_plaquette_distribution(x))
+        hist.append(encoder.probabilities(x))
     encoder.calibrate(torch.cat(hist))
     return dict(physical_chains=len(configurations), fitting_split='TRAIN', scale=0,
                 std_floor=.001, decoder_bias_probability_floor=1e-6,
